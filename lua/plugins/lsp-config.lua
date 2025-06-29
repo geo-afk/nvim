@@ -20,23 +20,29 @@ return {
           require("lspconfig")[server_name].setup({ capabilities = capabilities })
         end,
       })
+
+      vim.diagnostic.config({
+        virtual_text = true,
+      })
     end,
   },
   {
     "neovim/nvim-lspconfig",
-    --[[ dependencies = { "saghen/blink.cmp" },
-    config = function()
-      local capabilities = require("blink.cmp").get_lsp_capabilities()
-      local lspconfig = require("lspconfig")
-      lspconfig.lua_ls.setup({ capabilities = capabilities })
-      lspconfig.gopls.setup({ capabilities = capabilities })
-      lspconfig.sqlls.setup({ capabilities = capabilities })
-      -- lspconfig.gofumpt.setup({ capabilities = capabilities })
 
+    --[[ dependencies = { "saghen/blink.cmp" },
+  config = function()
+    local capabilities = require("blink.cmp").get_lsp_capabilities()
+    local lspconfig = require("lspconfig")
+    lspconfig.lua_ls.setup({ capabilities = capabilities })
+    lspconfig.gopls.setup({ capabilities = capabilities })
+    lspconfig.sqlls.setup({ capabilities = capabilities })
+    -- lspconfig.gofumpt.setup({ capabilities = capabilities })
+  ]]
+
+    config = function()
       vim.keymap.set("n", "K", vim.lsp.buf.hover, {})
       vim.keymap.set("n", "gd", vim.lsp.buf.declaration, {})
       vim.keymap.set({ "n" }, "<leader>ca", vim.lsp.buf.code_action, {})
     end,
-    ]]
   },
 }

@@ -4,3 +4,5 @@
 --
 
 vim.opt.termguicolors = true
+
+vim.opt.wildignore:append({ "*/node_modules/*" })

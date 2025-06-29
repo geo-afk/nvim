@@ -1,6 +1,6 @@
 return {
   "folke/trouble.nvim",
-  cmd = "TroubleToggle",
+  cmd = "Trouble",
   opts = {
     use_diagnostic_signs = true,
     auto_preview = true,

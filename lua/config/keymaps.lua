@@ -4,6 +4,14 @@
 
 local opts = { noremap = true, silent = true }
 
+vim.o.updatetime = 250
+vim.cmd([[
+  autocmd CursorHold * lua vim.diagnostic.open_float(nil, { focusable = false })
+]])
+
+-- Select All
+vim.keymap.set("n", "<C-a>", "gg<S-v>G")
+
 -- save file
 vim.keymap.set("i", "<C-s>", "<cmd> w <CR>", opts)
 
@@ -22,6 +30,12 @@ vim.keymap.set("n", "]xs", ":close<CR>", opts)
 -- ~/.config/nvim/lua/config/keymaps.lua
 local Terminal = require("toggleterm.terminal").Terminal
 
+--
+--
+--
+--
+--
+--
 -- Create specific terminals for Angular commands
 local ng_terminal = Terminal:new({
   cmd = "ng ",
@@ -41,7 +55,7 @@ local ng_test_terminal = Terminal:new({
   close_on_exit = false,
 })
 
--- Keymaps
+-- Keymaps for Angular ClI tools
 vim.keymap.set("n", "<leader>ng", function()
   ng_terminal:toggle()
 end, { desc = "Angular CLI" })
@@ -54,6 +68,10 @@ vim.keymap.set("n", "<leader>nt", function()
   ng_test_terminal:toggle()
 end, { desc = "Angular Test" })
 
+--
+--
+--
+--
 -- Enhanced version that handles indentation better
 vim.keymap.set("n", "<A-Up>", function()
   if vim.fn.line(".") == 1 then
