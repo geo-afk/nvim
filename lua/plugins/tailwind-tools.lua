@@ -6,8 +6,6 @@ return {
     build = ":UpdateRemotePlugins",
     dependencies = {
       "nvim-treesitter/nvim-treesitter",
-      "nvim-telescope/telescope.nvim", -- optional, for Telescope integration
-      "neovim/nvim-lspconfig", -- optional, for automatic LSP setup
     },
     opts = {
       server = {

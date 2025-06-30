@@ -1,6 +1,16 @@
 return {
   {
     "williamboman/mason.nvim",
+    dependencies = {
+      "artemave/workspace-diagnostics.nvim",
+    },
+    opts = {
+      ts_ls = {
+        on_attach = function(client, bufnr)
+          require("workspace-diagnostics").populate_workspace_diagnostics(client, bufnr)
+        end,
+      },
+    },
     config = function()
       require("mason").setup()
     end,
@@ -41,7 +51,7 @@ return {
 
     config = function()
       vim.keymap.set("n", "K", vim.lsp.buf.hover, {})
-      vim.keymap.set("n", "gd", vim.lsp.buf.declaration, {})
+      vim.keymap.set("n", "gd", vim.lsp.buf.definition, {})
       vim.keymap.set({ "n" }, "<leader>ca", vim.lsp.buf.code_action, {})
     end,
   },
