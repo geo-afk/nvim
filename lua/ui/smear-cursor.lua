@@ -11,40 +11,4 @@ return {
       legacy_computing_symbols_support = false,
     },
   },
-  {
-    "echasnovski/mini.animate",
-    opts = {
-      cursor = {
-        enable = true,
-        -- Faster animation
-        timing = function(_, n)
-          return 50 / n
-        end,
-      },
-      scroll = {
-        enable = true,
-        timing = function(_, n)
-          return 50 / n
-        end,
-      },
-      resize = {
-        enable = true,
-        timing = function(_, n)
-          return 50 / n
-        end,
-      },
-      open = {
-        enable = true,
-        timing = function(_, n)
-          return 50 / n
-        end,
-      },
-      close = {
-        enable = true,
-        timing = function(_, n)
-          return 50 / n
-        end,
-      },
-    },
-  },
 }

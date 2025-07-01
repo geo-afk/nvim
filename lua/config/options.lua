@@ -6,3 +6,5 @@
 vim.opt.termguicolors = true
 
 vim.opt.wildignore:append({ "*/node_modules/*" })
+
+vim.o.scrolloff = 5 -- or even lower, like 3

@@ -1,7 +1,38 @@
 return {
   "stevearc/conform.nvim",
-  event = { "BufReadPre", "BufNewFile" },
+  event = { "BufReadPre", "BufNewFile" }, -- or "BufWritePre" for save-only loading
   opts = {
+    notify_on_error = true,
+    formatters = {
+      prettier = {
+        prepend_args = {
+          "--tab-width",
+          "2",
+          "--use-tabs",
+          "false",
+          "--semi",
+          "--single-quote",
+          "--quote-props",
+          "as-needed",
+          "--trailing-comma",
+          "es5",
+          "--bracket-spacing",
+          "--bracket-same-line",
+          "false",
+          "--arrow-parens",
+          "avoid",
+          "--html-whitespace-sensitivity",
+          "ignore",
+          "--end-of-line",
+          "lf",
+          "--embedded-language-formatting",
+          "auto",
+          "--single-attribute-per-line",
+          "false",
+        },
+        require_cwd = false, -- Set to false if you want Prettier to work without a config file
+      },
+    },
     formatters_by_ft = {
       lua = { "stylua" },
       python = { "black" },
@@ -13,21 +44,17 @@ return {
       html = { "prettier" },
       json = { "prettier" },
       markdown = { "prettier" },
-    },
-    formatters = {
-      prettier = {
-        require_cwd = true,
-      },
+      yaml = { "prettier" }, -- Optional: Add more filetypes as needed
     },
   },
   keys = {
     {
-      "<leader>f",
+      "<leader>cf",
       function()
         require("conform").format({ async = true, lsp_format = "fallback" })
       end,
       mode = { "n", "v" },
-      desc = "Format buffer or range",
+      desc = "Format code with Conform",
     },
   },
 }

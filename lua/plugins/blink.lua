@@ -21,6 +21,7 @@ return {
     keymap = {
       preset = "default",
       ["<Tab>"] = { "accept", "fallback" },
+      ["C-space"] = { "show", "fallback" },
     },
 
     appearance = {

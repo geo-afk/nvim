@@ -1,16 +1,6 @@
 return {
   {
     "williamboman/mason.nvim",
-    dependencies = {
-      "artemave/workspace-diagnostics.nvim",
-    },
-    opts = {
-      ts_ls = {
-        on_attach = function(client, bufnr)
-          require("workspace-diagnostics").populate_workspace_diagnostics(client, bufnr)
-        end,
-      },
-    },
     config = function()
       require("mason").setup()
     end,
@@ -22,7 +12,11 @@ return {
       local capabilities = require("blink.cmp").get_lsp_capabilities()
 
       require("mason-lspconfig").setup({
-        ensure_installed = { "lua_ls", "gopls", "sqlls" },
+        ensure_installed = {
+          "lua_ls",
+          "gopls",
+          "sqlls",
+        },
       })
 
       require("mason-lspconfig").setup_handlers({
@@ -38,17 +32,6 @@ return {
   },
   {
     "neovim/nvim-lspconfig",
-
-    --[[ dependencies = { "saghen/blink.cmp" },
-  config = function()
-    local capabilities = require("blink.cmp").get_lsp_capabilities()
-    local lspconfig = require("lspconfig")
-    lspconfig.lua_ls.setup({ capabilities = capabilities })
-    lspconfig.gopls.setup({ capabilities = capabilities })
-    lspconfig.sqlls.setup({ capabilities = capabilities })
-    -- lspconfig.gofumpt.setup({ capabilities = capabilities })
-  ]]
-
     config = function()
       vim.keymap.set("n", "K", vim.lsp.buf.hover, {})
       vim.keymap.set("n", "gd", vim.lsp.buf.definition, {})
