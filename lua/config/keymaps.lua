@@ -2,6 +2,26 @@
 -- Default keymaps that are always set: https://github.com/LazyVim/LazyVim/blob/main/lua/lazyvim/config/keymaps.lua
 -- Add any additional keymaps here
 
+vim.keymap.set("n", "<leader>rn", function()
+  return ":IncRename " .. vim.fn.expand("<cword>")
+end, { expr = true })
+
+local map = LazyVim.safe_keymap_set
+
+-- floating terminal
+map("n", "<leader>fT", function()
+  Snacks.terminal()
+end, { desc = "Terminal (cwd)" })
+map("n", "<leader>ft", function()
+  Snacks.terminal(nil, { cwd = LazyVim.root() })
+end, { desc = "Terminal (Root Dir)" })
+map("n", "<c-/>", function()
+  Snacks.terminal(nil, { cwd = LazyVim.root() })
+end, { desc = "Terminal (Root Dir)" })
+map("n", "<c-_>", function()
+  Snacks.terminal(nil, { cwd = LazyVim.root() })
+end, { desc = "which_key_ignore" })
+
 local opts = { noremap = true, silent = true }
 
 vim.o.updatetime = 250
