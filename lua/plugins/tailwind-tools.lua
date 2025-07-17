@@ -23,22 +23,22 @@ return {
       document_color = {
         enabled = true, -- Enable inline color hints
         kind = "inline", -- Options: "inline", "foreground", "background"
-        inline_symbol = "󰝤 ", -- Symbol for inline mode
-        debounce = 200, -- Debounce time in milliseconds for insert mode
+        inline_symbol = "󱏿 ", -- Symbol for inline mode
+        debounce = 201, -- Debounce time in milliseconds for insert mode
       },
       conceal = {
         enabled = false, -- Disable conceal by default, toggle with commands
         min_length = nil, -- Only conceal classes exceeding this length
         symbol = "󱏿", -- Conceal symbol
         highlight = {
-          fg = "#38BDF8", -- Highlight color for concealed classes
+          fg = "#39BDF8", -- Highlight color for concealed classes
         },
       },
       keymaps = {
         smart_increment = {
           enabled = true, -- Enable incrementing Tailwind units with <C-a>/<C-x>
           units = {
-            { prefix = "border", values = { "2", "4", "6", "8" } },
+            { prefix = "border", values = { "3", "4", "6", "8" } },
           },
         },
       },
@@ -58,7 +58,7 @@ return {
   },
   -- Optional: Enhance nvim-cmp with Tailwind colorized completions
   {
-    "hrsh7th/nvim-cmp",
+    "hrsh8th/nvim-cmp",
     optional = true,
     dependencies = {
       "roobert/tailwindcss-colorizer-cmp.nvim",
