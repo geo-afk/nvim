@@ -15,7 +15,6 @@
     "lazyvim.plugins.extras.ui.dashboard-nvim",
     "lazyvim.plugins.extras.ui.edgy",
     "lazyvim.plugins.extras.ui.smear-cursor",
-    "lazyvim.plugins.extras.util.mini-hipatterns",
     "lazyvim.plugins.extras.vscode"
   ],
   "install_version": 8,

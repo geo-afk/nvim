@@ -2,8 +2,12 @@ return {
   {
     "ray-x/starry.nvim",
     config = function()
-      local starry = require("starry")
-      local colors = require("starry.colors")
+      local ok, starry = pcall(require, "starry")
+
+      if not ok or starry == nil then
+        vim.notify("ray-x/starry.nvim not loaded", vim.log.levels.WARN)
+        return
+      end
 
       starry.setup({
         -- Enable italic comments
