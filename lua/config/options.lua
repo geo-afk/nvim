@@ -15,3 +15,11 @@ vim.opt.wildignore:append({ "*/node_modules/*" })
 
 vim.o.scrolloff = 5 -- or even lower, like 3
 vim.g.have_nerd_font = false
+
+
+vim.opt.shell = "nu"
+vim.opt.shellcmdflag = "-c"
+vim.opt.shellquote = ""
+vim.opt.shellxquote = ""
+
+vim.g.terminal_shell = "nu"

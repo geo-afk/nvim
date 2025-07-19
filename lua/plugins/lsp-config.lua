@@ -9,7 +9,8 @@ return {
     "williamboman/mason-lspconfig.nvim",
     dependencies = { "mason.nvim" },
     config = function()
-      local capabilities = require("blink.cmp").get_lsp_capabilities()
+      local original_capabilities = vim.lsp.protocol.make_client_capabilities()
+      local capabilities = require("blink.cmp").get_lsp_capabilities(original_capabilities)
 
       require("mason-lspconfig").setup({
         ensure_installed = {

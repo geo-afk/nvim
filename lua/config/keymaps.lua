@@ -4,7 +4,7 @@
 
 vim.keymap.set("n", "<leader>rn", function()
   return ":IncRename " .. vim.fn.expand("<cword>")
-end, { expr = true })
+end, { expr = true, desc = "IncRename" })
 
 local map = LazyVim.safe_keymap_set
 
@@ -12,12 +12,16 @@ local map = LazyVim.safe_keymap_set
 map("n", "<leader>fT", function()
   Snacks.terminal()
 end, { desc = "Terminal (cwd)" })
+---
 map("n", "<leader>ft", function()
   Snacks.terminal(nil, { cwd = LazyVim.root() })
 end, { desc = "Terminal (Root Dir)" })
+---
 map("n", "<c-/>", function()
   Snacks.terminal(nil, { cwd = LazyVim.root() })
 end, { desc = "Terminal (Root Dir)" })
+
+---
 map("n", "<c-_>", function()
   Snacks.terminal(nil, { cwd = LazyVim.root() })
 end, { desc = "which_key_ignore" })
@@ -40,54 +44,6 @@ vim.keymap.set("n", "<C-q>", "<cmd> q <CR>", opts)
 
 -- delete single character without copying it to the register
 vim.keymap.set("n", "x", '"_x', opts)
-
--- Navigate between splits
-vim.keymap.set("n", "[]", "<C-w>v", opts)
-vim.keymap.set("n", "]\\", "<C-w>s", opts)
-vim.keymap.set("n", "\\]", "<C-w>/", opts)
-vim.keymap.set("n", "]xs", ":close<CR>", opts)
-
--- ~/.config/nvim/lua/config/keymaps.lua
-local Terminal = require("toggleterm.terminal").Terminal
-
---
---
---
---
---
---
--- Create specific terminals for Angular commands
-local ng_terminal = Terminal:new({
-  cmd = "ng ",
-  direction = "horizontal",
-  close_on_exit = false,
-})
-
-local ng_serve_terminal = Terminal:new({
-  cmd = "ng serve",
-  direction = "horizontal",
-  close_on_exit = false,
-})
-
-local ng_test_terminal = Terminal:new({
-  cmd = "ng test",
-  direction = "horizontal",
-  close_on_exit = false,
-})
-
--- Keymaps for Angular ClI tools
-vim.keymap.set("n", "<leader>ng", function()
-  ng_terminal:toggle()
-end, { desc = "Angular CLI" })
-
-vim.keymap.set("n", "<leader>ns", function()
-  ng_serve_terminal:toggle()
-end, { desc = "Angular Serve" })
-
-vim.keymap.set("n", "<leader>nt", function()
-  ng_test_terminal:toggle()
-end, { desc = "Angular Test" })
-
 --
 --
 --

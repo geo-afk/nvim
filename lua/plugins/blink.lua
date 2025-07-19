@@ -1,8 +1,5 @@
 return {
   "saghen/blink.cmp",
-  dependencies = {
-    "bydlw98/blink-cmp-env",
-  },
   version = "1.*",
 
   opts = {
@@ -27,14 +24,54 @@ return {
     appearance = {
       -- 'mono' (default) for 'Nerd Font Mono' or 'normal' for 'Nerd Font'
       -- Adjusts spacing to ensure icons are aligned
+      use_nvim_cmp_as_default = true,
       nerd_font_variant = "mono",
-    },
+      kind_icons = {
+        Copilot = "",
+        Text = "󰉿",
+        Method = "󰊕",
+        Function = "󰊕",
+        Constructor = "󰒓",
 
+        Field = "󰜢",
+        Variable = "󰆦",
+        Property = "󰖷",
+
+        Class = "󱡠",
+        Interface = "󱡠",
+        Struct = "󱡠",
+        Module = "󰅩",
+
+        Unit = "󰪚",
+        Value = "󰦨",
+        Enum = "󰦨",
+        EnumMember = "󰦨",
+
+        Keyword = "󰻾",
+        Constant = "󰏿",
+
+        Snippet = "󱄽",
+        Color = "󰏘",
+        File = "󰈔",
+        Reference = "󰬲",
+        Folder = "󰉋",
+        Event = "󱐋",
+        Operator = "󰪚",
+        TypeParameter = "󰬛",
+      },
+    },
+    signature = {
+      enabled = true,
+    },
     -- (Default) Only show the documentation popup when manually triggered
     completion = {
+
       documentation = { auto_show = true },
       menu = {
+        ghost_text = { enabled = true },
+        border = "single",
         draw = {
+          columns = { { "kind_icon" }, { "label", gap = 1 } },
           components = {
             -- customize the drawing of kind icons
             kind_icon = {
@@ -74,17 +111,7 @@ return {
     -- elsewhere in your config, without redefining it, due to `opts_extend`
     sources = {
       default = { "lsp", "path", "snippets", "buffer" },
-      providers = {
-        env = {
-          name = "Env",
-          module = "blink-cmp-env",
-          opts = {
-            item_kind = require("blink.cmp.types").CompletionItemKind.Variable,
-            show_braces = false,
-            show_documentation_window = true,
-          },
-        },
-      },
+      providers = {},
     },
   },
   opts_extend = { "sources.default" },
