@@ -63,15 +63,21 @@ return {
     signature = {
       enabled = true,
     },
-    -- (Default) Only show the documentation popup when manually triggered
     completion = {
-
-      documentation = { auto_show = true },
+      documentation = {
+        auto_show = true,
+        window = {
+          border = "rounded", -- Options: "single", "double", "rounded", "solid", "shadow", or "none"
+        },
+        treesitter_highlighting = true,
+      },
       menu = {
         ghost_text = { enabled = true },
-        border = "single",
+        border = "rounded", -- Options: "single", "double", "rounded", "solid", "shadow", or "none"
         draw = {
-          columns = { { "kind_icon" }, { "label", gap = 1 } },
+
+          -- columns = { { "kind_icon" }, { "label", gap = 1 } },
+          columns = { { "label", "label_description", gap = 1 }, { "kind_icon", "kind" } },
           components = {
             -- customize the drawing of kind icons
             kind_icon = {
