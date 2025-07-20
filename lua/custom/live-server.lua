@@ -100,8 +100,8 @@ local function create_popup(content_lines)
 
   -- Set lines first, then make buffer non-modifiable
   vim.api.nvim_buf_set_lines(popup.bufnr, 0, -1, false, content_lines)
-  vim.api.nvim_buf_set_option(popup.bufnr, "buftype", "nofile")
-  vim.api.nvim_buf_set_option(popup.bufnr, "modifiable", false)
+  vim.bo[popup.bufnr].buftype = "nofile"
+  vim.bo[popup.bufnr].modifiable = false
 end
 
 local function update_popup(path, url)
@@ -125,7 +125,7 @@ local function show_persistent_notify(rel_path, port)
   end
 
   notify_buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_option(notify_buf, "buftype", "nofile")
+  vim.bo[notify_buf].buftype = "nofile"
 
   local lines = {
     "🚀 Live Server starting...",
@@ -133,7 +133,7 @@ local function show_persistent_notify(rel_path, port)
     "🌐 Port: " .. port,
   }
   vim.api.nvim_buf_set_lines(notify_buf, 0, -1, false, lines)
-  vim.api.nvim_buf_set_option(notify_buf, "modifiable", false)
+  vim.bo[notify_buf].modifiable = false
 
   local width = 0
   for _, line in ipairs(lines) do
@@ -152,8 +152,8 @@ local function show_persistent_notify(rel_path, port)
     zindex = 50,
   })
 
-  vim.api.nvim_win_set_option(notify_win, "winblend", 0)
-  vim.api.nvim_win_set_option(notify_win, "winhighlight", "Normal:Normal,FloatBorder:Normal")
+  vim.wo[notify_win].winblend = 0
+  vim.wo[notify_win].winhighlight = "Normal:Normal,FloatBorder:Normal"
 end
 
 local function close_persistent_notify()
