@@ -4,6 +4,19 @@
 
 local map = LazyVim.safe_keymap_set
 
+-- mouse users + nvimtree users!
+map({ "n", "v" }, "<RightMouse>", function()
+  require("menu.utils").delete_old_menus()
+
+  vim.cmd.exec('"normal! \\<RightMouse>"')
+
+  -- clicked buf
+  local buf = vim.api.nvim_win_get_buf(vim.fn.getmousepos().winid)
+  local options = vim.bo[buf].ft == "NvimTree" and "nvimtree" or "default"
+
+  require("menu").open(options, { mouse = true })
+end, {})
+
 map("n", "<leader>rn", function()
   return ":IncRename " .. vim.fn.expand("<cword>")
 end, { expr = true, desc = "IncRename" })
