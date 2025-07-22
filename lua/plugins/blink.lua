@@ -16,54 +16,37 @@ return {
     --
     -- See :h blink-cmp-config-keymap for defining your own keymap
     keymap = {
-      preset = "default",
+      -- preset = "default",
       ["<Tab>"] = { "accept", "fallback" },
-      ["C-space"] = { "show", "fallback" },
+      ["<C-space>"] = { "show", "fallback" },
+      ["<S-k>"] = { "scroll_documentation_up", "fallback" },
+      ["<S-j>"] = { "scroll_documentation_down", "fallback" },
+    },
+    snippets = {
+      preset = "luasnip",
+      expand = function(snippet)
+        require("luasnip").lsp_expand(snippet)
+      end,
+      active = function(filter)
+        if filter and filter.direction then
+          return require("luasnip").jumpable(filter.direction)
+        end
+        return require("luasnip").in_snippet()
+      end,
+      jump = function(direction)
+        require("luasnip").jump(direction)
+      end,
     },
 
-    appearance = {
-      -- 'mono' (default) for 'Nerd Font Mono' or 'normal' for 'Nerd Font'
-      -- Adjusts spacing to ensure icons are aligned
-      use_nvim_cmp_as_default = true,
-      nerd_font_variant = "mono",
-      kind_icons = {
-        Copilot = "",
-        Text = "󰉿",
-        Method = "󰊕",
-        Function = "󰊕",
-        Constructor = "󰒓",
-
-        Field = "󰜢",
-        Variable = "󰆦",
-        Property = "󰖷",
-
-        Class = "󱡠",
-        Interface = "󱡠",
-        Struct = "󱡠",
-        Module = "󰅩",
-
-        Unit = "󰪚",
-        Value = "󰦨",
-        Enum = "󰦨",
-        EnumMember = "󰦨",
-
-        Keyword = "󰻾",
-        Constant = "󰏿",
-
-        Snippet = "󱄽",
-        Color = "󰏘",
-        File = "󰈔",
-        Reference = "󰬲",
-        Folder = "󰉋",
-        Event = "󱐋",
-        Operator = "󰪚",
-        TypeParameter = "󰬛",
-      },
-    },
     signature = {
       enabled = true,
     },
     completion = {
+
+      ghost_text = {
+        enabled = false,
+        show_with_menu = false,
+      },
       documentation = {
         auto_show = true,
         window = {
@@ -72,7 +55,8 @@ return {
         treesitter_highlighting = true,
       },
       menu = {
-        ghost_text = { enabled = true },
+        -- ghost_text = { enabled = true },
+        --
         border = "rounded", -- Options: "single", "double", "rounded", "solid", "shadow", or "none"
         draw = {
 
@@ -116,8 +100,67 @@ return {
     -- Default list of enabled providers defined so that you can extend it
     -- elsewhere in your config, without redefining it, due to `opts_extend`
     sources = {
-      default = { "lsp", "path", "snippets", "buffer" },
-      providers = {},
+      default = { "lsp", "path", "snippets", "buffer", "dadbod" },
+      per_filetype = {
+        sql = { "dadbod" },
+        -- optionally inherit from the `default` sources
+        lua = { inherit_defaults = true, "lazydev" },
+      },
+      providers = {
+        dadbod = {
+          name = "Dadbod",
+          module = "vim_dadbod_completion.blink",
+        },
+      },
+    },
+
+    fuzzy = {
+      implementation = "prefer_rust_with_warning",
+      sorts = {
+        "exact", -- Sorts by exact match, case-sensitive
+        "score", -- Primary sort: by fuzzy matching score
+        "sort_text", -- Secondary sort: by sortText field if scores are equal
+        "label", -- Tertiary sort: by label if still tied
+      },
+    },
+  },
+  appearance = {
+    -- 'mono' (default) for 'Nerd Font Mono' or 'normal' for 'Nerd Font'
+    -- Adjusts spacing to ensure icons are aligned
+    use_nvim_cmp_as_default = true,
+    nerd_font_variant = "mono",
+    kind_icons = {
+      Copilot = "",
+      Text = "󰉿",
+      Method = "󰊕",
+      Function = "󰊕",
+      Constructor = "󰒓",
+
+      Field = "󰜢",
+      Variable = "󰆦",
+      Property = "󰖷",
+
+      Class = "󱡠",
+      Interface = "󱡠",
+      Struct = "󱡠",
+      Module = "󰅩",
+
+      Unit = "󰪚",
+      Value = "󰦨",
+      Enum = "󰦨",
+      EnumMember = "󰦨",
+
+      Keyword = "󰻾",
+      Constant = "󰏿",
+
+      Snippet = "󱄽",
+      Color = "󰏘",
+      File = "󰈔",
+      Reference = "󰬲",
+      Folder = "󰉋",
+      Event = "󱐋",
+      Operator = "󰪚",
+      TypeParameter = "󰬛",
     },
   },
   opts_extend = { "sources.default" },

@@ -20,4 +20,4 @@ vim.api.nvim_create_autocmd("FileType", {
   end,
 })
 
-require("custom.live-server").setup()
+-- require("custom.live-server").setup()

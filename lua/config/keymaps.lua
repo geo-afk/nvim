@@ -2,11 +2,13 @@
 -- Default keymaps that are always set: https://github.com/LazyVim/LazyVim/blob/main/lua/lazyvim/config/keymaps.lua
 -- Add any additional keymaps here
 
-vim.keymap.set("n", "<leader>rn", function()
+local map = LazyVim.safe_keymap_set
+
+map("n", "<leader>rn", function()
   return ":IncRename " .. vim.fn.expand("<cword>")
 end, { expr = true, desc = "IncRename" })
 
-local map = LazyVim.safe_keymap_set
+-- map("n", "<leader>x", "<cmd>.lua<CR>", { desc = "Execute the current line" })
 
 -- floating terminal
 map("n", "<leader>fT", function()
@@ -34,22 +36,20 @@ vim.cmd([[
 ]])
 
 -- Select All
-vim.keymap.set("n", "<C-a>", "gg<S-v>G")
+map("n", "<C-a>", "gg<S-v>G")
 
 -- save file
-vim.keymap.set("i", "<C-s>", "<cmd> w <CR>", opts)
+map("i", "<C-s>", "<cmd> w <CR>", opts)
 
 -- quite a file
-vim.keymap.set("n", "<C-q>", "<cmd> q <CR>", opts)
+map("n", "<C-q>", "<cmd> q <CR>", opts)
 
 -- delete single character without copying it to the register
-vim.keymap.set("n", "x", '"_x', opts)
---
---
+map("n", "x", '"_x', opts)
 --
 --
 -- Enhanced version that handles indentation better
-vim.keymap.set("n", "<A-Up>", function()
+map("n", "<A-Up>", function()
   if vim.fn.line(".") == 1 then
     return
   end
@@ -57,7 +57,7 @@ vim.keymap.set("n", "<A-Up>", function()
   vim.cmd("normal! ==")
 end, { desc = "Move line up", silent = true })
 
-vim.keymap.set("n", "<A-Down>", function()
+map("n", "<A-Down>", function()
   if vim.fn.line(".") == vim.fn.line("$") then
     return
   end
@@ -65,12 +65,35 @@ vim.keymap.set("n", "<A-Down>", function()
   vim.cmd("normal! ==")
 end, { desc = "Move line down", silent = true })
 
-vim.keymap.set("v", "<A-Up>", function()
+map("v", "<A-Up>", function()
   vim.cmd("'<,'>m '<-2")
   vim.cmd("normal! gv=gv")
 end, { desc = "Move selection up", silent = true })
 
-vim.keymap.set("v", "<A-Down>", function()
+map("v", "<A-Down>", function()
   vim.cmd("'<,'>m '>+1")
   vim.cmd("normal! gv=gv")
 end, { desc = "Move selection down", silent = true })
+
+--#----------------------------------#
+--
+--#        Live Server          #---
+--#----------------------------------#
+
+map("n", "<leader>U", "<cmd>LiveServerStart<CR>", {
+  noremap = true,
+  silent = true,
+  desc = "Start Live Server",
+})
+
+-- Paste image in the Explorer
+-- local paste = require("config.paste_image")
+-- vim.api.nvim_create_user_command("PasteImage", paste.paste_clipboard_image, {})
+-- map("n", "<leader>pi", "<cmd>PasteImage<CR>", { desc = "Paste clipboard image" })
+--
+map("n", "<leader>p", function()
+  require("config.paste_image").paste_clipboard_image()
+end, { desc = "Paste clipboard image" })
+
+map("n", "<leader>db", "<cmd>DBUI<CR>", { desc = "Open DB UI" })
+map("n", "<leader>dr", "<cmd>DB<CR>", { desc = "Run SQL Query" })
