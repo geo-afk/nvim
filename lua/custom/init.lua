@@ -10,106 +10,226 @@ local defaults = {
     width = 60,
     position = "50%",
   },
+  auto_install = true,
+  open_browser = false,
+  file_patterns = { "**/*.html", "**/*.css", "**/*.js", "**/*.json" },
 }
 
-local config = {}
-local job_id = nil
-local popup = nil
-local server_port = nil
-local server_url = nil
-local browser_sync_checked = false
-local notify_win = nil
-local notify_buf = nil
+-- State management
+local state = {
+  config = {},
+  job_id = nil,
+  popup = nil,
+  server_port = nil,
+  server_url = nil,
+  browser_sync_available = nil, -- nil = unchecked, true/false = checked
+  notify_win = nil,
+  notify_buf = nil,
+  project_root = nil,
+}
 
--- Get directory of the currently open file or fall back to project root
-local function get_project_root()
-  local current_file = vim.fn.expand("%:p")
-  if current_file and current_file ~= "" then
-    return vim.fn.fnamemodify(current_file, ":h")
-  end
-  local git_root = vim.fn.systemlist("git rev-parse --show-toplevel")[1]
-  if vim.v.shell_error == 0 and git_root then
-    return git_root
-  end
-  return vim.fn.getcwd()
+-- Utility functions
+local function log_error(msg)
+  vim.schedule(function()
+    vim.notify("Live Server: " .. msg, vim.log.levels.ERROR)
+  end)
 end
 
--- Async browser-sync check
+local function log_info(msg)
+  vim.schedule(function()
+    vim.notify(msg, vim.log.levels.INFO)
+  end)
+end
+
+local function log_warn(msg)
+  vim.schedule(function()
+    vim.notify(msg, vim.log.levels.WARN)
+  end)
+end
+
+-- Get project root with better error handling and caching
+local function get_project_root()
+  if state.project_root then
+    return state.project_root
+  end
+
+  -- Try current file directory first
+  local current_file = vim.fn.expand("%:p")
+  if current_file and current_file ~= "" and vim.fn.filereadable(current_file) == 1 then
+    local dir = vim.fn.fnamemodify(current_file, ":h")
+    if vim.fn.isdirectory(dir) == 1 then
+      state.project_root = dir
+      return dir
+    end
+  end
+
+  -- Try git root
+  local git_cmd = vim.fn.systemlist("git rev-parse --show-toplevel 2>/dev/null")
+  if vim.v.shell_error == 0 and git_cmd[1] and vim.fn.isdirectory(git_cmd[1]) == 1 then
+    state.project_root = git_cmd[1]
+    return git_cmd[1]
+  end
+
+  -- Fall back to current working directory
+  local cwd = vim.fn.getcwd()
+  state.project_root = cwd
+  return cwd
+end
+
+-- Enhanced browser-sync check with better error handling
 local function check_browser_sync(callback)
-  if browser_sync_checked then
-    callback(true)
+  if state.browser_sync_available ~= nil then
+    callback(state.browser_sync_available)
     return
   end
 
-  local check_job = vim.fn.jobstart({ "npm", "list", "-g", "browser-sync" }, {
+  -- Check if browser-sync is available
+  local check_job = vim.fn.jobstart({ "which", "browser-sync" }, {
+    stdout_buffered = true,
+    stderr_buffered = true,
     on_exit = function(_, code)
       if code == 0 then
-        browser_sync_checked = true
+        state.browser_sync_available = true
         callback(true)
-      else
-        vim.notify("⚠️ Installing browser-sync...", vim.log.levels.INFO)
-        local install_job = vim.fn.jobstart({ "npm", "install", "-g", "browser-sync" }, {
-          on_exit = function(_, install_code)
-            if install_code == 0 then
-              browser_sync_checked = true
-              vim.notify("✅ browser-sync installed!", vim.log.levels.INFO)
-              callback(true)
-            else
-              vim.notify("❌ Failed to install browser-sync.", vim.log.levels.ERROR)
-              callback(false)
-            end
-          end,
-        })
+        return
+      end
+
+      -- Try npm list check as fallback
+      local npm_check = vim.fn.jobstart({ "npm", "list", "-g", "browser-sync" }, {
+        stdout_buffered = true,
+        stderr_buffered = true,
+        on_exit = function(_, npm_code)
+          if npm_code == 0 then
+            state.browser_sync_available = true
+            callback(true)
+            return
+          end
+
+          if not state.config.auto_install then
+            state.browser_sync_available = false
+            log_error("browser-sync not found. Install with: npm install -g browser-sync")
+            callback(false)
+            return
+          end
+
+          log_info("⚠️ Installing browser-sync globally...")
+          local install_job = vim.fn.jobstart({ "npm", "install", "-g", "browser-sync" }, {
+            stdout_buffered = true,
+            stderr_buffered = true,
+            on_exit = function(_, install_code)
+              if install_code == 0 then
+                state.browser_sync_available = true
+                log_info("✅ browser-sync installed successfully!")
+                callback(true)
+              else
+                state.browser_sync_available = false
+                log_error("Failed to install browser-sync. Please install manually.")
+                callback(false)
+              end
+            end,
+          })
+
+          if install_job <= 0 then
+            state.browser_sync_available = false
+            log_error("Failed to start browser-sync installation")
+            callback(false)
+          end
+        end,
+      })
+
+      if npm_check <= 0 then
+        state.browser_sync_available = false
+        log_error("Failed to check for browser-sync")
+        callback(false)
       end
     end,
   })
+
+  if check_job <= 0 then
+    state.browser_sync_available = false
+    log_error("Failed to check for browser-sync")
+    callback(false)
+  end
 end
 
+-- Improved popup creation with better error handling
 local function create_popup(content_lines)
-  if popup then
-    popup:unmount()
+  if not content_lines or #content_lines == 0 then
+    return
   end
 
-  popup = Popup({
-    enter = false,
-    focusable = false,
-    zindex = 50,
-    border = {
-      style = config.popup.border_style,
-      text = {
-        top = " Live Server ",
-        top_align = "center",
-      },
-    },
-    position = config.popup.position,
-    size = {
-      width = config.popup.width,
-      height = #content_lines + 2,
-    },
-    win_options = {
-      winhighlight = "Normal:Normal,FloatBorder:Normal",
-    },
-  })
+  -- Clean up existing popup
+  if state.popup then
+    pcall(function()
+      state.popup:unmount()
+    end)
+    state.popup = nil
+  end
 
-  popup:mount()
+  local success, popup = pcall(function()
+    return Popup({
+      enter = false,
+      focusable = false,
+      zindex = 50,
+      border = {
+        style = state.config.popup.border_style,
+        text = {
+          top = " Live Server ",
+          top_align = "center",
+        },
+      },
+      position = state.config.popup.position,
+      size = {
+        width = state.config.popup.width,
+        height = math.max(#content_lines + 2, 5),
+      },
+      win_options = {
+        winhighlight = "Normal:Normal,FloatBorder:Normal",
+      },
+    })
+  end)
+
+  if not success then
+    log_error("Failed to create popup")
+    return
+  end
+
+  state.popup = popup
+
+  local mount_success = pcall(function()
+    popup:mount()
+  end)
+
+  if not mount_success then
+    log_error("Failed to mount popup")
+    state.popup = nil
+    return
+  end
+
+  -- Set up event handlers
   popup:on(event.BufLeave, function() end, { once = false })
   popup:map("n", "q", function()
-    popup:unmount()
-    popup = nil
+    pcall(function()
+      popup:unmount()
+    end)
+    state.popup = nil
   end, { noremap = true, silent = true })
 
-  -- Set lines first, then make buffer non-modifiable
-  vim.api.nvim_buf_set_lines(popup.bufnr, 0, -1, false, content_lines)
-  vim.bo[popup.bufnr].buftype = "nofile"
-  vim.bo[popup.bufnr].modifiable = false
+  -- Set buffer content safely
+  pcall(function()
+    vim.api.nvim_buf_set_lines(popup.bufnr, 0, -1, false, content_lines)
+    vim.bo[popup.bufnr].buftype = "nofile"
+    vim.bo[popup.bufnr].modifiable = false
+    vim.bo[popup.bufnr].swapfile = false
+  end)
 end
 
 local function update_popup(path, url)
   local lines = {
     "🚀 Live Server Running",
     "",
-    "📂 " .. path,
-    "🌐 " .. url,
+    "📂 " .. (path or "Unknown path"),
+    "🌐 " .. (url or "Unknown URL"),
     "",
     "🛑 Run :LiveServerStop to close server",
     "🔒 Press 'q' to close this window",
@@ -117,30 +237,43 @@ local function update_popup(path, url)
   create_popup(lines)
 end
 
+-- Improved notification system
 local function show_persistent_notify(rel_path, port)
-  if notify_win then
-    vim.api.nvim_win_close(notify_win, true)
-    notify_win = nil
-    notify_buf = nil
+  -- Clean up existing notification
+  if state.notify_win and vim.api.nvim_win_is_valid(state.notify_win) then
+    pcall(function()
+      vim.api.nvim_win_close(state.notify_win, true)
+    end)
+  end
+  state.notify_win = nil
+  state.notify_buf = nil
+
+  local success, buf = pcall(vim.api.nvim_create_buf, false, true)
+  if not success then
+    return
   end
 
-  notify_buf = vim.api.nvim_create_buf(false, true)
-  vim.bo[notify_buf].buftype = "nofile"
+  state.notify_buf = buf
+  vim.bo[buf].buftype = "nofile"
+  vim.bo[buf].swapfile = false
 
   local lines = {
     "🚀 Live Server starting...",
-    "📂 " .. rel_path,
-    "🌐 Port: " .. port,
+    "📂 " .. (rel_path or "Unknown path"),
+    "🌐 Port: " .. tostring(port),
   }
-  vim.api.nvim_buf_set_lines(notify_buf, 0, -1, false, lines)
-  vim.bo[notify_buf].modifiable = false
+
+  pcall(function()
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+    vim.bo[buf].modifiable = false
+  end)
 
   local width = 0
   for _, line in ipairs(lines) do
-    width = math.max(width, #line)
+    width = math.max(width, vim.fn.strdisplaywidth(line))
   end
 
-  notify_win = vim.api.nvim_open_win(notify_buf, false, {
+  local win_success, win = pcall(vim.api.nvim_open_win, buf, false, {
     relative = "editor",
     anchor = "NE",
     row = 1,
@@ -152,30 +285,69 @@ local function show_persistent_notify(rel_path, port)
     zindex = 50,
   })
 
-  vim.wo[notify_win].winblend = 0
-  vim.wo[notify_win].winhighlight = "Normal:Normal,FloatBorder:Normal"
-end
-
-local function close_persistent_notify()
-  if notify_win then
-    vim.api.nvim_win_close(notify_win, true)
-    notify_win = nil
-    notify_buf = nil
+  if win_success then
+    state.notify_win = win
+    pcall(function()
+      vim.wo[win].winblend = 0
+      vim.wo[win].winhighlight = "Normal:Normal,FloatBorder:Normal"
+    end)
   end
 end
 
+local function close_persistent_notify()
+  if state.notify_win and vim.api.nvim_win_is_valid(state.notify_win) then
+    pcall(function()
+      vim.api.nvim_win_close(state.notify_win, true)
+    end)
+  end
+  state.notify_win = nil
+  state.notify_buf = nil
+end
+
+-- Enhanced statusline function
 function M.statusline()
-  if job_id and server_port then
-    return string.format("%%#StatusLineLiveServer# Live:%d%%*", server_port)
+  if state.job_id and state.server_port then
+    return string.format("%%#StatusLineLiveServer# Live:%d%%*", state.server_port)
   end
   return ""
 end
 
-local function start_server(port)
-  local cwd = get_project_root()
-  local rel_path = vim.fn.fnamemodify(cwd, ":~:.")
+-- Find available port
+local function find_available_port(start_port)
+  for port = start_port, start_port + 100 do
+    local handle = io.popen("netstat -an 2>/dev/null | grep :" .. port .. " || ss -ln 2>/dev/null | grep :" .. port)
+    if handle then
+      local result = handle:read("*a")
+      handle:close()
+      if result == "" then
+        return port
+      end
+    end
+  end
+  return start_port -- fallback
+end
 
-  show_persistent_notify(rel_path, port)
+-- Enhanced server start function
+local function start_server(port)
+  if state.job_id then
+    log_warn("Live Server is already running on port " .. tostring(state.server_port))
+    return
+  end
+
+  local cwd = get_project_root()
+  if not cwd or vim.fn.isdirectory(cwd) ~= 1 then
+    log_error("Invalid project directory: " .. tostring(cwd))
+    return
+  end
+
+  -- Find available port
+  local available_port = find_available_port(port)
+  if available_port ~= port then
+    log_info("Port " .. port .. " is busy, using port " .. available_port)
+  end
+
+  local rel_path = vim.fn.fnamemodify(cwd, ":~:.")
+  show_persistent_notify(rel_path, available_port)
 
   check_browser_sync(function(success)
     if not success then
@@ -183,122 +355,211 @@ local function start_server(port)
       return
     end
 
-    server_port = port
+    state.server_port = available_port
 
-    job_id = vim.fn.jobstart({
+    -- Build file patterns
+    local file_patterns = table.concat(state.config.file_patterns, ",")
+
+    local cmd = {
       "browser-sync",
       "start",
       "--server",
       cwd,
       "--port",
-      tostring(port),
+      tostring(available_port),
       "--files",
-      cwd .. "/**/*",
+      file_patterns,
       "--no-open",
-    }, {
+      "--no-notify",
+      "--no-ghost-mode",
+    }
+
+    if state.config.open_browser then
+      table.remove(cmd, #cmd) -- remove --no-open
+    end
+
+    state.job_id = vim.fn.jobstart(cmd, {
       cwd = cwd,
-      pty = true,
+      stdout_buffered = false,
+      stderr_buffered = false,
       on_stdout = function(_, data)
+        if not data then
+          return
+        end
         for _, line in ipairs(data) do
           if line and line:match("Local:") then
-            server_url = line:match("Local:%s+(http://[%w%p]+)")
-            if server_url then
+            local url = line:match("Local:%s+(http://[%w%p:]+)")
+            if url then
+              state.server_url = url
               vim.schedule(function()
                 close_persistent_notify()
-                update_popup(rel_path, server_url)
+                update_popup(rel_path, url)
+                log_info("🚀 Live Server started at " .. url)
               end)
             end
           end
         end
       end,
       on_stderr = function(_, data)
+        if not data then
+          return
+        end
         for _, line in ipairs(data) do
-          if line and line ~= "" then
+          if line and line ~= "" and not line:match("Browsersync") then
             vim.schedule(function()
-              vim.notify("Live Server Error: " .. line, vim.log.levels.ERROR)
+              vim.notify("Live Server: " .. line, vim.log.levels.WARN)
             end)
           end
         end
       end,
-      on_exit = function()
+      on_exit = function(_, exit_code)
         vim.schedule(function()
-          vim.notify("🛑 Live Server stopped.", vim.log.levels.INFO)
-          close_persistent_notify()
-          if popup then
-            popup:unmount()
-            popup = nil
+          if exit_code == 0 then
+            log_info("🛑 Live Server stopped")
+          else
+            log_error("Live Server exited with code " .. tostring(exit_code))
           end
-          job_id = nil
-          server_port = nil
-          server_url = nil
+          close_persistent_notify()
+          if state.popup then
+            pcall(function()
+              state.popup:unmount()
+            end)
+            state.popup = nil
+          end
+          state.job_id = nil
+          state.server_port = nil
+          state.server_url = nil
+          state.project_root = nil -- Reset cache
         end)
       end,
     })
 
-    if job_id <= 0 then
-      vim.notify("❌ Failed to start Live Server.", vim.log.levels.ERROR)
+    if not state.job_id or state.job_id <= 0 then
+      log_error("Failed to start Live Server")
       close_persistent_notify()
+      state.job_id = nil
+      state.server_port = nil
       return
     end
   end)
 end
 
-function M.setup(user_config)
-  config = vim.tbl_deep_extend("force", defaults, user_config or {})
+-- Enhanced stop function
+local function stop_server()
+  if not state.job_id then
+    log_warn("No Live Server is currently running")
+    return
+  end
 
+  local success = pcall(vim.fn.jobstop, state.job_id)
+  if not success then
+    log_error("Failed to stop Live Server")
+    return
+  end
+
+  close_persistent_notify()
+  if state.popup then
+    pcall(function()
+      state.popup:unmount()
+    end)
+    state.popup = nil
+  end
+
+  -- Reset state
+  state.job_id = nil
+  state.server_port = nil
+  state.server_url = nil
+  state.project_root = nil
+end
+
+-- Setup function with better validation
+function M.setup(user_config)
+  state.config = vim.tbl_deep_extend("force", defaults, user_config or {})
+
+  -- Validate config
+  if
+    type(state.config.default_port) ~= "number"
+    or state.config.default_port < 1
+    or state.config.default_port > 65535
+  then
+    state.config.default_port = defaults.default_port
+    log_warn("Invalid default_port, using " .. defaults.default_port)
+  end
+
+  -- Create user commands
   vim.api.nvim_create_user_command("LiveServerStart", function(opts)
-    if job_id then
-      vim.notify("⚠️ Live Server is already running.", vim.log.levels.WARN)
+    local port = tonumber(opts.args) or state.config.default_port
+    if port < 1 or port > 65535 then
+      log_error("Invalid port number: " .. tostring(port))
+      return
+    end
+    start_server(port)
+  end, {
+    nargs = "?",
+    desc = "Start the live server on specified port (default: " .. state.config.default_port .. ")",
+  })
+
+  vim.api.nvim_create_user_command("LiveServerStop", function()
+    stop_server()
+  end, { desc = "Stop the live server" })
+
+  vim.api.nvim_create_user_command("LiveServerRestart", function(opts)
+    local port = tonumber(opts.args) or (state.server_port or state.config.default_port)
+    if port < 1 or port > 65535 then
+      log_error("Invalid port number: " .. tostring(port))
       return
     end
 
-    local port = tonumber(opts.args) or config.default_port
-    start_server(port)
-  end, { nargs = "?" })
-
-  vim.api.nvim_create_user_command("LiveServerStop", function()
-    if job_id then
-      vim.fn.jobstop(job_id)
-      close_persistent_notify()
-      if popup then
-        popup:unmount()
-        popup = nil
-      end
-      vim.notify("🛑 Live Server stopped.", vim.log.levels.INFO)
+    if state.job_id then
+      log_info("♻️ Restarting Live Server...")
+      stop_server()
+      -- Small delay to ensure cleanup
+      vim.defer_fn(function()
+        start_server(port)
+      end, 100)
     else
-      vim.notify("⚠️ No Live Server running.", vim.log.levels.WARN)
+      start_server(port)
     end
-  end, {})
+  end, {
+    nargs = "?",
+    desc = "Restart the live server on specified port",
+  })
 
-  vim.api.nvim_create_user_command("LiveServerRestart", function(opts)
-    local port = tonumber(opts.args) or (server_port or config.default_port)
-    if job_id then
-      vim.fn.jobstop(job_id)
-      close_persistent_notify()
-      if popup then
-        popup:unmount()
-        popup = nil
-      end
-      vim.notify("♻️ Restarting Live Server...", vim.log.levels.INFO)
-    end
-    start_server(port)
-  end, { nargs = "?" })
-
+  -- Auto-cleanup on Vim exit
   vim.api.nvim_create_autocmd("VimLeavePre", {
+    group = vim.api.nvim_create_augroup("LiveServerCleanup", { clear = true }),
     callback = function()
-      if job_id then
-        vim.fn.jobstop(job_id)
+      if state.job_id then
+        pcall(vim.fn.jobstop, state.job_id)
       end
       close_persistent_notify()
-      if popup then
-        popup:unmount()
-        popup = nil
+      if state.popup then
+        pcall(function()
+          state.popup:unmount()
+        end)
       end
     end,
   })
 
-  vim.api.nvim_set_hl(0, "StatusLineLiveServer", { fg = "#50fa7b", bg = "#282828" })
-  vim.o.statusline = vim.o.statusline .. "%{%v:lua.require('custom.live-server').statusline()%}"
+  -- Set up highlighting
+  vim.api.nvim_set_hl(0, "StatusLineLiveServer", {
+    fg = "#50fa7b",
+    bg = vim.o.background == "dark" and "#282828" or "#f8fbf8",
+    bold = true,
+  })
+end
+
+-- Public API
+function M.is_running()
+  return state.job_id ~= nil
+end
+
+function M.get_server_url()
+  return state.server_url
+end
+
+function M.get_server_port()
+  return state.server_port
 end
 
 return M

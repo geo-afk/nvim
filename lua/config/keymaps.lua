@@ -4,19 +4,6 @@
 
 local map = LazyVim.safe_keymap_set
 
--- mouse users + nvimtree users!
-map({ "n", "v" }, "<RightMouse>", function()
-  require("menu.utils").delete_old_menus()
-
-  vim.cmd.exec('"normal! \\<RightMouse>"')
-
-  -- clicked buf
-  local buf = vim.api.nvim_win_get_buf(vim.fn.getmousepos().winid)
-  local options = vim.bo[buf].ft == "NvimTree" and "nvimtree" or "default"
-
-  require("menu").open(options, { mouse = true })
-end, {})
-
 map("n", "<leader>rn", function()
   return ":IncRename " .. vim.fn.expand("<cword>")
 end, { expr = true, desc = "IncRename" })
@@ -98,15 +85,6 @@ map("n", "<leader>U", "<cmd>LiveServerStart<CR>", {
   silent = true,
   desc = "Start Live Server",
 })
-
--- Paste image in the Explorer
--- local paste = require("config.paste_image")
--- vim.api.nvim_create_user_command("PasteImage", paste.paste_clipboard_image, {})
--- map("n", "<leader>pi", "<cmd>PasteImage<CR>", { desc = "Paste clipboard image" })
---
-map("n", "<leader>p", function()
-  require("config.paste_image").paste_clipboard_image()
-end, { desc = "Paste clipboard image" })
 
 map("n", "<leader>db", "<cmd>DBUI<CR>", { desc = "Open DB UI" })
 map("n", "<leader>dr", "<cmd>DB<CR>", { desc = "Run SQL Query" })
