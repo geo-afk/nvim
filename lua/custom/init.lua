@@ -1,15 +1,9 @@
-local Popup = require("nui.popup")
 local event = require("nui.utils.autocmd").event
 
 local M = {}
 
 local defaults = {
   default_port = 3000,
-  popup = {
-    border_style = "rounded",
-    width = 60,
-    position = "50%",
-  },
   auto_install = true,
   open_browser = false,
   file_patterns = { "**/*.html", "**/*.css", "**/*.js", "**/*.json" },
@@ -19,7 +13,6 @@ local defaults = {
 local state = {
   config = {},
   job_id = nil,
-  popup = nil,
   server_port = nil,
   server_url = nil,
   browser_sync_available = nil, -- nil = unchecked, true/false = checked
@@ -84,7 +77,8 @@ local function check_browser_sync(callback)
   end
 
   -- Check if browser-sync is available
-  local check_job = vim.fn.jobstart({ "which", "browser-sync" }, {
+  local which_cmd = vim.loop.os_uname().sysname == "Windows_NT" and "where" or "which"
+  local check_job = vim.fn.jobstart({ which_cmd, "browser-sync" }, {
     stdout_buffered = true,
     stderr_buffered = true,
     on_exit = function(_, code)
@@ -152,120 +146,41 @@ local function check_browser_sync(callback)
   end
 end
 
--- Improved popup creation with better error handling
-local function create_popup(content_lines)
-  if not content_lines or #content_lines == 0 then
-    return
-  end
-
-  -- Clean up existing popup
-  if state.popup then
-    pcall(function()
-      state.popup:unmount()
-    end)
-    state.popup = nil
-  end
-
-  local success, popup = pcall(function()
-    return Popup({
-      enter = false,
-      focusable = false,
-      zindex = 50,
-      border = {
-        style = state.config.popup.border_style,
-        text = {
-          top = " Live Server ",
-          top_align = "center",
-        },
-      },
-      position = state.config.popup.position,
-      size = {
-        width = state.config.popup.width,
-        height = math.max(#content_lines + 2, 5),
-      },
-      win_options = {
-        winhighlight = "Normal:Normal,FloatBorder:Normal",
-      },
-    })
-  end)
-
-  if not success then
-    log_error("Failed to create popup")
-    return
-  end
-
-  state.popup = popup
-
-  local mount_success = pcall(function()
-    popup:mount()
-  end)
-
-  if not mount_success then
-    log_error("Failed to mount popup")
-    state.popup = nil
-    return
-  end
-
-  -- Set up event handlers
-  popup:on(event.BufLeave, function() end, { once = false })
-  popup:map("n", "q", function()
-    pcall(function()
-      popup:unmount()
-    end)
-    state.popup = nil
-  end, { noremap = true, silent = true })
-
-  -- Set buffer content safely
-  pcall(function()
-    vim.api.nvim_buf_set_lines(popup.bufnr, 0, -1, false, content_lines)
-    vim.bo[popup.bufnr].buftype = "nofile"
-    vim.bo[popup.bufnr].modifiable = false
-    vim.bo[popup.bufnr].swapfile = false
-  end)
-end
-
-local function update_popup(path, url)
-  local lines = {
-    "🚀 Live Server Running",
-    "",
-    "📂 " .. (path or "Unknown path"),
-    "🌐 " .. (url or "Unknown URL"),
-    "",
-    "🛑 Run :LiveServerStop to close server",
-    "🔒 Press 'q' to close this window",
-  }
-  create_popup(lines)
-end
-
--- Improved notification system
-local function show_persistent_notify(rel_path, port)
+-- Enhanced notification system
+local function show_persistent_notify(rel_path, port, url)
   -- Clean up existing notification
   if state.notify_win and vim.api.nvim_win_is_valid(state.notify_win) then
     pcall(function()
-      vim.api.nvim_win_close(state.notify_win, true)
+      vim.api.nvim_buf_set_option(state.notify_buf, "modifiable", true)
     end)
+  else
+    -- Create new buffer if none exists
+    local success, buf = pcall(vim.api.nvim_create_buf, false, true)
+    if not success then
+      log_error("Failed to create notification buffer")
+      return
+    end
+    state.notify_buf = buf
+    vim.bo[buf].buftype = "nofile"
+    vim.bo[buf].swapfile = false
   end
-  state.notify_win = nil
-  state.notify_buf = nil
 
-  local success, buf = pcall(vim.api.nvim_create_buf, false, true)
-  if not success then
-    return
-  end
-
-  state.notify_buf = buf
-  vim.bo[buf].buftype = "nofile"
-  vim.bo[buf].swapfile = false
-
-  local lines = {
-    "🚀 Live Server starting...",
-    "📂 " .. (rel_path or "Unknown path"),
-    "🌐 Port: " .. tostring(port),
-  }
+  -- Update content
+  local lines = url
+      and {
+        "🚀 Live Server Running",
+        "📂 " .. (rel_path or "Unknown path"),
+        "🌐 " .. (url or "Unknown URL"),
+      }
+    or {
+      "🚀 Live Server starting...",
+      "📂 " .. (rel_path or "Unknown path"),
+      "🌐 Port: " .. tostring(port),
+    }
 
   pcall(function()
-    vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-    vim.bo[buf].modifiable = false
+    vim.api.nvim_buf_set_lines(state.notify_buf, 0, -1, false, lines)
+    vim.bo[state.notify_buf].modifiable = false
   end)
 
   local width = 0
@@ -273,23 +188,44 @@ local function show_persistent_notify(rel_path, port)
     width = math.max(width, vim.fn.strdisplaywidth(line))
   end
 
-  local win_success, win = pcall(vim.api.nvim_open_win, buf, false, {
-    relative = "editor",
-    anchor = "NE",
-    row = 1,
-    col = vim.o.columns - 1,
-    width = width + 2,
-    height = #lines,
-    style = "minimal",
-    border = "single",
-    zindex = 50,
-  })
+  -- Create or update window
+  if not state.notify_win or not vim.api.nvim_win_is_valid(state.notify_win) then
+    local win_success, win = pcall(vim.api.nvim_open_win, state.notify_buf, false, {
+      relative = "editor",
+      anchor = "NE",
+      row = 1,
+      col = vim.o.columns - 1,
+      width = width + 2,
+      height = #lines,
+      style = "minimal",
+      border = "single",
+      zindex = 50,
+    })
 
-  if win_success then
+    if not win_success then
+      log_error("Failed to create notification window")
+      return
+    end
+
     state.notify_win = win
     pcall(function()
       vim.wo[win].winblend = 0
       vim.wo[win].winhighlight = "Normal:Normal,FloatBorder:Normal"
+    end)
+  else
+    -- Update window size if needed
+    pcall(function()
+      vim.api.nvim_win_set_config(state.notify_win, {
+        relative = "editor",
+        anchor = "NE",
+        row = 1,
+        col = vim.o.columns - 1,
+        width = width + 2,
+        height = #lines,
+        style = "minimal",
+        border = "single",
+        zindex = 50,
+      })
     end)
   end
 end
@@ -347,7 +283,7 @@ local function start_server(port)
   end
 
   local rel_path = vim.fn.fnamemodify(cwd, ":~:.")
-  show_persistent_notify(rel_path, available_port)
+  show_persistent_notify(rel_path, available_port, nil)
 
   check_browser_sync(function(success)
     if not success then
@@ -392,8 +328,7 @@ local function start_server(port)
             if url then
               state.server_url = url
               vim.schedule(function()
-                close_persistent_notify()
-                update_popup(rel_path, url)
+                show_persistent_notify(rel_path, available_port, url)
                 log_info("🚀 Live Server started at " .. url)
               end)
             end
@@ -420,16 +355,10 @@ local function start_server(port)
             log_error("Live Server exited with code " .. tostring(exit_code))
           end
           close_persistent_notify()
-          if state.popup then
-            pcall(function()
-              state.popup:unmount()
-            end)
-            state.popup = nil
-          end
           state.job_id = nil
           state.server_port = nil
           state.server_url = nil
-          state.project_root = nil -- Reset cache
+          state.project_root = nil
         end)
       end,
     })
@@ -458,14 +387,6 @@ local function stop_server()
   end
 
   close_persistent_notify()
-  if state.popup then
-    pcall(function()
-      state.popup:unmount()
-    end)
-    state.popup = nil
-  end
-
-  -- Reset state
   state.job_id = nil
   state.server_port = nil
   state.server_url = nil
@@ -533,18 +454,13 @@ function M.setup(user_config)
         pcall(vim.fn.jobstop, state.job_id)
       end
       close_persistent_notify()
-      if state.popup then
-        pcall(function()
-          state.popup:unmount()
-        end)
-      end
     end,
   })
 
   -- Set up highlighting
   vim.api.nvim_set_hl(0, "StatusLineLiveServer", {
     fg = "#50fa7b",
-    bg = vim.o.background == "dark" and "#282828" or "#f8fbf8",
+    bg = vim.o.background == "dark" and "#282828" or "#f5f5f5",
     bold = true,
   })
 end

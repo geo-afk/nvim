@@ -9,5 +9,8 @@ return {
       "LiveServerStop",
       "VimLeavePre",
     },
+    config = function()
+      require("custom.init").setup()
+    end,
   },
 }
