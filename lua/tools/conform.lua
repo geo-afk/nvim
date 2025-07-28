@@ -38,6 +38,7 @@ return {
       python = { "black" },
       javascript = { "prettier" },
       typescript = { "prettier" },
+      go = { "gofumpt" },
       javascriptreact = { "prettier" },
       typescriptreact = { "prettier" },
       css = { "prettier" },

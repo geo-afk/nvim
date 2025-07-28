@@ -1,3 +1,5 @@
+local constant = require("constants.constant")
+
 return {
   "saghen/blink.cmp",
   version = "1.*",
@@ -62,37 +64,7 @@ return {
 
           -- columns = { { "kind_icon" }, { "label", gap = 1 } },
           columns = { { "label", "label_description", gap = 1 }, { "kind_icon", "kind" } },
-          components = {
-            -- customize the drawing of kind icons
-            kind_icon = {
-              text = function(ctx)
-                -- default kind icon
-                local icon = ctx.kind_icon
-                -- if LSP source, check for color derived from documentation
-                if ctx.item.source_name == "LSP" then
-                  local color_item =
-                    require("nvim-highlight-colors").format(ctx.item.documentation, { kind = ctx.kind })
-                  if color_item and color_item.abbr ~= "" then
-                    icon = color_item.abbr
-                  end
-                end
-                return icon .. ctx.icon_gap
-              end,
-              highlight = function(ctx)
-                -- default highlight group
-                local highlight = "BlinkCmpKind" .. ctx.kind
-                -- if LSP source, check for color derived from documentation
-                if ctx.item.source_name == "LSP" then
-                  local color_item =
-                    require("nvim-highlight-colors").format(ctx.item.documentation, { kind = ctx.kind })
-                  if color_item and color_item.abbr_hl_group then
-                    highlight = color_item.abbr_hl_group
-                  end
-                end
-                return highlight
-              end,
-            },
-          },
+          components = constant.components,
         },
       },
     },
@@ -119,39 +91,7 @@ return {
     -- Adjusts spacing to ensure icons are aligned
     use_nvim_cmp_as_default = true,
     nerd_font_variant = "mono",
-    kind_icons = {
-      Copilot = "",
-      Text = "󰉿",
-      Method = "󰊕",
-      Function = "󰊕",
-      Constructor = "󰒓",
-
-      Field = "󰜢",
-      Variable = "󰆦",
-      Property = "󰖷",
-
-      Class = "󱡠",
-      Interface = "󱡠",
-      Struct = "󱡠",
-      Module = "󰅩",
-
-      Unit = "󰪚",
-      Value = "󰦨",
-      Enum = "󰦨",
-      EnumMember = "󰦨",
-
-      Keyword = "󰻾",
-      Constant = "󰏿",
-
-      Snippet = "󱄽",
-      Color = "󰏘",
-      File = "󰈔",
-      Reference = "󰬲",
-      Folder = "󰉋",
-      Event = "󱐋",
-      Operator = "󰪚",
-      TypeParameter = "󰬛",
-    },
+    kind_icons = constant.kind_icons,
   },
   opts_extend = { "sources.default" },
 }

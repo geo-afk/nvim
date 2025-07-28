@@ -15,18 +15,9 @@ map("n", "<leader>fT", function()
   Snacks.terminal()
 end, { desc = "Terminal (cwd)" })
 ---
-map("n", "<leader>ft", function()
-  Snacks.terminal(nil, { cwd = LazyVim.root() })
-end, { desc = "Terminal (Root Dir)" })
----
 map("n", "<c-/>", function()
   Snacks.terminal(nil, { cwd = LazyVim.root() })
 end, { desc = "Terminal (Root Dir)" })
-
----
-map("n", "<c-_>", function()
-  Snacks.terminal(nil, { cwd = LazyVim.root() })
-end, { desc = "which_key_ignore" })
 
 local opts = { noremap = true, silent = true }
 
@@ -46,7 +37,6 @@ map("n", "<C-q>", "<cmd> q <CR>", opts)
 
 -- delete single character without copying it to the register
 map("n", "x", '"_x', opts)
---
 --
 -- Enhanced version that handles indentation better
 map("n", "<A-Up>", function()
@@ -85,6 +75,3 @@ map("n", "<leader>U", "<cmd>LiveServerStart<CR>", {
   silent = true,
   desc = "Start Live Server",
 })
-
-map("n", "<leader>db", "<cmd>DBUI<CR>", { desc = "Open DB UI" })
-map("n", "<leader>dr", "<cmd>DB<CR>", { desc = "Run SQL Query" })
