@@ -14,5 +14,6 @@ vim.g.have_nerd_font = false
 
 -- Nushell configuration
 vim.opt.shell = "nu"
+vim.opt.shellcmdflag = "--commands" -- Changed from "-c"
 vim.opt.shellquote = ""
 vim.opt.shellxquote = ""
