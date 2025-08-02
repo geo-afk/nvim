@@ -1,5 +1,4 @@
 local M = {}
-
 function M.setup()
   local handlers = require("config.lsp.handlers")
 
@@ -32,6 +31,7 @@ M.servers = {
   ts_ls = "typescript",
   gopls = "go",
   lua_ls = "lua_ls",
+  typos_lsp = "typos",
 }
 
 function M.get_server_config(server_name)

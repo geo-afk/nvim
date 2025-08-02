@@ -13,6 +13,9 @@ function M.on_attach(client, bufnr)
     vim.lsp.inlay_hint.enable(true, { bufnr = bufnr })
   end
 
+  local hover_config = require("config.lsp.hover")
+
+  hover_config.setup()
   -- Add any other common on_attach logic here
 end
 

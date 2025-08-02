@@ -8,16 +8,14 @@ map("n", "<leader>rn", function()
   return ":IncRename " .. vim.fn.expand("<cword>")
 end, { expr = true, desc = "IncRename" })
 
--- map("n", "<leader>x", "<cmd>.lua<CR>", { desc = "Execute the current line" })
+-- map("n", "<leader>xs", "<cmd>.lua<CR>", { desc = "Execute the current line" })
 
--- floating terminal
-map("n", "<leader>fT", function()
-  Snacks.terminal()
-end, { desc = "Terminal (cwd)" })
 ---
 map("n", "<c-/>", function()
-  Snacks.terminal(nil, { cwd = LazyVim.root() })
-end, { desc = "Terminal (Root Dir)" })
+  -- Snacks.terminal(nil, { cwd = vim.fn.expand("%:p:h") })
+  local root = vim.fs.root(0, { ".git", "lua", "Makefile", "package.json" }) or vim.fn.getcwd()
+  vim.cmd("terminal cd " .. root .. "; nu")
+end, { desc = "Terminal (Current Dir)" })
 
 local opts = { noremap = true, silent = true }
 

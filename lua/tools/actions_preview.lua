@@ -3,6 +3,9 @@ return {
   {
     "aznhe21/actions-preview.nvim",
     event = "LspAttach",
+    dependencies = {
+      "nvim-telescope/telescope.nvim",
+    },
     config = function()
       require("actions-preview").setup({
         -- Use Telescope as the backend for a better UI experience
@@ -25,7 +28,6 @@ return {
           ctxlen = 3,
         },
       })
-
       -- Keybinding to trigger code actions preview
       vim.keymap.set({ "n", "v" }, "<leader>ca", require("actions-preview").code_actions, {
         desc = "Code Actions Preview",

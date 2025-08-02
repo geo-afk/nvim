@@ -7,7 +7,7 @@ return {
         title = "Terminal",
         ft = "terminal",
         -- Dynamically size
-        size = function ()
+        size = function()
           return math.floor(vim.o.lines * 0.3)
         end,
         filter = function(_, win)
@@ -21,7 +21,7 @@ return {
         ft = "snacks_terminal",
         size = { height = 0.3 },
         title = "%{b:snacks_terminal.id}: %{b:term_title}",
-        filter = function(_buf, win)
+        filter = function(_, win)
           return vim.w[win].snacks_win
             and vim.w[win].snacks_win.position == "bottom"
             and vim.w[win].snacks_win.relative == "editor"
@@ -35,7 +35,7 @@ return {
           return vim.bo[buf].buftype == "help"
         end,
       },
-       {
+      {
         ft = "qf",
         title = "QUICKFIX",
       },
