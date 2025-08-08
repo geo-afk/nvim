@@ -1,0 +1,5 @@
+[default]
+extend-ignore-words = ["noice"]
+[default.extend-words]
+# Add your custom words here (case-insensitive)
+noice = "noice"
