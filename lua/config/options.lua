@@ -82,7 +82,12 @@ vim.o.scrolloff = 10
 -- See `:help 'confirm'`
 vim.o.confirm = true
 
-vim.o.shiftwidth = 4
+vim.o.tabstop = 2 -- Each tab is 2 columns
+vim.o.shiftwidth = 2 -- Each indent level is 2 spaces
+vim.o.expandtab = true -- Use spaces instead of tabs
+vim.o.autoindent = true -- Keep autoindent
+vim.o.smartindent = false -- Keep smartindent off
+vim.o.cindent = false -- Keep cindent off
 
 -- Nushell configuration
 vim.opt.shell = 'nu'

@@ -27,7 +27,9 @@ return {
           }
         end,
       }
-
+      require('notify').setup {
+        background_colour = '#00000000',
+      }
       vim.cmd.colorscheme 'tokyonight-night'
     end,
   },

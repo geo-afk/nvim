@@ -55,4 +55,22 @@ require('lazy').setup({
       lazy = '💤 ',
     },
   },
+  performance = {
+    rtp = {
+      disable_plugins = {
+        'editorconfig',
+        'shada',
+        'gzip',
+        'matchit',
+        'netrwPlugin',
+        'tarPlugin',
+        'tohtml',
+        'tutor',
+        'zipPlugin',
+        'man',
+        'osc52',
+        'spellfile',
+      },
+    },
+  },
 })
