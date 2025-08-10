@@ -1,67 +1,98 @@
 local M = {}
-
 M.kind_icons = {
-    Copilot = "",
-    Text = "󰉿",
-    Method = "󰊕",
-    Function = "󰊕",
-    Constructor = "󰒓",
+  Copilot = '',
+  Text = '󰉿',
+  Method = '󰊕',
+  Function = '󰊕',
+  Constructor = '󰒓',
 
-    Field = "󰜢",
-    Variable = "󰆦",
-    Property = "󰖷",
+  Field = '󰜢',
+  Variable = '󰆦',
+  Property = '󰖷',
 
-    Class = "󱡠",
-    Interface = "󱡠",
-    Struct = "󱡠",
-    Module = "󰅩",
+  Class = '󱡠',
+  Interface = '󱡠',
+  Struct = '󱡠',
+  Module = '󰅩',
 
-    Unit = "󰪚",
-    Value = "󰦨",
-    Enum = "󰦨",
-    EnumMember = "󰦨",
+  Unit = '󰪚',
+  Value = '󰦨',
+  Enum = '󰦨',
+  EnumMember = '󰦨',
 
-    Keyword = "󰻾",
-    Constant = "󰏿",
+  Keyword = '󰻾',
+  Constant = '󰏿',
 
-    Snippet = "󱄽",
-    Color = "󰏘",
-    File = "󰈔",
-    Reference = "󰬲",
-    Folder = "󰉋",
-    Event = "󱐋",
-    Operator = "󰪚",
-    TypeParameter = "󰬛",
+  Snippet = '󱄽',
+  Color = '󰏘',
+  File = '󰈔',
+  Reference = '󰬲',
+  Folder = '󰉋',
+  Event = '󱐋',
+  Operator = '󰪚',
+  TypeParameter = '󰬛',
 }
 
 M.components = {
-    -- customize the drawing of kind icons
-    kind_icon = {
-        text = function(ctx)
-            -- default kind icon
-            local icon = ctx.kind_icon
-            -- if LSP source, check for color derived from documentation
-            if ctx.item.source_name == "LSP" then
-                local color_item = require("nvim-highlight-colors").format(ctx.item.documentation, { kind = ctx.kind })
-                if color_item and color_item.abbr ~= "" then
-                    icon = color_item.abbr
-                end
-            end
-            return icon .. ctx.icon_gap
-        end,
-        highlight = function(ctx)
-            -- default highlight group
-            local highlight = "BlinkCmpKind" .. ctx.kind
-            -- if LSP source, check for color derived from documentation
-            if ctx.item.source_name == "LSP" then
-                local color_item = require("nvim-highlight-colors").format(ctx.item.documentation, { kind = ctx.kind })
-                if color_item and color_item.abbr_hl_group then
-                    highlight = color_item.abbr_hl_group
-                end
-            end
-            return highlight
-        end,
-    },
+  -- customize the drawing of kind icons
+  kind_icon = {
+    text = function(ctx)
+      -- default kind icon
+      local icon = ctx.kind_icon
+      -- if LSP source, check for color derived from documentation
+      if ctx.item.source_name == 'LSP' then
+        local color_item = require('nvim-highlight-colors').format(ctx.item.documentation, { kind = ctx.kind })
+        if color_item and color_item.abbr ~= '' then
+          icon = color_item.abbr
+        end
+      end
+      return icon .. ctx.icon_gap
+    end,
+    highlight = function(ctx)
+      -- default highlight group
+      local highlight = 'BlinkCmpKind' .. ctx.kind
+      -- if LSP source, check for color derived from documentation
+      if ctx.item.source_name == 'LSP' then
+        local color_item = require('nvim-highlight-colors').format(ctx.item.documentation, { kind = ctx.kind })
+        if color_item and color_item.abbr_hl_group then
+          highlight = color_item.abbr_hl_group
+        end
+      end
+      return highlight
+    end,
+  },
+  label = {
+    width = { fill = true, max = 60 },
+    text = function(ctx)
+      local highlights_info = require('colorful-menu').blink_highlights(ctx)
+      if highlights_info ~= nil then
+        -- Or you want to add more item to label
+        return highlights_info.label
+      else
+        return ctx.label
+      end
+    end,
+    highlight = function(ctx)
+      local highlights = {}
+      local highlights_info = require('colorful-menu').blink_highlights(ctx)
+      if highlights_info ~= nil then
+        highlights = highlights_info.highlights
+      end
+      for _, idx in ipairs(ctx.label_matched_indices) do
+        table.insert(highlights, { idx, idx + 1, group = 'BlinkCmpLabelMatch' })
+      end
+      -- Do something else
+      return highlights
+    end,
+  },
+  -- label = {
+  --   text = function(ctx)
+  --     return require('colorful-menu').blink_components_text(ctx)
+  --   end,
+  --   highlight = function(ctx)
+  --     return require('colorful-menu').blink_components_highlight(ctx)
+  --   end,
+  -- },
 }
 
 return M

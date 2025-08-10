@@ -1,8 +1,8 @@
 local opts = { noremap = true, silent = true }
 
-vim.cmd [[
-  autocmd CursorHold * lua vim.diagnostic.open_float(nil, { focusable = false })
-]]
+-- vim.cmd [[
+--   autocmd CursorHold * lua vim.diagnostic.open_float(nil, { focusable = false })
+-- ]]
 
 -- Select All
 vim.keymap.set('n', '<C-a>', 'gg<S-v>G')
@@ -56,38 +56,36 @@ vim.keymap.set('n', '<C-k>', '<C-w><C-k>', { desc = 'Move focus to the upper win
 --  Try it with `yap` in normal mode
 --  See `:help vim.hl.on_yank()`
 vim.api.nvim_create_autocmd('TextYankPost', {
-    desc = 'Highlight when yanking (copying) text',
-    group = vim.api.nvim_create_augroup('kickstart-highlight-yank', { clear = true }),
-    callback = function()
-        vim.hl.on_yank()
-    end,
+  desc = 'Highlight when yanking (copying) text',
+  group = vim.api.nvim_create_augroup('kickstart-highlight-yank', { clear = true }),
+  callback = function()
+    vim.hl.on_yank()
+  end,
 })
 
-
-
 -- Enhanced version that handles indentation better
-vim.keymap.set("n", "<A-Up>", function()
-    if vim.fn.line(".") == 1 then
-        return
-    end
-    vim.cmd("m .-2")
-    vim.cmd("normal! ==")
-end, { desc = "Move line up", silent = true })
+vim.keymap.set('n', '<A-Up>', function()
+  if vim.fn.line '.' == 1 then
+    return
+  end
+  vim.cmd 'm .-2'
+  vim.cmd 'normal! =='
+end, { desc = 'Move line up', silent = true })
 
-vim.keymap.set("n", "<A-Down>", function()
-    if vim.fn.line(".") == vim.fn.line("$") then
-        return
-    end
-    vim.cmd("m .+1")
-    vim.cmd("normal! ==")
-end, { desc = "Move line down", silent = true })
+vim.keymap.set('n', '<A-Down>', function()
+  if vim.fn.line '.' == vim.fn.line '$' then
+    return
+  end
+  vim.cmd 'm .+1'
+  vim.cmd 'normal! =='
+end, { desc = 'Move line down', silent = true })
 
-vim.keymap.set("v", "<A-Up>", function()
-    vim.cmd("'<,'>m '<-2")
-    vim.cmd("normal! gv=gv")
-end, { desc = "Move selection up", silent = true })
+vim.keymap.set('v', '<A-Up>', function()
+  vim.cmd "'<,'>m '<-2"
+  vim.cmd 'normal! gv=gv'
+end, { desc = 'Move selection up', silent = true })
 
-vim.keymap.set("v", "<A-Down>", function()
-    vim.cmd("'<,'>m '>+1")
-    vim.cmd("normal! gv=gv")
-end, { desc = "Move selection down", silent = true })
+vim.keymap.set('v', '<A-Down>', function()
+  vim.cmd "'<,'>m '>+1"
+  vim.cmd 'normal! gv=gv'
+end, { desc = 'Move selection down', silent = true })

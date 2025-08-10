@@ -89,14 +89,20 @@ return { -- Autocompletion
         draw = {
 
           -- columns = { { "kind_icon" }, { "label", gap = 1 } },
-          columns = { { 'label', 'label_description', gap = 1 }, { 'kind_icon', 'kind' } },
+          -- columns = { { 'label', 'label_description', gap = 1 }, { 'kind_icon', 'kind' } },
+          columns = { { 'kind_icon' }, { 'label', gap = 1 } },
           components = constant.components,
+        },
+      },
+      accept = {
+        auto_brackets = {
+          enabled = true,
         },
       },
     },
 
     sources = {
-      default = { 'lsp', 'path', 'snippets', 'lazydev' },
+      default = { 'lsp', 'path', 'snippets', 'buffer', 'lazydev' },
       providers = {
         lazydev = { module = 'lazydev.integrations.blink', score_offset = 100 },
       },

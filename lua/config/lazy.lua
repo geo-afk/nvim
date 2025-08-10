@@ -30,11 +30,7 @@ require('lazy').setup({
     { import = 'plugins' },
     { import = 'ui' },
     { import = 'tools' },
-    { import = 'kickstart.plugins.indent_line' },
-    { import = 'kickstart.plugins.lint' },
-    { import = 'kickstart.plugins.autopairs' },
-    { import = 'kickstart.plugins.gitsigns' },
-    { import = 'kickstart.plugins.debug' },
+    { import = 'kickstart.plugins' },
   },
   defaults = {},
 }, {
