@@ -18,18 +18,7 @@ return {
         vim.opt_local.signcolumn = 'no'
       end,
     },
-    animate = {
-      enabled = true,
-
-      -- Optional: fine-tune animation types
-      -- You can set false for animations you don’t want
-      scroll = { enabled = true, duration = 200, fps = 60 },
-      cursor = { enabled = true, duration = 100, fps = 60 },
-      resize = { enabled = true, duration = 150, fps = 60 },
-
-      -- Easing functions: "linear", "inOutQuad", "inOutCubic", etc.
-      easing = 'inOutQuad',
-    },
+    dashboard = { enabled = true },
     indent = {
       enabled = true,
     },

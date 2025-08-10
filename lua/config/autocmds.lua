@@ -20,16 +20,6 @@ vim.api.nvim_create_autocmd('FileType', {
   end,
 })
 
-vim.api.nvim_create_autocmd({ 'BufDelete', 'BufWipeout' }, {
-  callback = function()
-    -- Count listed buffers
-    local listed = vim.fn.getbufinfo { buflisted = 1 }
-    if #listed == 0 then
-      vim.cmd 'Dashboard'
-    end
-  end,
-})
-
 local lang_maps = {
 
   c = { build = 'gcc *.c -lm -g -o main', exec = './main' },
