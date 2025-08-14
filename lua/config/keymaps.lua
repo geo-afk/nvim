@@ -89,3 +89,6 @@ vim.keymap.set('v', '<A-Down>', function()
   vim.cmd "'<,'>m '>+1"
   vim.cmd 'normal! gv=gv'
 end, { desc = 'Move selection down', silent = true })
+
+vim.keymap.set('n', '<leader>gt', ':!gotests -w %<CR>', { desc = 'Generate tests for file' })
+vim.keymap.set('n', '<leader>at', ':!gomodifytags -file % -struct <C-r><C-w> -add-tags json<CR>', { desc = 'Add JSON tags' })

@@ -1,3 +1,5 @@
+local snacks_const = require 'constants.snacks_const'
+
 return {
   'folke/snacks.nvim',
   priority = 1000,
@@ -47,6 +49,34 @@ return {
         col = 0,
       },
     },
+    animate = {
+      enabled = true,
+      fps = 120, -- high framerate for smoothness
+      easing = 'outQuad', -- easing style: linear, inOutQuad, etc.
+      duration = 50, -- default animation time (ms)
+      scroll = {
+        enabled = true,
+        duration = 60, -- slightly longer for scrolling
+        easing = 'outCubic',
+      },
+      cursor = {
+        enabled = true,
+        duration = 40,
+        easing = 'inOutSine',
+      },
+      resize = {
+        enabled = false, -- keep window resize instant
+      },
+      open = {
+        enabled = true,
+        duration = 70,
+      },
+      close = {
+        enabled = true,
+        duration = 70,
+      },
+    },
+    -- animate = { enabled = true },
     picker = {
       enabled = true,
       win = {
@@ -59,132 +89,5 @@ return {
       },
     },
   },
-  keys = {
-    -- Explorer
-    {
-      '<leader>e',
-      function()
-        Snacks.explorer()
-      end,
-      desc = 'Explorer',
-    },
-    {
-      '<leader>E',
-      function()
-        Snacks.explorer.open()
-      end,
-      desc = 'Explorer (cwd)',
-    },
-
-    -- Git
-    {
-      '<leader>gg',
-      function()
-        Snacks.lazygit()
-      end,
-      desc = 'Lazygit',
-    },
-    {
-      '<leader>gb',
-      function()
-        Snacks.git.blame_line()
-      end,
-      desc = 'Git Blame Line',
-    },
-    {
-      '<leader>gB',
-      function()
-        Snacks.gitbrowse()
-      end,
-      desc = 'Git Browse',
-    },
-    {
-      '<leader>gf',
-      function()
-        Snacks.lazygit.log_file()
-      end,
-      desc = 'Lazygit Current File History',
-    },
-    {
-      '<leader>gl',
-      function()
-        Snacks.lazygit.log()
-      end,
-      desc = 'Lazygit Log (cwd)',
-    },
-
-    -- Terminal
-    {
-      '<leader>t',
-      function()
-        Snacks.terminal()
-      end,
-      desc = 'Toggle Terminal',
-    },
-    {
-      '<c-/>',
-      function()
-        Snacks.terminal()
-      end,
-      desc = 'Toggle Terminal',
-    },
-    {
-      '<c-_>',
-      function()
-        Snacks.terminal()
-      end,
-      desc = 'which_key_ignore',
-    },
-
-    -- Picker
-    {
-      '<leader>ff',
-      function()
-        Snacks.picker.files()
-      end,
-      desc = 'Find Files',
-    },
-    {
-      '<leader>fg',
-      function()
-        Snacks.picker.grep()
-      end,
-      desc = 'Grep',
-    },
-    {
-      '<leader>fb',
-      function()
-        Snacks.picker.buffers()
-      end,
-      desc = 'Buffers',
-    },
-    {
-      '<leader>fh',
-      function()
-        Snacks.picker.help()
-      end,
-      desc = 'Help',
-    },
-    {
-      '<leader>fr',
-      function()
-        Snacks.picker.recent()
-      end,
-      desc = 'Recent Files',
-    },
-    {
-      '<leader>fc',
-      function()
-        Snacks.picker.command_history()
-      end,
-      desc = 'Command History',
-    },
-    {
-      '<leader>fs',
-      function()
-        Snacks.picker.search_history()
-      end,
-      desc = 'Search History',
-    },
-  },
+  keys = snacks_const.keys,
 }
