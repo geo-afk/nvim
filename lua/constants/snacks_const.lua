@@ -1,5 +1,41 @@
 local M = {}
 
+local uv = vim.uv or vim.loop
+
+-- Find project root manually
+local function get_root(bufnr)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  local path = vim.api.nvim_buf_get_name(bufnr)
+  path = vim.fs.dirname(path)
+
+  -- 1. Try LSP root
+  local clients = vim.lsp.get_clients { bufnr = bufnr }
+  for _, client in ipairs(clients) do
+    if client.config and client.config.root_dir then
+      return vim.fs.normalize(client.config.root_dir)
+    end
+  end
+
+  -- 2. Try `.git` parent
+  local git_root = vim.fs.find('.git', { path = path, upward = true })[1]
+  if git_root then
+    return vim.fs.normalize(vim.fs.dirname(git_root))
+  end
+
+  -- 3. Fallback to cwd
+  return vim.fs.normalize(uv.cwd() or '.')
+end
+
+M.actions = {
+  toggle_cwd = function(p)
+    local root = get_root(p.input.filter.current_buf)
+    local cwd = vim.fs.normalize(uv.cwd() or '.')
+    local current = p:cwd()
+    p:set_cwd(current == root and cwd or root)
+    p:find()
+  end,
+}
+
 M.keys = {
   -- Explorer
   {

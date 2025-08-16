@@ -1,9 +1,12 @@
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
--- Set to true if you have a Nerd Font installed and selected in the terminal
 vim.g.have_nerd_font = true
 
+vim.g.snacks_animate = true
+vim.g.lazyvim_cmp = 'blink.cmp'
+vim.g.root_spec = { 'lsp', { '.git', 'lua' }, 'cwd' }
+vim.opt.list = true
 -- [[ Setting options ]]
 -- See `:help vim.o`
 -- NOTE: You can change these options as you wish!
@@ -29,7 +32,7 @@ vim.schedule(function()
   vim.o.clipboard = 'unnamedplus'
 end)
 
-vim.opt.wildignore:append { '*/node_modules/*' }
+-- vim.opt.wildignore:append { '*/node_modules/*' }
 
 vim.opt.termguicolors = true
 
@@ -68,6 +71,14 @@ vim.o.list = true
 -- vim.opt.listchars:append 'space:·'
 vim.opt.listchars = { tab = '» ', trail = '·', nbsp = '␣', extends = '›', precedes = '‹' }
 
+vim.opt.fillchars = {
+  fold = ' ',
+  foldopen = '',
+  foldclose = '',
+  foldsep = ' ',
+  diff = '╱',
+  eob = ' ',
+}
 -- Preview substitutions live, as you type!
 vim.o.inccommand = 'split'
 

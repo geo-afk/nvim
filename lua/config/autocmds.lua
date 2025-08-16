@@ -7,59 +7,20 @@
 -- Or remove existing autocmds by their group name (which is prefixed with `lazyvim_` for the defaults)
 -- e.g. vim.api.nvim_del_augroup_by_name("lazyvim_wrap_spell")
 
---[[
-  Generate tests for all functions in the current file: :GoTests -all
-  Generate tests for exported functions: :GoTests -exported
-  Generate tests for a specific function (using regex): :GoTests -only MyFunction
-  Run :GoTests without arguments to generate tests for the function under the cursor (if gotests supports it).
-]]
-
--- vim.keymap.set('n', '<leader>gt', ':GoTests -all<CR>', { desc = 'Generate tests for all functions' })
--- vim.keymap.set('n', '<leader>gm', ':GoModifyTags -add-tags json<CR>', { desc = 'Add JSON tags' })
--- vim.keymap.set('n', '<leader>gr', ':GoModifyTags -remove-tags json<CR>', { desc = 'Remove JSON tags' })
-
-vim.api.nvim_create_user_command('GoTests', function(opts)
-  local file = vim.fn.expand '%'
-  local cmd = 'gotests -w'
-  if opts.args ~= '' then
-    cmd = cmd .. ' ' .. opts.args
-  end
-  cmd = cmd .. ' ' .. file
-  vim.fn.system(cmd)
-  vim.cmd 'edit!' -- Reload the file
-end, { nargs = '?', desc = 'Generate tests with gotests' })
-
---[[
-  Add JSON tags to a struct under the cursor: :GoModifyTags -add-tags json
-  Remove JSON tags: :GoModifyTags -remove-tags json
-  Add specific tags with options: :GoModifyTags -add-tags json -add-options json=omitempty
-  Clear all tags: :GoModifyTags -clear-tags
-]]
-
-vim.api.nvim_create_user_command('GoModifyTags', function(opts)
-  local file = vim.fn.expand '%'
-  local cmd = string.format('gomodifytags -file %s -all -w', file)
-  if opts.args ~= '' then
-    cmd = cmd .. ' ' .. opts.args
-  end
-  vim.fn.system(cmd)
-  vim.cmd 'edit!' -- Reload the file
-end, { nargs = '?', desc = 'Modify struct tags with gomodifytags for entire file' })
-
--- vim.api.nvim_create_user_command('GoModifyTags', function(opts)
---   local file = vim.fn.expand '%'
---   local line = vim.api.nvim_win_get_cursor(0)[1] -- Get current line number
---   local cmd = string.format('gomodifytags -file %s -line %d -w', file, line)
---   if opts.args ~= '' then
---     cmd = cmd .. ' ' .. opts.args
---   end
---   vim.fn.system(cmd)
---   vim.cmd 'edit!' -- Reload the file
--- end, { nargs = '?', desc = 'Modify struct tags with gomodifytags' })
-
 local function augroup(name)
   return vim.api.nvim_create_augroup('lazyvim_' .. name, { clear = true })
 end
+
+vim.api.nvim_create_user_command('LspNames', function()
+  local clients = vim.lsp.get_clients()
+  if #clients == 0 then
+    print 'No active LSP clients'
+  else
+    for _, client in pairs(clients) do
+      print(client.name)
+    end
+  end
+end, {})
 
 vim.api.nvim_create_autocmd('FileType', {
   group = augroup 'wrap_spell',
@@ -121,13 +82,14 @@ end
 vim.api.nvim_create_autocmd('InsertEnter', { command = 'set norelativenumber', pattern = '*' })
 vim.api.nvim_create_autocmd('InsertLeave', { command = 'set relativenumber', pattern = '*' })
 
--- vim.filetype.add({
---   extension = {
---     astro = "astro",
---     tpp = "cpp",
---     mdx = "markdown.mdx",
---   },
---   pattern = {
---     ["hyprland.conf"] = "hyprlang",
---   },
--- })
+-- Auto create dir when saving a file, in case some intermediate directory does not exist
+vim.api.nvim_create_autocmd({ 'BufWritePre' }, {
+  group = augroup 'auto_create_dir',
+  callback = function(event)
+    if event.match:match '^%w%w+:[\\/][\\/]' then
+      return
+    end
+    local file = vim.uv.fs_realpath(event.match) or event.match
+    vim.fn.mkdir(vim.fn.fnamemodify(file, ':p:h'), 'p')
+  end,
+})

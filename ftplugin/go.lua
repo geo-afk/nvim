@@ -1,0 +1,49 @@
+--[[
+  Generate tests for all functions in the current file: :GoTests -all
+  Generate tests for exported functions: :GoTests -exported
+  Generate tests for a specific function (using regex): :GoTests -only MyFunction
+  Run :GoTests without arguments to generate tests for the function under the cursor (if gotests supports it).
+]]
+
+vim.api.nvim_create_user_command('GoTests', function(opts)
+  local file = vim.fn.expand '%'
+  local cmd = 'gotests -w'
+  if opts.args ~= '' then
+    cmd = cmd .. ' ' .. opts.args
+  end
+  cmd = cmd .. ' ' .. file
+  vim.fn.system(cmd)
+  vim.cmd 'edit!' -- Reload the file
+end, { nargs = '?', desc = 'Generate tests with gotests' })
+
+--[[
+  Add JSON tags to a struct under the cursor: :GoModifyTags -add-tags json
+  Remove JSON tags: :GoModifyTags -remove-tags json
+  Add specific tags with options: :GoModifyTags -add-tags json -add-options json=omitempty
+  Clear all tags: :GoModifyTags -clear-tags
+]]
+
+vim.api.nvim_create_user_command('GoModifyTags', function(opts)
+  local file = vim.fn.expand '%'
+  local cmd = string.format('gomodifytags -file %s -all -w', file)
+  if opts.args ~= '' then
+    cmd = cmd .. ' ' .. opts.args
+  end
+  vim.fn.system(cmd)
+  vim.cmd 'edit!' -- Reload the file
+end, { nargs = '?', desc = 'Modify struct tags with gomodifytags for entire file' })
+
+-- vim.api.nvim_create_user_command('GoModifyTags', function(opts)
+--   local file = vim.fn.expand '%'
+--   local line = vim.api.nvim_win_get_cursor(0)[1] -- Get current line number
+--   local cmd = string.format('gomodifytags -file %s -line %d -w', file, line)
+--   if opts.args ~= '' then
+--     cmd = cmd .. ' ' .. opts.args
+--   end
+--   vim.fn.system(cmd)
+--   vim.cmd 'edit!' -- Reload the file
+-- end, { nargs = '?', desc = 'Modify struct tags with gomodifytags' })
+
+vim.keymap.set('n', '<leader>gt', ':GoTests -all<CR>', { desc = 'Generate tests for all functions' })
+vim.keymap.set('n', '<leader>gm', ':GoModifyTags -add-tags json<CR>', { desc = 'Add JSON tags' })
+vim.keymap.set('n', '<leader>gr', ':GoModifyTags -remove-tags json<CR>', { desc = 'Remove JSON tags' })

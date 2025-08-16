@@ -87,6 +87,8 @@ return {
           },
         },
       },
+
+      actions = snacks_const.actions,
     },
   },
   keys = snacks_const.keys,

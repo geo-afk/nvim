@@ -32,7 +32,6 @@ function M.setup()
 
       local Methods = vim.lsp.protocol.Methods or {}
       local documentHighlight = Methods.textDocument_documentHighlight or 'textDocument/documentHighlight'
-      local inlayHint = Methods.textDocument_inlayHint or 'textDocument/inlayHint'
 
       -- Document highlighting setup
       if client_supports_method(client, documentHighlight, args.buf) then
@@ -59,11 +58,13 @@ function M.setup()
 end
 
 M.servers = {
-  ts_ls = 'typescript',
   gopls = 'go',
+  html = 'html',
   lua_ls = 'lua_ls',
   typos_lsp = 'typos',
+  ts_ls = 'typescript',
   tailwindcss = 'tailwindcss',
+  angularls = 'angularls',
 }
 
 function M.setup_lsps()
