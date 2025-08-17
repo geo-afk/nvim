@@ -88,7 +88,6 @@ return { -- Autocompletion
         border = 'rounded', -- Options: "single", "double", "rounded", "solid", "shadow", or "none"
         draw = {
 
-          -- columns = { { "kind_icon" }, { "label", gap = 1 } },
           -- columns = { { 'label', 'label_description', gap = 1 }, { 'kind_icon', 'kind' } },
           columns = { { 'kind_icon' }, { 'label', gap = 1 } },
           components = constant.components,

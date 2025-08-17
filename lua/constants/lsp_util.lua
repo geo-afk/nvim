@@ -31,7 +31,7 @@ M.mason_tool_install = {
   -- Go tools
   'gofumpt',
   'goimports',
-  'golines',
+  -- 'golines',
   'gotests',
   'staticcheck',
   -- General formatters/linters

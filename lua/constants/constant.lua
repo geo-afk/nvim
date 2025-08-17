@@ -34,7 +34,6 @@ M.kind_icons = {
 }
 
 M.components = {
-  -- customize the drawing of kind icons
   kind_icon = {
     text = function(ctx)
       -- default kind icon

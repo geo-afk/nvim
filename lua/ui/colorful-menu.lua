@@ -3,6 +3,10 @@ return {
   config = function()
     -- You don't need to set these options.
     require('colorful-menu').setup {
+      render = 'background', -- or 'foreground', 'first_column', etc.
+      enable_named_colors = true,
+      enable_tailwind = true,
+
       ls = {
         lua_ls = {
           -- Maybe you want to dim arguments a bit.

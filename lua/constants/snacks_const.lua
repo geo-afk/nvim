@@ -2,6 +2,18 @@ local M = {}
 
 local uv = vim.uv or vim.loop
 
+-- Find git root
+function M.find_git_root(path)
+  local current = path or vim.fn.getcwd()
+  while current ~= '/' do
+    if vim.fn.isdirectory(current .. '/.git') == 1 then
+      return current
+    end
+    current = vim.fn.fnamemodify(current, ':h')
+  end
+  return nil
+end
+
 -- Find project root manually
 local function get_root(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
@@ -41,14 +53,14 @@ M.keys = {
   {
     '<leader>e',
     function()
-      Snacks.explorer()
+      Snacks.explorer { cwd = get_root() }
     end,
     desc = 'Explorer',
   },
   {
     '<leader>E',
     function()
-      Snacks.explorer.open()
+      Snacks.explorer()
     end,
     desc = 'Explorer (cwd)',
   },

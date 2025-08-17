@@ -27,6 +27,17 @@ return {
     explorer = {
       enabled = true,
       replace_netrw = true,
+      restrict_above_root = true,
+      root = function()
+        local root_dir = snacks_const.find_git_root()
+
+        if root_dir then
+          return root_dir
+        end
+
+        local buff_dir = vim.fn.expand '%:p:h'
+        return buff_dir
+      end,
     },
     lazygit = {
       enabled = true,
@@ -76,14 +87,15 @@ return {
         duration = 70,
       },
     },
-    -- animate = { enabled = true },
     picker = {
       enabled = true,
       win = {
         input = {
           keys = {
-            ['<C-j>'] = { 'move_down', mode = { 'i', 'n' } },
-            ['<C-k>'] = { 'move_up', mode = { 'i', 'n' } },
+            ['<a-c>'] = {
+              'toggle_cwd',
+              mode = { 'n', 'i' },
+            },
           },
         },
       },

@@ -1,5 +1,4 @@
 return {
-
   {
     'folke/tokyonight.nvim',
     priority = 1000,
@@ -30,39 +29,77 @@ return {
       require('notify').setup {
         background_colour = '#00000000',
       }
-      vim.cmd.colorscheme 'tokyonight-night'
+      -- vim.cmd.colorscheme 'tokyonight-night'
+    end,
+  },
+
+  {
+    'olimorris/onedarkpro.nvim',
+    priority = 1000, -- load before other plugins
+    config = function()
+      require('onedarkpro').setup {
+        colors = {},
+
+        options = {
+          transparency = true,
+          terminal_colors = true,
+          cursorline = true,
+          underline = true,
+          undercurl = true,
+          bold = true,
+          italic = true,
+        },
+
+        styles = {
+          comments = 'italic',
+          keywords = 'NONE',
+          functions = 'bold',
+          strings = 'NONE',
+          variables = 'NONE',
+        },
+
+        highlights = {
+          DiagnosticVirtualTextError = { italic = true, bold = false },
+          DiagnosticVirtualTextWarn = { italic = true, bold = false },
+          DiagnosticVirtualTextInfo = { italic = true, bold = false },
+          DiagnosticVirtualTextHint = { italic = true, bold = false },
+        },
+      }
+      -- Load the theme
+      vim.cmd 'colorscheme onedark' -- or "onedark_vivid", "onedark_dark", "onelight"
+      vim.api.nvim_set_hl(0, 'BlinkCmpMenu', { bg = 'NONE' })
     end,
   },
   {
-    'navarasu/onedark.nvim',
-    lazy = false,
-    priority = 1000, -- load before other UI plugins
+    'Mofiqul/vscode.nvim',
+    priority = 1000,
     config = function()
-      require('onedark').setup {
-        style = 'deep', -- options: 'dark', 'darker', 'cool', 'deep', 'warm', 'warmer', 'light'
+      require('vscode').setup {
+        style = 'dark',
         transparent = true,
-        term_colors = true,
-        ending_tildes = false,
-        cmp_itemkind_reverse = false,
-
-        -- Options are italic, bold, underline, none
-        code_style = {
-          comments = 'italic',
-          keywords = 'none',
-          functions = 'bold',
-          strings = 'none',
-          variables = 'none',
-        },
-
-        -- Plugins Config --
-        diagnostics = {
-          darker = true, -- darker colors for diagnostic
-          undercurl = true, -- use undercurl instead of underline for diagnostics
-          background = true, -- use background color for virtual text
-        },
+        terminal_colors = true,
       }
-
-      -- require('onedark').load()
     end,
+  },
+  {
+    'catppuccin/nvim',
+    name = 'catppuccin',
+    priority = 1000,
+
+    -- config = function()
+    --   require('catppuccin').setup {
+    --     flavour = 'auto', -- latte, frappe, macchiato, mocha
+    --     background = { -- :h background
+    --
+    --       dark = 'mocha',
+    --     },
+    --     transparent_background = false, -- disables setting the background color.
+    --     float = {
+    --       transparent = false, -- enable transparent floating windows
+    --       solid = false, -- use solid styling for floating windows, see |winborder|
+    --     },
+    --
+    --   }
+    -- end,
   },
 }
