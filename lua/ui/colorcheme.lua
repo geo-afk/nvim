@@ -64,10 +64,9 @@ return {
           DiagnosticVirtualTextInfo = { italic = true, bold = false },
           DiagnosticVirtualTextHint = { italic = true, bold = false },
         },
+        -- Load the theme
       }
-      -- Load the theme
       vim.cmd 'colorscheme onedark' -- or "onedark_vivid", "onedark_dark", "onelight"
-      vim.api.nvim_set_hl(0, 'BlinkCmpMenu', { bg = 'NONE' })
     end,
   },
   {
