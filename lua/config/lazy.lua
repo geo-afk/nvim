@@ -16,6 +16,26 @@ end
 -- Correctly prepend lazypath to runtimepath
 vim.opt.rtp:prepend(lazypath)
 
+-- Force Angular component templates to use htmlangular
+vim.filetype.add {
+  pattern = {
+    ['.*%.component%.html'] = 'htmlangular', -- classic Angular template files
+    ['.*/src/app/.*%.html'] = function(path, bufnr)
+      -- Check if angular.json exists in the project root
+      local project_root = vim.fs.find('angular.json', {
+        path = path,
+        upward = true,
+      })[1]
+
+      if project_root then
+        return 'htmlangular'
+      end
+
+      return 'html' -- fallback to regular html
+    end,
+  },
+}
+
 -- Load your custom configuration first
 require 'config.options'
 require 'config.keymaps'

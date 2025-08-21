@@ -12,6 +12,7 @@ return { -- Highlight, edit, and navigate code
       'bash',
       'html',
       'diff',
+      'scss',
       'vimdoc',
       'luadoc',
       'angular',

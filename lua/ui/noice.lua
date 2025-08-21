@@ -3,14 +3,36 @@ return {
   'folke/noice.nvim',
   event = 'VeryLazy',
   opts = {
-    -- add any options here
+    -- apply globally
+    views = {
+      popup = {
+        border = {
+          style = 'rounded', -- double-line borders look thicker than "rounded"
+          highlight = 'FloatBorder',
+          title = ' NOICE ', -- title text
+          title_pos = 'center', -- center the title
+        },
+      },
+      cmdline_popup = {
+        border = {
+          style = 'rounded', -- "single", "double", "rounded", "solid", "shadow"
+          highlight = 'FloatBorder',
+          title = ' CMD ', -- bold-looking title
+          title_pos = 'center',
+        },
+      },
+    },
   },
   dependencies = {
-    -- if you lazy-load any plugin below, make sure to add proper `module="..."` entries
     'MunifTanjim/nui.nvim',
-    -- OPTIONAL:
-    --   `nvim-notify` is only needed, if you want to use the notification view.
-    --   If not available, we use `mini` as the fallback
-    'rcarriga/nvim-notify',
+    'rcarriga/nvim-notify', -- optional
   },
+  config = function(_, opts)
+    require('noice').setup(opts)
+
+    -- make border/title colors thicker/bolder
+    vim.api.nvim_set_hl(0, 'FloatBorder', { fg = '#7aa2f7', bold = true })
+    vim.api.nvim_set_hl(0, 'NoiceCmdlinePopupBorder', { fg = '#bb9af7', bold = true })
+    vim.api.nvim_set_hl(0, 'NoiceCmdlinePopupTitle', { fg = '#bb9af7', bold = true })
+  end,
 }

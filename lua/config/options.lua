@@ -1,6 +1,9 @@
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
+vim.o.laststatus = 3
+vim.o.cmdheight = 0
+
 vim.g.have_nerd_font = true
 
 vim.g.snacks_animate = true

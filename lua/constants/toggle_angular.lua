@@ -4,10 +4,17 @@ function M.toggle_angular_file()
   local current_file = vim.fn.expand '%:p'
   local extension = vim.fn.expand '%:e'
   local base_name = vim.fn.expand '%:r'
-
   local target_file
+
   if extension == 'ts' then
-    target_file = base_name .. '.html'
+    -- Check if current file is a spec file
+    if string.match(base_name, '%.spec$') then
+      -- Remove .spec from the end to get the component file
+      target_file = string.gsub(base_name, '%.spec$', '') .. '.ts'
+    else
+      -- Regular .ts file, toggle to .html
+      target_file = base_name .. '.html'
+    end
   elseif extension == 'html' then
     target_file = base_name .. '.ts'
   else

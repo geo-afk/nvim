@@ -52,8 +52,7 @@ M.mason_lsp = {
   'html',
   'angularls',
   'tailwindcss',
-  'ts_ls', -- Modern TypeScript/JavaScript LSP (replaces tsserver)
-  -- Removed typos_lsp as it's often problematic
+  'ts_ls',
 }
 
 return M

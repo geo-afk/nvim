@@ -70,17 +70,6 @@ return {
     end,
   },
   {
-    'Mofiqul/vscode.nvim',
-    priority = 1000,
-    config = function()
-      require('vscode').setup {
-        style = 'dark',
-        transparent = true,
-        terminal_colors = true,
-      }
-    end,
-  },
-  {
     'catppuccin/nvim',
     name = 'catppuccin',
     priority = 1000,

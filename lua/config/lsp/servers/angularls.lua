@@ -73,10 +73,6 @@ end
 local default_probe_dir = get_probe_dir()
 local default_angular_core_version = get_angular_core_version()
 
--- AngularLS expects structure like:
--- - $EXTENSION_PATH (Mason's node_modules)
---   - @angular/language-server/bin/ngserver
---   - typescript/
 local ts_probe_dirs = vim.iter({ extension_path, default_probe_dir }):join ','
 local ng_probe_dirs = vim
   .iter({ extension_path, default_probe_dir })
@@ -97,20 +93,20 @@ local cmd = {
 }
 
 return {
-  -- settings = {
-  --   angularls = {
-  --     experimental = {
-  --       templateDiagnostics = true, -- Enable diagnostics for Angular templates
-  --       templateCodeLens = true, -- Enable code lenses for template-related actions
-  --     },
-  --     provideFormatter = true, -- Enable formatting support for Angular files
-  --     strictTemplates = true, -- Enforce strict template type checking
-  --     trace = {
-  --       server = 'off', -- Options: "off", "messages", "verbose"
-  --     },
-  --   },
-  -- },
+  settings = {
+    angularls = {
+      experimental = {
+        templateDiagnostics = true, -- Enable diagnostics for Angular templates
+        templateCodeLens = true, -- Enable code lenses for template-related actions
+      },
+      provideFormatter = true, -- Enable formatting support for Angular files
+      strictTemplates = true, -- Enforce strict template type checking
+      trace = {
+        server = 'messages', -- Options: "off", "messages", "verbose"
+      },
+    },
+  },
   cmd = cmd,
   root_markers = { 'angular.json', 'nx.json' },
-  filetypes = { 'javascript', 'typescript', 'html', 'typescriptreact', 'typescript.tsx' },
+  filetypes = { 'javascript', 'typescript', 'html', 'typescriptreact', 'typescript.tsx', 'htmlangular' },
 }

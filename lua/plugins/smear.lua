@@ -2,9 +2,9 @@ return {
   'sphamba/smear-cursor.nvim',
   opts = {
     -- Optional tuning values
-    -- stiffness = 0.5,
-    -- trailing_stiffness = 0.5,
-    -- matrix_pixel_threshold = 0.5,
+    stiffness = 0.5,
+    trailing_stiffness = 0.5,
+    matrix_pixel_threshold = 0.5,
 
     -- Use default cursor color instead of 'none' (avoids unknown char issue)
     cursor_color = nil,

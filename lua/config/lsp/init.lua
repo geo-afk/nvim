@@ -1,5 +1,5 @@
 local M = {}
-local handlers = require 'config.lsp.handlers'
+local handler = require 'config.lsp.handlers'
 
 function M.setup()
   -- Log current Neovim version
@@ -17,7 +17,7 @@ function M.setup()
     group = vim.api.nvim_create_augroup('UserLspConfig', { clear = true }),
 
     callback = function(args)
-      handlers.setup_keymaps(args)
+      handler.setup_keymaps(args)
 
       local client = vim.lsp.get_client_by_id(args.data.client_id)
       if not client then
@@ -70,8 +70,8 @@ M.servers = {
 function M.setup_lsps()
   -- Default setup for lsp clients
   vim.lsp.config('*', {
-    on_attach = handlers.on_attach,
-    capabilities = handlers.get_capabilities(),
+    on_attach = handler.on_attach,
+    capabilities = handler.get_capabilities(),
   })
 
   for key, value in pairs(M.servers) do
