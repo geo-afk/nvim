@@ -6,6 +6,12 @@ return {
         callSnippet = 'Replace',
       },
 
+      workspace = {
+        library = {
+          vim.fn.expand '$VIMRUNTIME/lua',
+          vim.fn.stdpath 'config' .. '/lua',
+        },
+      },
       hint = {
         enable = true,
         arrayIndex = 'Auto',

@@ -28,6 +28,10 @@ return {
       enabled = true,
       replace_netrw = true,
       restrict_above_root = true,
+      keymaps = {
+        ['m'] = 'cut', -- mark file for moving instead of asking for path
+        ['p'] = 'paste', -- paste file in target folder
+      },
       root = function()
         local root_dir = snacks_const.find_git_root()
 

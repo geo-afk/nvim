@@ -1,13 +1,8 @@
--- Enhanced Development-Focused Lualine Configuration
--- Place this in lua/plugins/lualine.lua
--- Optimized for OneDark Pro theme with transparent background support
-
 return {
   {
     'nvim-lualine/lualine.nvim',
     dependencies = {
       'nvim-tree/nvim-web-devicons',
-      'arkav/lualine-lsp-progress',
     },
     event = 'VeryLazy',
     config = function()
@@ -239,7 +234,7 @@ return {
           theme = create_onedarkpro_theme(),
           component_separators = { left = '│', right = '│' },
           -- asymmetry: sharp on the left, rounded on the right
-          section_separators = { left = '', right = '' },
+          section_separators = { left = '', right = '' },
           disabled_filetypes = {
             statusline = { 'alpha', 'dashboard', 'snacks_dashboard', 'snacks_notif', 'snacks_terminal', 'snacks_lazygit' },
             winbar = {},
@@ -268,7 +263,7 @@ return {
                 }
                 return mode_map[str] or str:sub(1, 1)
               end,
-              separator = { right = '' }, -- rounded into next section
+              separator = { right = '' }, -- rounded into next section
               padding = { left = 1, right = 1 },
             },
           },
@@ -375,45 +370,6 @@ return {
             { get_search_count, padding = { left = 0, right = 1 } },
           },
           lualine_x = {
-            {
-              'lsp_progress',
-              display_components = { 'lsp_client_name', 'spinner', { 'title', 'percentage', 'message' } },
-              colors = {
-                use = true,
-                lsp_client_name = function()
-                  local colors = get_onedarkpro_colors()
-                  return { fg = colors.fg }
-                end,
-                spinner = function()
-                  local colors = get_onedarkpro_colors()
-                  return { fg = colors.blue }
-                end,
-                message = function()
-                  local colors = get_onedarkpro_colors()
-                  return { fg = colors.fg }
-                end,
-                percentage = function()
-                  local colors = get_onedarkpro_colors()
-                  return { fg = colors.fg }
-                end,
-                title = function()
-                  local colors = get_onedarkpro_colors()
-                  return { fg = colors.fg }
-                end,
-              },
-              separators = {
-                component = ' ',
-                progress = ' | ',
-                message = { pre = '(', post = ')' },
-                percentage = { pre = '', post = '%% ' },
-                title = { pre = '', post = ': ' },
-                lsp_client_name = { pre = '[', post = ']' },
-                spinner = { pre = '', post = '' },
-              },
-              timer = { progress_enddelay = 500, spinner = 120, lsp_client_name_enddelay = 1000 },
-              spinner_symbols = { '⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏' },
-              padding = { left = 1, right = 1 },
-            },
             { get_word_count, padding = { left = 0, right = 1 } },
             { get_session_info, padding = { left = 0, right = 1 } },
             { get_buffer_count, padding = { left = 0, right = 1 } },
