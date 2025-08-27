@@ -43,6 +43,7 @@ return {
         return buff_dir
       end,
     },
+    gitbrowse = { enabled = true, what = 'commit', notify = true },
     lazygit = {
       enabled = true,
       configure = true,
@@ -93,10 +94,13 @@ return {
     },
     picker = {
       enabled = true,
+      sources = {
+        explorer = { git_status = true, git_untracked = true },
+      },
       win = {
         input = {
           keys = {
-            ['<a-c>'] = {
+            ['<a-o>'] = {
               'toggle_cwd',
               mode = { 'n', 'i' },
             },
