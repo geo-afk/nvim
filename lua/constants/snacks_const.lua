@@ -65,7 +65,7 @@ M.keys = {
     desc = 'Explorer (cwd)',
   },
 
-  -- Git
+  -- Git (Lazygit + Snacks Git)
   {
     '<leader>gg',
     function()
@@ -100,6 +100,50 @@ M.keys = {
       Snacks.lazygit.log()
     end,
     desc = 'Lazygit Log (cwd)',
+  },
+
+  -- Snacks Git native bindings
+  {
+    '<leader>gs',
+    function()
+      Snacks.git.status()
+    end,
+    desc = 'Git Status (Snacks)',
+  },
+  {
+    '<leader>gc',
+    function()
+      Snacks.git.commits()
+    end,
+    desc = 'Git Commits',
+  },
+  {
+    '<leader>gC',
+    function()
+      Snacks.git.bcommits()
+    end,
+    desc = 'Git Buffer Commits',
+  },
+  {
+    '<leader>gd',
+    function()
+      Snacks.git.diff()
+    end,
+    desc = 'Git Diff Current File',
+  },
+  {
+    '<leader>gh',
+    function()
+      Snacks.git.hunks()
+    end,
+    desc = 'Git Hunks',
+  },
+  {
+    '<leader>gH',
+    function()
+      Snacks.git.history()
+    end,
+    desc = 'Git File History',
   },
 
   -- Terminal

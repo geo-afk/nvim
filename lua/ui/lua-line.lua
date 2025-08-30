@@ -1,12 +1,21 @@
+local color_theme = require 'constants.lualine-const'
+
 return {
   {
     'nvim-lualine/lualine.nvim',
     dependencies = {
       'nvim-tree/nvim-web-devicons',
+      'lewis6991/gitsigns.nvim', -- Explicit dependency
     },
     event = 'VeryLazy',
     config = function()
-      -- Helper functions
+      local function sanitize(str)
+        if not str or str == '' then
+          return ''
+        end
+        return tostring(str):gsub('[<>%%]', ''):gsub('[\r\n]', '')
+      end
+
       local function get_line_info()
         local current_line = vim.fn.line '.'
         local total_lines = vim.fn.line '$'
@@ -19,50 +28,29 @@ return {
         if filename == '' then
           return '[No Name]'
         end
-        local modified = vim.bo.modified and '[+]' or ''
-        local readonly = vim.bo.readonly and '[RO]' or ''
+        local modified = vim.bo.modified and ' ' or ''
+        local readonly = vim.bo.readonly and ' ' or ''
         return filename .. modified .. readonly
       end
 
       local function get_active_lsps()
         local clients = vim.lsp.get_clients { bufnr = 0 }
         if #clients == 0 then
-          return '[No LSP]'
+          return 'No LSP'
         end
+
         local client_names = {}
-        for _, client in pairs(clients) do
-          -- Removed null-ls and copilot filtering since you're not using them
-          table.insert(client_names, client.name)
+        for _, client in ipairs(clients) do
+          if client.name ~= 'null-ls' and client.name ~= 'copilot' then
+            local clean_name = client.name:gsub('_', ' '):gsub('^%l', string.upper)
+            table.insert(client_names, clean_name)
+          end
         end
+
         if #client_names == 0 then
-          return '[No LSP]'
+          return 'No LSP'
         end
-        return '[' .. table.concat(client_names, ' • ') .. ']'
-      end
-
-      -- Separate git diff components for individual coloring
-      local function get_git_added()
-        local gitsigns = vim.b.gitsigns_status_dict
-        if not gitsigns or not gitsigns.added or gitsigns.added <= 0 then
-          return ''
-        end
-        return '+' .. gitsigns.added
-      end
-
-      local function get_git_modified()
-        local gitsigns = vim.b.gitsigns_status_dict
-        if not gitsigns or not gitsigns.changed or gitsigns.changed <= 0 then
-          return ''
-        end
-        return '~' .. gitsigns.changed
-      end
-
-      local function get_git_removed()
-        local gitsigns = vim.b.gitsigns_status_dict
-        if not gitsigns or not gitsigns.removed or gitsigns.removed <= 0 then
-          return ''
-        end
-        return '-' .. gitsigns.removed
+        return table.concat(client_names, ', ')
       end
 
       local function get_word_count()
@@ -78,329 +66,283 @@ return {
         if recording_register == '' then
           return ''
         end
-        return ' @' .. recording_register
+        return '🎬 @' .. recording_register
       end
 
-      local function get_buffer_count()
-        local buffers = vim.fn.len(vim.fn.getbufinfo { buflisted = 1 })
-        return '󰓩 ' .. buffers
-      end
+      -- Enhanced git branch function with fallback
+      local function get_git_branch()
+        -- First try gitsigns
+        local branch = vim.b.gitsigns_head
 
-      local function get_session_info()
-        if vim.g.sessionloaded or (vim.v.this_session and vim.v.this_session ~= '') then
-          return '󱂬 Session'
+        -- Fallback to git command if gitsigns not available
+        if not branch or branch == '' then
+          local git_dir = vim.fn.finddir('.git', '.;')
+          if git_dir ~= '' then
+            local handle = io.popen 'git branch --show-current 2>/dev/null'
+            if handle then
+              branch = handle:read('*a'):gsub('\n', '')
+              handle:close()
+            end
+          end
         end
-        return ''
-      end
 
-      local function get_search_count()
-        if vim.v.hlsearch == 0 then
+        if not branch or branch == '' then
           return ''
         end
-        local ok, search = pcall(vim.fn.searchcount)
-        if ok and search.total then
-          return string.format('󰍉 %d/%d', search.current, search.total)
+
+        branch = sanitize(branch)
+        if #branch > 20 then
+          branch = branch:sub(1, 17) .. '...'
+        end
+        return ' ' .. branch
+      end
+
+      -- Enhanced git diff functions with better error handling
+      local function get_git_added()
+        local gitsigns = vim.b.gitsigns_status_dict
+        if gitsigns and gitsigns.added and gitsigns.added > 0 then
+          return '󰐙 ' .. gitsigns.added
         end
         return ''
       end
 
-      -- Enhanced color extraction with transparent background support
-      local function get_onedarkpro_colors()
-        -- Helper function to extract color from highlight groups
-        local function get_hl_color(group, attr)
-          local hl = vim.api.nvim_get_hl(0, { name = group, link = false })
-          if hl[attr] then
-            return string.format('#%06x', hl[attr])
-          end
-          return nil
+      local function get_git_changed()
+        local gitsigns = vim.b.gitsigns_status_dict
+        if gitsigns and gitsigns.changed and gitsigns.changed > 0 then
+          return '󰷈 ' .. gitsigns.changed
         end
-
-        -- Check if background is transparent
-        local normal_bg = get_hl_color('Normal', 'bg')
-        local is_transparent = normal_bg == nil
-
-        -- Try different methods to get OneDark Pro colors
-        local colors = {}
-
-        -- Method 1: Try onedarkpro.get_colors()
-        local ok1, onedark = pcall(require, 'onedarkpro')
-        if ok1 and onedark.get_colors then
-          local theme_colors = onedark.get_colors()
-          if theme_colors then
-            colors = theme_colors
-          end
-        end
-
-        -- Method 2: Try onedarkpro.colors
-        if not next(colors) and ok1 and onedark.colors then
-          colors = onedark.colors
-        end
-
-        -- Method 3: Try accessing the helper module
-        if not next(colors) then
-          local ok2, helper = pcall(require, 'onedarkpro.helpers')
-          if ok2 and helper.get_colors then
-            colors = helper.get_colors()
-          end
-        end
-
-        -- If we got colors from OneDark Pro, use them
-        if next(colors) then
-          return {
-            bg = is_transparent and 'NONE' or (colors.bg or '#282c34'),
-            bg1 = is_transparent and 'NONE' or (colors.bg1 or colors.gray or '#31353f'),
-            bg2 = is_transparent and 'NONE' or (colors.bg2 or colors.selection or '#3e4452'),
-            fg = colors.fg or '#abb2bf',
-            gray = colors.gray or colors.comment or '#5c6370',
-            red = colors.red or '#e06c75',
-            green = colors.green or '#98c379',
-            yellow = colors.yellow or '#e5c07b',
-            blue = colors.blue or '#61afef',
-            purple = colors.purple or '#c678dd',
-            cyan = colors.cyan or '#56b6c2',
-            orange = colors.orange or '#d19a66',
-            git_add = colors.green or '#98c379',
-            git_change = colors.yellow or '#e5c07b',
-            git_delete = colors.red or '#e06c75',
-          }
-        end
-
-        -- Fallback: Extract from highlight groups
-        return {
-          bg = is_transparent and 'NONE' or (normal_bg or '#282c34'),
-          bg1 = is_transparent and 'NONE' or (get_hl_color('CursorLine', 'bg') or '#31353f'),
-          bg2 = is_transparent and 'NONE' or (get_hl_color('StatusLine', 'bg') or '#3e4452'),
-          fg = get_hl_color('Normal', 'fg') or '#abb2bf',
-          gray = get_hl_color('Comment', 'fg') or '#5c6370',
-          red = get_hl_color('ErrorMsg', 'fg') or get_hl_color('DiagnosticError', 'fg') or '#e06c75',
-          green = get_hl_color('String', 'fg') or get_hl_color('DiffAdd', 'fg') or '#98c379',
-          yellow = get_hl_color('WarningMsg', 'fg') or get_hl_color('DiagnosticWarn', 'fg') or '#e5c07b',
-          blue = get_hl_color('Function', 'fg') or get_hl_color('Identifier', 'fg') or '#61afef',
-          purple = get_hl_color('Constant', 'fg') or get_hl_color('Number', 'fg') or '#c678dd',
-          cyan = get_hl_color('Special', 'fg') or get_hl_color('Type', 'fg') or '#56b6c2',
-          orange = get_hl_color('PreProc', 'fg') or '#d19a66',
-          git_add = get_hl_color('GitSignsAdd', 'fg') or get_hl_color('DiffAdd', 'fg') or '#98c379',
-          git_change = get_hl_color('GitSignsChange', 'fg') or get_hl_color('DiffChange', 'fg') or '#e5c07b',
-          git_delete = get_hl_color('GitSignsDelete', 'fg') or get_hl_color('DiffDelete', 'fg') or '#e06c75',
-        }
+        return ''
       end
 
-      local function create_onedarkpro_theme()
-        local colors = get_onedarkpro_colors()
+      local function get_git_removed()
+        local gitsigns = vim.b.gitsigns_status_dict
+        if gitsigns and gitsigns.removed and gitsigns.removed > 0 then
+          return '󰍶 ' .. gitsigns.removed
+        end
+        return ''
+      end
 
-        return {
-          normal = {
-            a = { fg = colors.bg == 'NONE' and '#282c34' or colors.bg, bg = colors.blue, gui = 'bold' },
-            b = { fg = colors.fg, bg = colors.bg2 == 'NONE' and colors.gray or colors.bg2 },
-            c = { fg = colors.fg, bg = colors.bg },
-          },
-          insert = {
-            a = { fg = colors.bg == 'NONE' and '#282c34' or colors.bg, bg = colors.green, gui = 'bold' },
-            b = { fg = colors.fg, bg = colors.bg2 == 'NONE' and colors.gray or colors.bg2 },
-            c = { fg = colors.fg, bg = colors.bg },
-          },
-          visual = {
-            a = { fg = colors.bg == 'NONE' and '#282c34' or colors.bg, bg = colors.purple, gui = 'bold' },
-            b = { fg = colors.fg, bg = colors.bg2 == 'NONE' and colors.gray or colors.bg2 },
-            c = { fg = colors.fg, bg = colors.bg },
-          },
-          replace = {
-            a = { fg = colors.bg == 'NONE' and '#282c34' or colors.bg, bg = colors.red, gui = 'bold' },
-            b = { fg = colors.fg, bg = colors.bg2 == 'NONE' and colors.gray or colors.bg2 },
-            c = { fg = colors.fg, bg = colors.bg },
-          },
-          command = {
-            a = { fg = colors.bg == 'NONE' and '#282c34' or colors.bg, bg = colors.yellow, gui = 'bold' },
-            b = { fg = colors.fg, bg = colors.bg2 == 'NONE' and colors.gray or colors.bg2 },
-            c = { fg = colors.fg, bg = colors.bg },
-          },
-          terminal = {
-            a = { fg = colors.bg == 'NONE' and '#282c34' or colors.bg, bg = colors.cyan, gui = 'bold' },
-            b = { fg = colors.fg, bg = colors.bg2 == 'NONE' and colors.gray or colors.bg2 },
-            c = { fg = colors.fg, bg = colors.bg },
-          },
-          inactive = {
-            a = { fg = colors.gray, bg = colors.bg1 == 'NONE' and colors.gray or colors.bg1 },
-            b = { fg = colors.gray, bg = colors.bg1 == 'NONE' and colors.gray or colors.bg1 },
-            c = { fg = colors.gray, bg = colors.bg },
-          },
-        }
+      local function get_git_clean()
+        local gitsigns = vim.b.gitsigns_status_dict
+        if gitsigns then
+          local added = gitsigns.added or 0
+          local changed = gitsigns.changed or 0
+          local removed = gitsigns.removed or 0
+
+          if added == 0 and changed == 0 and removed == 0 then
+            return '󰄬 Clean'
+          end
+        end
+        return ''
       end
 
       require('lualine').setup {
-
         options = {
           icons_enabled = true,
-          theme = create_onedarkpro_theme(),
-          component_separators = { left = '│', right = '│' },
-          -- asymmetry: sharp on the left, rounded on the right
+          theme = color_theme.get_lualine_theme(),
+          component_separators = { left = '', right = '' },
           section_separators = { left = '', right = '' },
           disabled_filetypes = {
             statusline = { 'alpha', 'dashboard', 'snacks_dashboard', 'snacks_notif', 'snacks_terminal', 'snacks_lazygit' },
             winbar = {},
           },
+          always_divide_middle = true,
           globalstatus = true,
+          refresh = { statusline = 100, tabline = 1000, winbar = 1000 },
         },
         sections = {
-
           lualine_a = {
             {
               'mode',
               fmt = function(str)
                 local mode_map = {
-                  ['NORMAL'] = 'N',
-                  ['INSERT'] = 'I',
-                  ['VISUAL'] = 'V',
-                  ['V-LINE'] = 'VL',
-                  ['V-BLOCK'] = 'VB',
-                  ['COMMAND'] = 'C',
-                  ['SELECT'] = 'S',
-                  ['S-LINE'] = 'SL',
-                  ['S-BLOCK'] = 'SB',
-                  ['REPLACE'] = 'R',
-                  ['V-REPLACE'] = 'VR',
-                  ['TERMINAL'] = 'T',
+                  NORMAL = ' 󰋜 N',
+                  INSERT = ' 󰏪 I',
+                  VISUAL = ' 󰈈 V',
+                  ['V-LINE'] = ' 󰈈 VL',
+                  ['V-BLOCK'] = ' 󰈈 VB',
+                  COMMAND = ' 󰘳 C',
+                  REPLACE = ' 󰑙 R',
+                  ['V-REPLACE'] = ' 󰑙 VR',
+                  SELECT = ' 󰒉 S',
+                  TERMINAL = ' T',
                 }
                 return mode_map[str] or str:sub(1, 1)
               end,
-              separator = { right = '' }, -- rounded into next section
-              padding = { left = 1, right = 1 },
+              separator = { left = '', right = '' },
+              padding = { left = 0, right = 1 },
+              color = function()
+                return {
+                  fg = '#61afef',
+                  bg = '#31353f',
+                  gui = 'bold',
+                }
+              end,
+            },
+            {
+              get_macro_recording,
+              cond = function()
+                return vim.fn.reg_recording() ~= ''
+              end,
+              color = { fg = '#ff79c6', gui = 'bold' },
+              padding = { left = 0, right = 1 },
             },
           },
           lualine_b = {
-            -- Branch
+            -- Git branch with better visibility
             {
-              'branch',
-              icon = '',
-              fmt = function(str)
-                if #str > 20 then
-                  return str:sub(1, 17) .. '...'
-                end
-                return str
-              end,
-              separator = { left = '', right = '' },
+              get_git_branch,
               padding = { left = 1, right = 1 },
+              separator = { left = '', right = '' },
               color = function()
-                local colors = get_onedarkpro_colors()
-                return { fg = colors.blue, gui = 'bold' }
+                local theme = color_theme.get_palette()
+                return {
+                  fg = theme.bg0 or '#282c34',
+                  bg = theme.blue or '#61afef',
+                  gui = 'bold',
+                }
+              end,
+              cond = function()
+                return get_git_branch() ~= ''
               end,
             },
-            -- Git Added (Green)
+            -- Git status indicators with improved conditions
             {
               get_git_added,
-              icon = '',
-              separator = '',
-              padding = { left = 0, right = 1 },
               color = function()
-                local colors = get_onedarkpro_colors()
-                return { fg = colors.git_add, gui = 'bold' }
+                local theme = color_theme.get_palette()
+                return { fg = theme.green or '#98c379', gui = 'bold' }
               end,
+              padding = { left = 1, right = 0 },
               cond = function()
                 return get_git_added() ~= ''
               end,
             },
-            -- Git Modified (Yellow)
             {
-              get_git_modified,
-              icon = '',
-              separator = '',
-              padding = { left = 0, right = 1 },
+              get_git_changed,
               color = function()
-                local colors = get_onedarkpro_colors()
-                return { fg = colors.git_change, gui = 'bold' }
+                local theme = color_theme.get_palette()
+                return { fg = theme.yellow or '#e5c07b', gui = 'bold' }
               end,
+              padding = { left = 1, right = 0 },
               cond = function()
-                return get_git_modified() ~= ''
+                return get_git_changed() ~= ''
               end,
             },
-            -- Git Removed (Red)
             {
               get_git_removed,
-              icon = '',
-              separator = { left = '', right = '' },
-              padding = { left = 0, right = 1 },
               color = function()
-                local colors = get_onedarkpro_colors()
-                return { fg = colors.git_delete, gui = 'bold' }
+                local theme = color_theme.get_palette()
+                return { fg = theme.red or '#e86671', gui = 'bold' }
               end,
+              padding = { left = 1, right = 1 },
               cond = function()
                 return get_git_removed() ~= ''
               end,
             },
-          },
-          lualine_c = {
-            { get_filename, icon = '󰈙', path = 0, padding = { left = 1, right = 1 } },
-            { 'spacer' },
             {
-              get_active_lsps,
+              get_git_clean,
               color = function()
-                local colors = get_onedarkpro_colors()
-                return { fg = colors.blue, gui = 'bold' }
+                local theme = color_theme.get_palette()
+                return { fg = theme.green or '#98c379', gui = 'bold' }
               end,
               padding = { left = 1, right = 1 },
+              cond = function()
+                return get_git_clean() ~= ''
+              end,
             },
-            { 'spacer' },
+            -- Alternative: Use built-in diff component as fallback
+            {
+              'diff',
+              symbols = { added = '󰐙 ', modified = '󰷈 ', removed = '󰍶 ' },
+              diff_color = {
+                added = function()
+                  local theme = color_theme.get_palette()
+                  return { fg = theme.green or '#98c379' }
+                end,
+                modified = function()
+                  local theme = color_theme.get_palette()
+                  return { fg = theme.yellow or '#e5c07b' }
+                end,
+                removed = function()
+                  local theme = color_theme.get_palette()
+                  return { fg = theme.red or '#e86671' }
+                end,
+              },
+              padding = { left = 1, right = 1 },
+              cond = function()
+                -- Show built-in diff if custom gitsigns components aren't working
+                return vim.b.gitsigns_status_dict == nil and vim.fn.isdirectory '.git' == 1
+              end,
+            },
+          },
+          lualine_c = {
+            {
+              get_filename,
+              icon = '󰈙',
+              path = 0,
+              padding = { left = 1, right = 1 },
+            },
             {
               'diagnostics',
               sources = { 'nvim_diagnostic', 'nvim_lsp' },
               symbols = { error = ' ', warn = ' ', info = ' ', hint = '󰌵 ' },
               colored = true,
               update_in_insert = false,
-              always_visible = false,
-              padding = { left = 1, right = 1 },
               diagnostics_color = {
-                error = function()
-                  local colors = get_onedarkpro_colors()
-                  return { fg = colors.red }
-                end,
-                warn = function()
-                  local colors = get_onedarkpro_colors()
-                  return { fg = colors.yellow }
-                end,
-                info = function()
-                  local colors = get_onedarkpro_colors()
-                  return { fg = colors.blue }
-                end,
-                hint = function()
-                  local colors = get_onedarkpro_colors()
-                  return { fg = colors.cyan }
-                end,
+                error = { fg = color_theme.get_palette().red },
+                warn = { fg = color_theme.get_palette().orange },
+                info = { fg = color_theme.get_palette().blue },
+                hint = { fg = color_theme.get_palette().bg0 },
               },
             },
-            { get_search_count, padding = { left = 0, right = 1 } },
-          },
-          lualine_x = {
-            { get_word_count, padding = { left = 0, right = 1 } },
-            { get_session_info, padding = { left = 0, right = 1 } },
-            { get_buffer_count, padding = { left = 0, right = 1 } },
             {
-              'encoding',
-              fmt = function(str)
-                return str:upper()
+              function()
+                return '%='
               end,
-              cond = function()
-                return vim.bo.fileencoding ~= 'utf-8'
-              end,
-              padding = { left = 0, right = 1 },
+              padding = 0,
             },
             {
-              'fileformat',
-              symbols = { unix = 'LF', dos = 'CRLF', mac = 'CR' },
-              cond = function()
-                return vim.bo.fileformat ~= 'unix'
+              function()
+                return ' ' .. get_active_lsps() .. ' '
               end,
+              padding = { left = 1, right = 1 },
+              color = function()
+                local theme = color_theme.get_palette()
+                return {
+                  fg = theme.fg or '#abb2df',
+                  bg = theme.bg2 or '#3e4451',
+                  gui = 'italic',
+                }
+              end,
+              separator = { left = '│', right = '│' },
+            },
+            {
+              function()
+                return '%='
+              end,
+              padding = 0,
+            },
+          },
+          lualine_x = {
+            {
+              get_word_count,
               padding = { left = 0, right = 1 },
+              separator = { left = '', right = '│' },
             },
             {
               'filetype',
-              colored = true,
-              icon_only = false,
-              icon = { align = 'right' },
               padding = { left = 0, right = 1 },
+              separator = { left = '', right = '│' },
             },
           },
           lualine_y = {
-            { get_line_info, icon = '󰉸', padding = { left = 1, right = 1 } },
+            {
+              get_line_info,
+              icon = '󰉸',
+              padding = { left = 0, right = 1 },
+              separator = { left = '', right = '│' },
+            },
             {
               'filesize',
               icon = '󰈔',
@@ -408,22 +350,22 @@ return {
                 return vim.fn.getfsize(vim.fn.expand '%') > 1024
               end,
               padding = { left = 0, right = 1 },
+              separator = { left = '', right = '│' },
             },
           },
           lualine_z = {
             {
-              'progress',
-              fmt = function()
-                return '%P'
-              end,
-              padding = { left = 1, right = 1 },
-            },
-            {
               function()
-                return os.date '%H:%M'
+                return ' ' .. os.date '%H:%M'
               end,
-              icon = '󰥔',
               padding = { left = 0, right = 1 },
+              color = function()
+                return {
+                  fg = '#61afef',
+                  bg = '#31353f',
+                  gui = 'bold',
+                }
+              end,
             },
           },
         },
@@ -434,37 +376,60 @@ return {
             {
               get_filename,
               padding = { left = 1, right = 1 },
-              color = function()
-                local colors = get_onedarkpro_colors()
-                return { fg = colors.gray, bg = colors.bg }
-              end,
             },
           },
           lualine_x = {
             {
               'location',
               padding = { left = 1, right = 1 },
-              color = function()
-                local colors = get_onedarkpro_colors()
-                return { fg = colors.gray, bg = colors.bg }
-              end,
             },
           },
           lualine_y = {},
           lualine_z = {},
         },
-        tabline = {},
-        winbar = {},
-        inactive_winbar = {},
-        extensions = {
-          'toggleterm',
-          'quickfix',
-          'fugitive',
-          'trouble',
-          'lazy',
-          'mason',
-        },
+        extensions = { 'toggleterm', 'quickfix', 'fugitive', 'trouble', 'lazy', 'mason' },
       }
+
+      -- Enhanced autocmds for better git integration
+      local group = vim.api.nvim_create_augroup('LualineLSP', { clear = true })
+      vim.api.nvim_create_autocmd({ 'LspAttach', 'LspDetach' }, {
+        group = group,
+        callback = function()
+          require('lualine').refresh()
+        end,
+      })
+      vim.api.nvim_create_autocmd('DiagnosticChanged', {
+        group = group,
+        callback = function()
+          require('lualine').refresh()
+        end,
+      })
+
+      -- Add git-specific autocmds for better refresh
+      vim.api.nvim_create_autocmd({ 'User' }, {
+        pattern = 'GitSignsUpdate',
+        group = group,
+        callback = function()
+          require('lualine').refresh()
+        end,
+      })
+
+      vim.api.nvim_create_autocmd({ 'BufEnter', 'FocusGained' }, {
+        group = group,
+        callback = function()
+          -- Refresh when entering buffer or gaining focus (for git changes)
+          vim.defer_fn(function()
+            require('lualine').refresh()
+          end, 100)
+        end,
+      })
+
+      local palette = color_theme.get_palette()
+      vim.api.nvim_set_hl(0, 'LualineLspCenter', {
+        fg = palette.fg or '#abb2bf',
+        bg = palette.bg2 or '#3e4451',
+        italic = true,
+      })
     end,
   },
 }

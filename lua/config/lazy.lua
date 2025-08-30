@@ -50,7 +50,6 @@ require('lazy').setup({
     { import = 'plugins' },
     { import = 'ui' },
     { import = 'tools' },
-    { import = 'kickstart.plugins' },
   },
   defaults = {},
 }, {

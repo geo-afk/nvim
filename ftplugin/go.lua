@@ -44,6 +44,16 @@ end, { nargs = '?', desc = 'Modify struct tags with gomodifytags for entire file
 --   vim.cmd 'edit!' -- Reload the file
 -- end, { nargs = '?', desc = 'Modify struct tags with gomodifytags' })
 
+vim.api.nvim_create_user_command('GoRun', function()
+  local file = vim.fn.expand '%'
+  local cmd = string.format('go run %s', file)
+  -- Open a terminal in a horizontal split with 20% of the screen height
+  vim.cmd('botright 20split | terminal ' .. cmd)
+  -- Start the terminal in insert mode
+  vim.cmd 'startinsert'
+end, { desc = 'Run the current Go file in a terminal' })
+
 vim.keymap.set('n', '<leader>gt', ':GoTests -all<CR>', { desc = 'Generate tests for all functions' })
 vim.keymap.set('n', '<leader>gm', ':GoModifyTags -add-tags json<CR>', { desc = 'Add JSON tags' })
 vim.keymap.set('n', '<leader>gr', ':GoModifyTags -remove-tags json<CR>', { desc = 'Remove JSON tags' })
+vim.keymap.set('n', '<leader>go', ':GoRun<CR>', { desc = 'Run the current Go file' })
