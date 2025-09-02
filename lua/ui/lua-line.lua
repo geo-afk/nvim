@@ -36,7 +36,7 @@ return {
       local function get_active_lsps()
         local clients = vim.lsp.get_clients { bufnr = 0 }
         if #clients == 0 then
-          return 'No LSP'
+          return '' -- Return empty string instead of 'No LSP' for cleaner look
         end
 
         local client_names = {}
@@ -48,9 +48,16 @@ return {
         end
 
         if #client_names == 0 then
-          return 'No LSP'
+          return ''
         end
-        return table.concat(client_names, ', ')
+
+        -- Format with icon and limit display length
+        local lsp_string = table.concat(client_names, ', ')
+        if #lsp_string > 25 then
+          lsp_string = lsp_string:sub(1, 22) .. '...'
+        end
+
+        return '󰿘 ' .. lsp_string
       end
 
       local function get_word_count()
@@ -300,22 +307,24 @@ return {
               function()
                 return '%='
               end,
-              padding = 0,
+              padding = 10,
             },
+
             {
-              function()
-                return ' ' .. get_active_lsps() .. ' '
-              end,
+              get_active_lsps,
               padding = { left = 1, right = 1 },
               color = function()
                 local theme = color_theme.get_palette()
                 return {
-                  fg = theme.fg or '#abb2df',
-                  bg = theme.bg2 or '#3e4451',
-                  gui = 'italic',
+                  fg = theme.bg0 or '#282c34',
+                  bg = theme.purple or '#c678dd',
+                  gui = 'bold',
                 }
               end,
-              separator = { left = '│', right = '│' },
+              separator = { left = '', right = '' },
+              cond = function()
+                return get_active_lsps() ~= ''
+              end,
             },
             {
               function()

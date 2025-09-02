@@ -13,5 +13,40 @@ return {
   },
 
   -- Highlight todo, notes, etc in comments
-  { 'folke/todo-comments.nvim', event = 'VimEnter', dependencies = { 'nvim-lua/plenary.nvim' }, opts = { signs = false } },
+  {
+    'folke/todo-comments.nvim',
+    event = 'VimEnter',
+    dependencies = { 'nvim-lua/plenary.nvim' },
+    opts = { signs = false },
+    keys = {
+      {
+        ']t',
+        function()
+          require('todo-comments').jump_next()
+        end,
+        desc = 'Next todo',
+      },
+      {
+        '[t',
+        function()
+          require('todo-comments').jump_prev()
+        end,
+        desc = 'Previous todo',
+      },
+      {
+        '<leader>st',
+        function()
+          if vim.g.picker_engine == 'fzf' then
+            require('todo-comments.fzf').todo()
+          elseif vim.g.picker_engine == 'snacks' then
+            ---@diagnostic disable-next-line: undefined-field
+            Snacks.picker.todo_comments()
+          else
+            vim.cmd 'TodoTelescope'
+          end
+        end,
+        desc = 'Todo',
+      },
+    },
+  },
 }

@@ -9,12 +9,20 @@ return {
       topdelete = { text = '‾' },
       changedelete = { text = '~' },
     },
-    current_line_blame = false,
+
+    -- Enable blame info
+    current_line_blame = true,
+
     current_line_blame_opts = {
       virt_text = true,
-      virt_text_pos = 'eol',
+      virt_text_pos = 'eol', -- eol | overlay | right_align
       delay = 1000,
+      ignore_whitespace = false,
     },
+
+    -- Format for blame text
+    current_line_blame_formatter = '     <author> • <author_time:%Y-%m-%d %H:%M> • <summary>',
+
     preview_config = {
       border = 'single',
       style = 'minimal',

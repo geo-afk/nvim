@@ -32,9 +32,90 @@ return {
         show_close_icon = false, -- no global close icon
         show_tab_indicators = true,
         persist_buffer_sort = true,
-        separator_style = 'thin', -- can also be 'slant' or 'thick'
+        separator_style = 'thick', -- can also be 'slant' or 'thick'
         enforce_regular_tabs = false,
         always_show_bufferline = true,
+      },
+      -- Subtle bracket-style highlighting for transparent backgrounds
+      highlights = {
+        -- Active buffer with bracket-like indicators
+        buffer_selected = {
+          fg = '#ffffff', -- bright white text
+          bg = 'NONE',
+          bold = true,
+          italic = false,
+        },
+        -- Inactive buffers - more muted
+        buffer = {
+          fg = '#999999', -- medium gray
+          bg = 'NONE',
+        },
+        -- Modified indicators
+        modified_selected = {
+          fg = '#00ff88', -- bright green for modified active
+          bg = 'NONE',
+          bold = true,
+        },
+        modified = {
+          fg = '#ffaa44', -- warm orange for modified inactive
+          bg = 'NONE',
+        },
+        -- Close buttons
+        close_button_selected = {
+          fg = '#ff6b6b', -- red close button on active
+          bg = 'NONE',
+          bold = true,
+        },
+        close_button = {
+          fg = '#777777',
+          bg = 'NONE',
+        },
+        -- Custom separators for bracket effect
+        separator_selected = {
+          fg = '#00ddff', -- cyan brackets around active
+          bg = 'NONE',
+          bold = true,
+        },
+        separator = {
+          fg = '#555555', -- subtle separators for inactive
+          bg = 'NONE',
+        },
+        -- Diagnostics
+        error_selected = {
+          fg = '#ff4444',
+          bg = 'NONE',
+          bold = true,
+        },
+        error = {
+          fg = '#cc4444',
+          bg = 'NONE',
+        },
+        warning_selected = {
+          fg = '#ffcc00',
+          bg = 'NONE',
+          bold = true,
+        },
+        warning = {
+          fg = '#bb9900',
+          bg = 'NONE',
+        },
+        -- Pick mode
+        pick_selected = {
+          fg = '#ff00ff', -- magenta for picking
+          bg = 'NONE',
+          bold = true,
+          italic = true,
+        },
+        pick = {
+          fg = '#cc00cc',
+          bg = 'NONE',
+          bold = true,
+        },
+        -- Background fill
+        fill = {
+          fg = '#333333',
+          bg = 'NONE',
+        },
       },
     },
     keys = {

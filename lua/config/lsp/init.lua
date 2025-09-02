@@ -60,11 +60,12 @@ end
 M.servers = {
   gopls = 'go',
   html = 'html',
+  sqlls = 'sqlls',
   lua_ls = 'lua_ls',
   typos_lsp = 'typos',
   ts_ls = 'typescript',
-  tailwindcss = 'tailwindcss',
   angularls = 'angularls',
+  tailwindcss = 'tailwindcss',
 }
 
 function M.setup_lsps()

@@ -1,3 +1,8 @@
+vim.bo.commentstring = '-- %s'
+
+vim.g.loaded_netrw = 1
+vim.g.loaded_netrwPlugin = 1
+
 vim.g.mapleader = ' '
 vim.g.maplocalleader = ' '
 
@@ -6,7 +11,6 @@ vim.o.cmdheight = 0
 
 vim.g.have_nerd_font = true
 
-vim.g.snacks_animate = true
 vim.g.lazyvim_cmp = 'blink.cmp'
 vim.g.root_spec = { 'lsp', { '.git', 'lua' }, 'cwd' }
 vim.opt.list = true
@@ -77,7 +81,7 @@ vim.o.inccommand = 'split'
 vim.o.cursorline = true
 
 -- Minimal number of screen lines to keep above and below the cursor.
-vim.o.scrolloff = 10
+vim.o.scrolloff = 5
 
 -- if performing an operation that would fail due to unsaved changes in the buffer (like `:q`),
 -- instead raise a dialog asking if you wish to save the current file(s)

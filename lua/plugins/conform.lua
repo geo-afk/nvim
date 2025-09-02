@@ -34,9 +34,9 @@ return { -- Autoformat
       typescript = { 'prettier' },
       go = {
         'gofumpt',
-        -- 'goimports',
         'golines',
       },
+      sql = { 'sql_formatter' },
       css = { 'prettier' },
       html = { 'prettier' },
       json = { 'prettier' },
@@ -46,6 +46,11 @@ return { -- Autoformat
       --
       -- You can use 'stop_after_first' to run the first available formatter from the list
       -- javascript = { "prettierd", "prettier", stop_after_first = true },
+    },
+    formatters = {
+      ['sql-formatter'] = {
+        prepend_args = { '--language', 'postgresql' }, -- handle $1, $2
+      },
     },
   },
 }

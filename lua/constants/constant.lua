@@ -5,24 +5,23 @@ M.kind_icons = {
   Method = '󰊕',
   Function = '󰊕',
   Constructor = '󰒓',
-
+  Array = ' ',
   Field = '󰜢',
-  Variable = '󰆦',
   Property = '󰖷',
-
+  Boolean = '󰨙 ',
   Class = '󱡠',
   Interface = '󱡠',
   Struct = '󱡠',
   Module = '󰅩',
-
+  Control = ' ',
+  Collapsed = ' ',
   Unit = '󰪚',
   Value = '󰦨',
-  Enum = '󰦨',
-  EnumMember = '󰦨',
-
+  Key = ' ',
   Keyword = '󰻾',
   Constant = '󰏿',
-
+  Enum = ' ',
+  EnumMember = ' ',
   Snippet = '󱄽',
   Color = '󰏘',
   File = '󰈔',
@@ -31,6 +30,15 @@ M.kind_icons = {
   Event = '󱐋',
   Operator = '󰪚',
   TypeParameter = '󰬛',
+
+  Null = ' ',
+  Number = '󰎠 ',
+  Object = ' ',
+  Package = ' ',
+  String = ' ',
+  Supermaven = ' ',
+  TabNine = '󰏚 ',
+  Variable = '󰀫 ',
 }
 
 M.components = {

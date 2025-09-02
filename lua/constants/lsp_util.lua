@@ -15,6 +15,7 @@ M.diagnostic = {
   virtual_text = {
     source = 'if_many',
     spacing = 2,
+    prefix = '●',
     format = function(diagnostic)
       local diagnostic_message = {
         [vim.diagnostic.severity.ERROR] = diagnostic.message,
