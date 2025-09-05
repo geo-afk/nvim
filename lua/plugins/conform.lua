@@ -36,9 +36,10 @@ return { -- Autoformat
         'gofumpt',
         'golines',
       },
-      sql = { 'sql_formatter' },
+      sql = { 'sqlfmt' },
       css = { 'prettier' },
       html = { 'prettier' },
+      htmlangular = { 'prettier' },
       json = { 'prettier' },
       angular = { 'prettier' },
       -- Conform can also run multiple formatters sequentially
@@ -46,11 +47,6 @@ return { -- Autoformat
       --
       -- You can use 'stop_after_first' to run the first available formatter from the list
       -- javascript = { "prettierd", "prettier", stop_after_first = true },
-    },
-    formatters = {
-      ['sql-formatter'] = {
-        prepend_args = { '--language', 'postgresql' }, -- handle $1, $2
-      },
     },
   },
 }

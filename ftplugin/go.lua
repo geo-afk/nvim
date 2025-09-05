@@ -44,6 +44,14 @@ end, { nargs = '?', desc = 'Modify struct tags with gomodifytags for entire file
 --   vim.cmd 'edit!' -- Reload the file
 -- end, { nargs = '?', desc = 'Modify struct tags with gomodifytags' })
 
+vim.api.nvim_create_user_command('GoIfErr', function(opts)
+  local line = vim.api.nvim_win_get_cursor(0)[1] -- Get current line number
+  local file = vim.fn.expand '%'
+  local cmd = string.format('iferr -pos %d < %s', line, file)
+  vim.fn.system(cmd)
+  vim.cmd 'edit!' -- Reload the file
+end, { desc = 'Generate error handling with iferr for current position' })
+
 vim.api.nvim_create_user_command('GoRun', function()
   local file = vim.fn.expand '%'
   local cmd = string.format('go run %s', file)
@@ -57,3 +65,4 @@ vim.keymap.set('n', '<leader>gt', ':GoTests -all<CR>', { desc = 'Generate tests 
 vim.keymap.set('n', '<leader>gm', ':GoModifyTags -add-tags json<CR>', { desc = 'Add JSON tags' })
 vim.keymap.set('n', '<leader>gr', ':GoModifyTags -remove-tags json<CR>', { desc = 'Remove JSON tags' })
 vim.keymap.set('n', '<leader>go', ':GoRun<CR>', { desc = 'Run the current Go file' })
+vim.keymap.set('n', '<leader>ge', ':GoIfErr<CR>', { desc = 'Insert if err snippet' })

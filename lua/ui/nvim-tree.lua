@@ -6,7 +6,6 @@ return {
     'nvim-tree/nvim-web-devicons',
   },
   config = function()
-    -- Define custom keymappings in on_attach
     local function on_attach(bufnr)
       local api = require 'nvim-tree.api'
       local opts = function(desc)
@@ -33,18 +32,53 @@ return {
       -- Misc
       vim.keymap.set('n', 'R', api.tree.reload, opts 'Refresh')
       vim.keymap.set('n', '?', api.tree.toggle_help, opts 'Help')
+
+      -- Go up in the folder hierarchy
+      vim.keymap.set('n', 'u', api.tree.change_root_to_parent, opts 'Go Up One Folder')
     end
 
     require('nvim-tree').setup {
       sort_by = 'case_sensitive',
       view = {
-        width = 30,
+        width = 31,
         side = 'left',
       },
       renderer = {
+
         group_empty = true,
+        root_folder_label = function(path)
+          return '📂 ' .. vim.fn.fnamemodify(path, ':t')
+        end,
         highlight_git = true,
+        highlight_opened_files = 'all',
+        -- root_folder_label = true, -- Hide full root path
+        indent_markers = {
+          enable = true,
+          inline_arrows = true,
+          icons = {
+            corner = '└',
+            edge = '│',
+            item = '│',
+            bottom = '─',
+            none = ' ',
+          },
+        },
         icons = {
+          glyphs = {
+            folder = {
+              arrow_closed = '',
+              arrow_open = '',
+            },
+            git = {
+              unstaged = '✗',
+              staged = '✓',
+              unmerged = '',
+              renamed = '➜',
+              untracked = '★',
+              deleted = '',
+              ignored = '◌',
+            },
+          },
           show = {
             file = true,
             folder = true,
@@ -54,26 +88,24 @@ return {
         },
       },
       filters = {
-        dotfiles = false, -- Show dotfiles
-        custom = { '^.git$' }, -- Exclude .git directory
+        dotfiles = false,
+        custom = { '^.git$' },
       },
       git = {
         enable = true,
         ignore = false,
-        timeout = 500,
+        timeout = 501,
       },
       update_focused_file = {
-        enable = true, -- Follow the file in the current buffer
-        update_root = true, -- Update the tree root to the file's project root
+        enable = true,
+        update_root = true, -- Automatically set tree root to file's folder
       },
-      filesystem_watchers = {
-        enable = true, -- Enable filesystem watchers for better syncing
-      },
-      respect_buf_cwd = true, -- Respect the current working directory of the buffer
-      on_attach = on_attach, -- Attach custom keymappings
+      respect_buf_cwd = true,
+      sync_root_with_cwd = true, -- Sync root to buffer cwd
+
+      on_attach = on_attach,
     }
 
-    -- Toggle tree
     vim.keymap.set('n', '<leader>e', ':NvimTreeToggle<CR>', { noremap = true, silent = true })
   end,
 }

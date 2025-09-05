@@ -60,7 +60,7 @@ end
 M.servers = {
   gopls = 'go',
   html = 'html',
-  sqlls = 'sqlls',
+  sqls = 'sqls',
   lua_ls = 'lua_ls',
   typos_lsp = 'typos',
   ts_ls = 'typescript',

@@ -13,6 +13,8 @@ if not (vim.uv or vim.loop).fs_stat(lazypath) then
   end
 end
 
+-- vim.g.python3_host_prog = 'C:/Users/U1/AppData/Local/Programs/Python/Python312/python.exe'
+
 -- Correctly prepend lazypath to runtimepath
 vim.opt.rtp:prepend(lazypath)
 

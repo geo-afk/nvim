@@ -38,7 +38,11 @@ M.mason_tool_install = {
   -- General formatters/linters
   'prettier',
   'stylua',
-  'eslint_d', -- Faster than eslint
+  -- 'eslint_d', -- Faster than eslint
+  'gotests',
+  'iferr',
+  'sqlfmt',
+  'gomodifytags',
   -- Optional: Add based on your needs
   -- "jsonls",
   -- "marksman", -- Markdown LSP
@@ -49,7 +53,7 @@ M.mason_lsp = {
   'gopls',
   'cssls',
   'typos_lsp',
-  'sqlls',
+  'sqls',
   'html',
   'angularls',
   'tailwindcss',
