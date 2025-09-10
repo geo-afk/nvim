@@ -12,6 +12,16 @@ function M.on_attach(client, bufnr)
   if client.supports_method 'textDocument/inlayHint' then
     vim.lsp.inlay_hint.enable(true, { bufnr = bufnr })
   end
+
+  -- Enable codelens if supported
+  if client.supports_method 'textDocument/codelens' then
+    vim.lsp.codelens.enabled = true
+    vim.lsp.codelens.refresh()
+    vim.api.nvim_create_autocmd({ 'BufEnter', 'CursorHold', 'InsertLeave' }, {
+      buffer = bufnr,
+      callback = vim.lsp.codelens.refresh,
+    })
+  end
 end
 
 -- Setup keymaps (called once globally)

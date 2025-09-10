@@ -49,6 +49,7 @@ return {
         buffer = {
           fg = '#999999', -- medium gray
           bg = 'NONE',
+          italic = true,
         },
         -- Modified indicators
         modified_selected = {

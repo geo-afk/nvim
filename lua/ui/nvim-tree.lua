@@ -38,20 +38,19 @@ return {
     end
 
     require('nvim-tree').setup {
+      on_attach = on_attach, -- <<-- IMPORTANT: attach your function here
       sort_by = 'case_sensitive',
       view = {
         width = 31,
         side = 'left',
       },
       renderer = {
-
         group_empty = true,
         root_folder_label = function(path)
           return '📂 ' .. vim.fn.fnamemodify(path, ':t')
         end,
         highlight_git = true,
         highlight_opened_files = 'all',
-        -- root_folder_label = true, -- Hide full root path
         indent_markers = {
           enable = true,
           inline_arrows = true,
@@ -94,18 +93,29 @@ return {
       git = {
         enable = true,
         ignore = false,
-        timeout = 501,
+        timeout = 500,
       },
+
+      -- 🔑 Make sure the root follows your project
       update_focused_file = {
         enable = true,
-        update_root = true, -- Automatically set tree root to file's folder
+        update_root = true,
       },
       respect_buf_cwd = true,
-      sync_root_with_cwd = true, -- Sync root to buffer cwd
-
-      on_attach = on_attach,
+      sync_root_with_cwd = true,
     }
 
-    vim.keymap.set('n', '<leader>e', ':NvimTreeToggle<CR>', { noremap = true, silent = true })
+    -- 🟢 Auto set Neovim's cwd to project root on startup
+    vim.api.nvim_create_autocmd('VimEnter', {
+      callback = function()
+        local root = vim.fn.finddir('.git', '.;') -- look upward for .git
+        if root ~= '' then
+          vim.cmd('cd ' .. vim.fn.fnamemodify(root, ':h'))
+        end
+      end,
+    })
+
+    -- global toggle mapping
+    vim.keymap.set('n', '<leader>e', '<cmd>NvimTreeToggle<CR>', { noremap = true, silent = true })
   end,
 }

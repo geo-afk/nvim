@@ -2,12 +2,14 @@ return {
   'rachartier/tiny-code-action.nvim',
   dependencies = {
     { 'nvim-lua/plenary.nvim' },
-    { 'nvim-telescope/telescope.nvim' }, -- telescope as picker
   },
   event = 'LspAttach',
   opts = {
     backend = 'vim',
-    picker = 'telescope', -- switched to telescope
+    picker = 'buffer',
+    opts = {
+      hotkeys = true,
+    },
   },
   signs = {
     quickfix = { '', { link = 'DiagnosticWarning' } },

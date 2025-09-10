@@ -30,18 +30,18 @@ return { -- Autoformat
     end,
     formatters_by_ft = {
       lua = { 'stylua' },
-      javascript = { 'prettier' },
-      typescript = { 'prettier' },
+      javascript = { 'prettierd', 'prettier', stop_after_first = true },
+      typescript = { 'prettierd', 'prettier', stop_after_first = true },
       go = {
         'gofumpt',
+        'goimports',
         'golines',
       },
       sql = { 'sqlfmt' },
-      css = { 'prettier' },
-      html = { 'prettier' },
-      htmlangular = { 'prettier' },
+      css = { 'prettierd', 'prettier', stop_after_first = true },
+      html = { 'prettierd', 'prettier', stop_after_first = true },
+      htmlangular = { 'prettierd', 'prettier', stop_after_first = true },
       json = { 'prettier' },
-      angular = { 'prettier' },
       -- Conform can also run multiple formatters sequentially
       -- python = { "isort", "black" },
       --

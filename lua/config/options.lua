@@ -1,10 +1,11 @@
+if vim.fn.has 'nvim-0.11' == 1 then
+  vim.opt.tabclose:append { 'uselast' }
+end
+
 vim.bo.commentstring = '-- %s'
 
 vim.g.loaded_netrw = 1
 vim.g.loaded_netrwPlugin = 1
-
-vim.g.mapleader = ' '
-vim.g.maplocalleader = ' '
 
 vim.o.laststatus = 3
 vim.o.cmdheight = 0
@@ -64,8 +65,8 @@ vim.o.splitbelow = true
 --   and `:help lua-options-guide`
 vim.o.list = true
 -- vim.opt.listchars:append 'space:·'
-vim.opt.listchars = { tab = '» ', trail = '·', nbsp = '␣', extends = '›', precedes = '‹' }
-
+vim.opt.listchars = { tab = '» ', trail = '·', nbsp = '␣', extends = '›', precedes = '‹', conceal = '' }
+vim.opt.showbreak = '⤷  '
 vim.opt.fillchars = {
   fold = ' ',
   foldopen = '',
@@ -73,6 +74,13 @@ vim.opt.fillchars = {
   foldsep = ' ',
   diff = '╱',
   eob = ' ',
+  horiz = '━',
+  horizup = '┻',
+  horizdown = '┳',
+  vert = '┃',
+  vertleft = '┫',
+  vertright = '┣',
+  verthoriz = '╋',
 }
 -- Preview substitutions live, as you type!
 vim.o.inccommand = 'split'
