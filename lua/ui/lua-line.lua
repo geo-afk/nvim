@@ -5,7 +5,7 @@ return {
     'nvim-lualine/lualine.nvim',
     dependencies = {
       'nvim-tree/nvim-web-devicons',
-      'lewis6991/gitsigns.nvim', -- Explicit dependency
+      'lewis6991/gitsigns.nvim',
     },
     event = 'VeryLazy',
     config = function()
@@ -20,17 +20,24 @@ return {
         local current_line = vim.fn.line '.'
         local total_lines = vim.fn.line '$'
         local column = vim.fn.col '.'
-        return string.format(' %d:%d/%d', current_line, column, total_lines)
+        return string.format('%d:%d/%d', current_line, column, total_lines)
       end
 
-      local function get_filename()
+      local function get_filename_with_context()
         local filename = vim.fn.expand '%:t'
+        local filepath = vim.fn.expand '%:h'
+
         if filename == '' then
-          return '[No Name]'
+          return '󰈚 Untitled'
         end
-        local modified = vim.bo.modified and ' ' or ''
-        local readonly = vim.bo.readonly and ' ' or ''
-        return filename .. modified .. readonly
+
+        local modified = vim.bo.modified and ' ●' or ''
+        local readonly = vim.bo.readonly and ' 󰌾' or ''
+
+        -- Show parent directory if not in root
+        local context = filepath ~= '.' and filepath ~= '' and '…/' .. vim.fn.fnamemodify(filepath, ':t') .. '/' or ''
+
+        return '  ' .. context .. filename .. modified .. readonly
       end
 
       local function get_active_lsps()
@@ -285,10 +292,15 @@ return {
           },
           lualine_c = {
             {
-              get_filename,
-              icon = '󰈙',
-              path = 0,
-              padding = { left = 1, right = 1 },
+              get_filename_with_context,
+              padding = { left = 1, right = 2 },
+              color = function()
+                local theme = color_theme.get_palette()
+                return {
+                  fg = theme.fg or '#abb2bf',
+                  gui = vim.bo.modified and 'bold,italic' or 'italic',
+                }
+              end,
             },
             {
               'diagnostics',

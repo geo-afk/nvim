@@ -1,72 +1,90 @@
+-- =======================================================================
+--  Compatibility / Neovim Version Checks
+-- =======================================================================
 if vim.fn.has 'nvim-0.11' == 1 then
+  -- When closing a window, automatically jump to the last used one
   vim.opt.tabclose:append { 'uselast' }
 end
 
-vim.bo.commentstring = '-- %s'
-
+-- =======================================================================
+--  Disable Unwanted Built-in Plugins
+-- =======================================================================
 vim.g.loaded_netrw = 1
 vim.g.loaded_netrwPlugin = 1
 
-vim.o.laststatus = 3
-vim.o.cmdheight = 0
+-- =======================================================================
+--  General UI Settings
+-- =======================================================================
+vim.o.number = true -- Show line numbers
+vim.o.mouse = 'a' -- Enable mouse support
+vim.o.showmode = false -- Don’t show mode in command line (already shown in statusline)
+vim.o.laststatus = 3 -- Global statusline (instead of per window)
+vim.o.cmdheight = 0 -- Hide command line unless needed
+vim.o.cursorline = true -- Highlight the current line
+vim.o.scrolloff = 5 -- Keep 5 lines visible above/below cursor
+vim.opt.termguicolors = true -- Enable true color support
+vim.g.have_nerd_font = true -- Enable Nerd Font icons if available
 
-vim.g.have_nerd_font = true
+-- =======================================================================
+--  Editing Behavior
+-- =======================================================================
+vim.bo.commentstring = '-- %s' -- Default comment style for Lua-like files
+vim.o.tabstop = 2 -- Tab width = 2 spaces
+vim.o.shiftwidth = 2 -- Indent width = 2 spaces
+vim.o.expandtab = true -- Use spaces instead of tabs
+vim.o.autoindent = true -- Maintain indent from previous line
+vim.o.smartindent = false -- Disable smart indent
+vim.o.cindent = false -- Disable C-style indent
 
-vim.g.lazyvim_cmp = 'blink.cmp'
-vim.g.root_spec = { 'lsp', { '.git', 'lua' }, 'cwd' }
-vim.opt.list = true
--- [[ Setting options ]]
--- See `:help vim.o`
--- NOTE: You can change these options as you wish!
---  For more options, you can see `:help option-list`
-
-vim.o.number = true
-vim.o.mouse = 'a'
-vim.o.showmode = false
-
+-- =======================================================================
+--  Clipboard
+-- =======================================================================
 vim.schedule(function()
-  vim.o.clipboard = 'unnamedplus'
+  vim.o.clipboard = 'unnamedplus' -- Use system clipboard
 end)
 
--- vim.opt.wildignore:append { '*/node_modules/*' }
+-- =======================================================================
+--  Search
+-- =======================================================================
+vim.o.ignorecase = true -- Case-insensitive search...
+vim.o.smartcase = true -- ...unless uppercase is used
+vim.o.inccommand = 'split' -- Live preview substitutions
 
-vim.opt.termguicolors = true
+-- =======================================================================
+--  Performance
+-- =======================================================================
+vim.o.updatetime = 250 -- Faster diagnostics & CursorHold events
+vim.o.timeoutlen = 300 -- Faster mapped sequence wait time
 
--- Enable break indent
-vim.o.breakindent = true
+-- =======================================================================
+--  Window / Split Behavior
+-- =======================================================================
+vim.o.splitright = true -- Vertical splits open to the right
+vim.o.splitbelow = true -- Horizontal splits open below
 
--- Save undo history
-vim.o.undofile = true
+-- =======================================================================
+--  Persistent Data
+-- =======================================================================
+vim.o.undofile = true -- Save undo history to file
 
--- Case-insensitive searching UNLESS \C or one or more capital letters in the search term
-vim.o.ignorecase = true
-vim.o.smartcase = true
+-- =======================================================================
+--  Signs & Columns
+-- =======================================================================
+vim.o.signcolumn = 'yes' -- Always show sign column (for diagnostics, git, etc.)
 
--- Keep signcolumn on by default
-vim.o.signcolumn = 'yes'
-
--- Decrease update time
-vim.o.updatetime = 250
-
--- Decrease mapped sequence wait time
-vim.o.timeoutlen = 300
-
--- Configure how new splits should be opened
-vim.o.splitright = true
-vim.o.splitbelow = true
-
--- Sets how neovim will display certain whitespace characters in the editor.
---  See `:help 'list'`
---  and `:help 'listchars'`
---
---  Notice listchars is set using `vim.opt` instead of `vim.o`.
---  It is very similar to `vim.o` but offers an interface for conveniently interacting with tables.
---   See `:help lua-options`
---   and `:help lua-options-guide`
-vim.o.list = true
--- vim.opt.listchars:append 'space:·'
-vim.opt.listchars = { tab = '» ', trail = '·', nbsp = '␣', extends = '›', precedes = '‹', conceal = '' }
-vim.opt.showbreak = '⤷  '
+-- =======================================================================
+--  Lists & Invisible Characters
+-- =======================================================================
+vim.opt.list = true
+vim.opt.listchars = {
+  tab = '» ',
+  trail = '·',
+  nbsp = '␣',
+  extends = '›',
+  precedes = '‹',
+  conceal = '',
+}
+vim.opt.showbreak = '⤷  ' -- Show wrapped lines with symbol
 vim.opt.fillchars = {
   fold = ' ',
   foldopen = '',
@@ -82,29 +100,28 @@ vim.opt.fillchars = {
   vertright = '┣',
   verthoriz = '╋',
 }
--- Preview substitutions live, as you type!
-vim.o.inccommand = 'split'
 
--- Show which line your cursor is on
-vim.o.cursorline = true
+-- =======================================================================
+--  Behavior on Unsaved Changes
+-- =======================================================================
+vim.o.confirm = true -- Ask to save when quitting with unsaved changes
 
--- Minimal number of screen lines to keep above and below the cursor.
-vim.o.scrolloff = 5
+-- =======================================================================
+--  Plugin/Framework Specific Globals
+-- =======================================================================
+vim.g.lazyvim_cmp = 'blink.cmp' -- Completion plugin
+vim.g.root_spec = { 'lsp', { '.git', 'lua' }, 'cwd' } -- Project root detection
 
--- if performing an operation that would fail due to unsaved changes in the buffer (like `:q`),
--- instead raise a dialog asking if you wish to save the current file(s)
--- See `:help 'confirm'`
-vim.o.confirm = true
-
-vim.o.tabstop = 2 -- Each tab is 2 columns
-vim.o.shiftwidth = 2 -- Each indent level is 2 spaces
-vim.o.expandtab = true -- Use spaces instead of tabs
-vim.o.autoindent = true -- Keep autoindent
-vim.o.smartindent = false -- Keep smartindent off
-vim.o.cindent = false -- Keep cindent off
-
--- Nushell configuration
+-- =======================================================================
+--  Shell Configuration (Nushell)
+-- =======================================================================
 vim.opt.shell = 'nu'
 vim.opt.shellcmdflag = '--commands' -- Changed from "-c"
 vim.opt.shellquote = ''
 vim.opt.shellxquote = ''
+
+-- =======================================================================
+--  Legacy Vimscript Configurations
+-- =======================================================================
+vim.cmd 'let g:netrw_banner = 0' -- Disable netrw banner
+-- vim.opt.wildignore:append { '*/node_modules/*' } -- Ignore node_modules

@@ -4,6 +4,7 @@ M.diagnostic = {
   severity_sort = true,
   float = { border = 'rounded', source = 'if_many' },
   underline = { severity = vim.diagnostic.severity.ERROR },
+  update_in_insert = false,
   signs = vim.g.have_nerd_font and {
     text = {
       [vim.diagnostic.severity.ERROR] = '󰅚 ',
@@ -35,9 +36,10 @@ M.mason_tool_install = {
   'golines',
   'gotests',
   'staticcheck',
+  'biome',
   -- General formatters/linters
-  'prettier',
-  'prettierd',
+  -- 'prettier',
+  -- 'prettierd',
   'stylua',
   'eslint_d', -- Faster than eslint
   'gotests',

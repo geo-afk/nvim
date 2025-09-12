@@ -23,6 +23,15 @@ return {
     local lsp_config = require 'config.lsp'
 
     require('mason-tool-installer').setup { ensure_installed = lsp_util.mason_tool_install }
+    require('mason').setup {
+      ui = {
+        icons = {
+          package_installed = '✓',
+          package_pending = '➜',
+          package_uninstalled = '✗',
+        },
+      },
+    }
     require('mason-lspconfig').setup {
       ensure_installed = lsp_util.mason_lsp,
       automatic_installation = false,

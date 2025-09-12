@@ -4,7 +4,6 @@ return {
   config = function()
     local lint = require 'lint'
     local eslint = lint.linters.eslint_d
-    -- Define linters for filetypes
     lint.linters_by_ft = {
       sql = { 'sqlfluff' }, -- SQL
       html = { 'htmlhint' }, -- SQL
@@ -13,6 +12,16 @@ return {
       javascript = { 'biomejs' }, -- JavaScript
     }
 
+    eslint.args = {
+      '--no-warn-ignored',
+      '--format',
+      'json',
+      '--stdin',
+      '--stdin-filename',
+      function()
+        return vim.fn.expand '%:p'
+      end,
+    }
     -- Create an autocommand group for linting
     local lint_augroup = vim.api.nvim_create_augroup('lint', { clear = true })
 
