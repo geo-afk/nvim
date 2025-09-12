@@ -1,7 +1,12 @@
 local M = {}
 M.kind_icons = {
+
+  Version = ' ',
+  Unknown = '  ',
+  Calculator = ' ',
+  Emoji = '󰞅 ',
   Copilot = '',
-  Text = '󰉿',
+  Text = ' ',
   Method = '󰊕',
   Function = '󰊕',
   Constructor = '󰒓',
@@ -15,7 +20,7 @@ M.kind_icons = {
   Module = '󰅩',
   Control = ' ',
   Collapsed = ' ',
-  Unit = '󰪚',
+  Unit = ' ',
   Value = '󰦨',
   Key = ' ',
   Keyword = '󰻾',

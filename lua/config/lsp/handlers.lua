@@ -27,13 +27,13 @@ end
 -- Setup keymaps (called once globally)
 function M.setup_keymaps(args)
   vim.keymap.set('n', 'K', vim.lsp.buf.hover, { desc = 'Get Descriptions' })
-  vim.keymap.set('n', 'gd', vim.lsp.buf.definition, { desc = 'Go to Definition' })
-  vim.keymap.set('n', 'gr', vim.lsp.buf.references, { desc = 'Go to References' })
   -- vim.keymap.set('n', '<leader>ca', vim.lsp.buf.code_action, { desc = 'Code Actions' })
-  vim.keymap.set('n', '<leader>rn', vim.lsp.buf.rename, { desc = 'Rename Symbol' })
   vim.keymap.set('n', 'gD', vim.lsp.buf.declaration, { desc = 'Go to Declaration' })
   vim.keymap.set('n', 'gi', vim.lsp.buf.implementation, { desc = 'Go to Implementation' })
   vim.keymap.set('n', '<C-k>', vim.lsp.buf.signature_help, { desc = 'Signature Help' })
+  vim.keymap.set('n', '<leader>vd', vim.diagnostic.open_float, { desc = 'open float diagnostic' })
+  vim.keymap.set({ 'n', 'x' }, '<leader>cc', vim.lsp.codelens.run, { desc = 'run code lens' })
+  vim.keymap.set('n', '<leader>cC', vim.lsp.codelens.refresh, { desc = 'Refresh & display codelens' })
 
   vim.keymap.set('n', '<leader>ci', function()
     vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled())
@@ -53,20 +53,12 @@ function M.setup_keymaps(args)
   map('gra', vim.lsp.buf.code_action, '[G]oto Code [A]ction', { 'n', 'x' })
 
   -- Find references for the word under your cursor.
-  map('grr', require('telescope.builtin').lsp_references, '[G]oto [R]eferences')
-
-  -- Jump to the implementation of the word under your cursor.
-  --  Useful when your language has ways of declaring types without an actual implementation.
-  map('gri', require('telescope.builtin').lsp_implementations, '[G]oto [I]mplementation')
+  map('gr', require('telescope.builtin').lsp_references, '[G]oto [R]eferences')
 
   -- Jump to the definition of the word under your cursor.
   --  This is where a variable was first declared, or where a function is defined, etc.
   --  To jump back, press <C-t>.
-  map('grd', require('telescope.builtin').lsp_definitions, '[G]oto [D]efinition')
-
-  -- WARN: This is not Goto Definition, this is Goto Declaration.
-  --  For example, in C this would take you to the header.
-  map('grD', vim.lsp.buf.declaration, '[G]oto [D]eclaration')
+  map('gd', require('telescope.builtin').lsp_definitions, '[G]oto [D]efinition')
 
   -- Fuzzy find all the symbols in your current document.
   --  Symbols are things like variables, functions, types, etc.
