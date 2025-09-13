@@ -184,32 +184,6 @@ return {
       end
 
       -- ================================================================================================
-      -- THEME COLORS
-      -- ================================================================================================
-
-      local function get_theme_colors()
-        local theme = color_theme.get_palette()
-        return {
-          -- Primary colors
-          bg = theme.bg0 or '#1e2124',
-          fg = theme.fg or '#abb2bf',
-
-          -- Accent colors
-          blue = theme.blue or '#61afef',
-          green = theme.green or '#98c379',
-          yellow = theme.yellow or '#e5c07b',
-          red = theme.red or '#e86671',
-          purple = theme.purple or '#c678dd',
-          orange = theme.orange or '#d19a66',
-          cyan = theme.cyan or '#56b6c2',
-
-          -- Background variations
-          bg_light = theme.bg1 or '#31353f',
-          bg_lighter = theme.bg2 or '#3e4451',
-        }
-      end
-
-      -- ================================================================================================
       -- LUALINE SETUP
       -- ================================================================================================
 
@@ -269,16 +243,6 @@ return {
                   gui = 'bold',
                 }
               end,
-              -- separator = { left = '', right = '' },
-              -- padding = { left = 1, right = 1 },
-              -- color = function()
-              --   local colors = get_theme_colors()
-              --   return {
-              --     fg = colors.bg,
-              --     bg = colors.cyan,
-              --     gui = 'bold',
-              --   }
-              -- end,
             },
           },
 
@@ -305,7 +269,7 @@ return {
             {
               get_git_added,
               color = function()
-                local colors = get_theme_colors()
+                local colors = color_theme.get_palette()
                 return { fg = colors.green, gui = 'bold' }
               end,
               padding = { left = 1, right = 0 },
@@ -316,7 +280,7 @@ return {
             {
               get_git_changed,
               color = function()
-                local colors = get_theme_colors()
+                local colors = color_theme.get_palette()
                 return { fg = colors.yellow, gui = 'bold' }
               end,
               padding = { left = 1, right = 0 },
@@ -327,7 +291,7 @@ return {
             {
               get_git_removed,
               color = function()
-                local colors = get_theme_colors()
+                local colors = color_theme.get_palette()
                 return { fg = colors.red, gui = 'bold' }
               end,
               padding = { left = 1, right = 1 },
@@ -338,7 +302,7 @@ return {
             {
               get_git_clean,
               color = function()
-                local colors = get_theme_colors()
+                local colors = color_theme.get_palette()
                 return { fg = colors.green, gui = 'bold' }
               end,
               padding = { left = 1, right = 1 },
@@ -356,7 +320,7 @@ return {
               get_filename_with_context,
               padding = { left = 1, right = 1 },
               color = function()
-                local colors = get_theme_colors()
+                local colors = color_theme.get_palette()
                 return {
                   fg = colors.fg,
                   gui = vim.bo.modified and 'bold,italic' or 'italic',
@@ -371,19 +335,19 @@ return {
               update_in_insert = false,
               diagnostics_color = {
                 error = function()
-                  local colors = get_theme_colors()
+                  local colors = color_theme.get_palette()
                   return { fg = colors.red }
                 end,
                 warn = function()
-                  local colors = get_theme_colors()
+                  local colors = color_theme.get_palette()
                   return { fg = colors.orange }
                 end,
                 info = function()
-                  local colors = get_theme_colors()
+                  local colors = color_theme.get_palette()
                   return { fg = colors.blue }
                 end,
                 hint = function()
-                  local colors = get_theme_colors()
+                  local colors = color_theme.get_palette()
                   return { fg = colors.cyan }
                 end,
               },
@@ -402,7 +366,7 @@ return {
               get_active_lsps,
               padding = { left = 1, right = 1 },
               color = function()
-                local colors = get_theme_colors()
+                local colors = color_theme.get_palette()
                 return {
                   fg = colors.bg,
                   bg = colors.blue,
@@ -428,7 +392,7 @@ return {
                 return package.loaded['noice'] and require('noice').api.status.command.has()
               end,
               color = function()
-                local colors = get_theme_colors()
+                local colors = color_theme.get_palette()
                 return {
                   fg = colors.bg,
                   bg = colors.orange,
@@ -444,7 +408,7 @@ return {
                 return package.loaded['lazy'] and require('lazy.status').has_updates()
               end,
               color = function()
-                local colors = get_theme_colors()
+                local colors = color_theme.get_palette()
                 return {
                   fg = colors.bg,
                   bg = colors.yellow,
@@ -462,7 +426,7 @@ return {
                 mac = '',
               },
               color = function()
-                local colors = get_theme_colors()
+                local colors = color_theme.get_palette()
                 return { fg = colors.purple, gui = 'bold' }
               end,
               padding = { left = 1, right = 0 },
@@ -471,7 +435,7 @@ return {
               'encoding',
               fmt = string.upper,
               color = function()
-                local colors = get_theme_colors()
+                local colors = color_theme.get_palette()
                 return { fg = colors.blue, gui = 'bold' }
               end,
               padding = { left = 1, right = 0 },
@@ -480,7 +444,7 @@ return {
               get_word_count,
               padding = { left = 1, right = 1 },
               color = function()
-                local colors = get_theme_colors()
+                local colors = color_theme.get_palette()
                 return { fg = colors.cyan, gui = 'bold' }
               end,
             },
@@ -494,7 +458,7 @@ return {
               'filetype',
               padding = { left = 1, right = 1 },
               color = function()
-                local colors = get_theme_colors()
+                local colors = color_theme.get_palette()
                 return { fg = colors.green, gui = 'bold' }
               end,
             },
@@ -506,7 +470,7 @@ return {
               end,
               padding = { left = 1, right = 1 },
               color = function()
-                local colors = get_theme_colors()
+                local colors = color_theme.get_palette()
                 return { fg = colors.yellow }
               end,
             },
@@ -521,7 +485,7 @@ return {
                 return '󰕭 ' .. get_location_info()
               end,
               color = function()
-                local colors = get_theme_colors()
+                local colors = color_theme.get_palette()
                 return {
                   fg = colors.bg,
                   bg = colors.green,
@@ -534,7 +498,7 @@ return {
             {
               scrollbar_component,
               color = function()
-                local colors = get_theme_colors()
+                local colors = color_theme.get_palette()
                 return {
                   fg = colors.bg,
                   bg = colors.yellow,
@@ -557,7 +521,7 @@ return {
             {
               get_filename_with_context,
               color = function()
-                local colors = get_theme_colors()
+                local colors = color_theme.get_palette()
                 return { fg = colors.bg_lighter }
               end,
             },
@@ -567,7 +531,7 @@ return {
               'location',
               padding = { left = 1, right = 1 },
               color = function()
-                local colors = get_theme_colors()
+                local colors = color_theme.get_palette()
                 return { fg = colors.bg_lighter }
               end,
             },
@@ -615,7 +579,7 @@ return {
       })
 
       -- Set custom highlight
-      local colors = get_theme_colors()
+      local colors = color_theme.get_palette()
       vim.api.nvim_set_hl(0, 'LualineLspCenter', {
         fg = colors.fg,
         bg = colors.bg_lighter,

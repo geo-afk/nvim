@@ -22,6 +22,27 @@ local function default_onedark_palette()
     gray = '#5c6370',
   }
 end
+-- local function get_theme_colors()
+--         local theme = color_theme.get_palette()
+--         return {
+--           -- Primary colors
+--           bg = theme.bg0 or '#1e2124',
+--           fg = theme.fg or '#abb2bf',
+--
+--           -- Accent colors
+--           blue = theme.blue or '#61afef',
+--           green = theme.green or '#98c379',
+--           yellow = theme.yellow or '#e5c07b',
+--           red = theme.red or '#e86671',
+--           purple = theme.purple or '#c678dd',
+--           orange = theme.orange or '#d19a66',
+--           cyan = theme.cyan or '#56b6c2',
+--
+--           -- Background variations
+--           bg_light = theme.bg1 or '#31353f',
+--           bg_lighter = theme.bg2 or '#3e4451',
+--         }
+--       end
 
 -- Try to get OneDarkPro colors via helpers
 local function try_onedarkpro_colors()
