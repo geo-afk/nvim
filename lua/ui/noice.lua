@@ -82,6 +82,25 @@ return {
           col = '100%',
         },
       },
+      confirm = {
+        backend = 'popup',
+        relative = 'editor',
+        align = 'center',
+        border = {
+          style = 'rounded',
+          highlight = 'FloatBorder',
+          title = ' Confirm ',
+          title_pos = 'center',
+        },
+        position = {
+          row = '50%',
+          col = '50%',
+        },
+        size = {
+          width = 'auto',
+          height = 'auto',
+        },
+      },
     },
     lsp = {
       progress = { enabled = true },
@@ -109,7 +128,14 @@ return {
         opts = { skip = true },
       },
     },
-    messages = { enabled = false },
+    messages = {
+      enabled = true, -- must be enabled for prompts
+      view = 'notify', -- normal messages go to notify
+      view_error = 'notify',
+      view_warn = 'notify',
+      view_history = 'messages',
+      view_search = 'virtualtext',
+    },
     health = { checker = true },
     popupmenu = { enabled = true },
     signature = { enabled = true },

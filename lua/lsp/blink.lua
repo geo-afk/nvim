@@ -65,8 +65,8 @@ return { -- Autocompletion
     },
 
     appearance = {
-      -- 'mono' (default) for 'Nerd Font Mono' or 'normal' for 'Nerd Font'
       -- Adjusts spacing to ensure icons are aligned
+      -- 'mono' (default) for 'Nerd Font Mono' or 'normal' for 'Nerd Font'
       nerd_font_variant = 'mono',
       kind_icons = constant.kind_icons,
     },
@@ -75,21 +75,21 @@ return { -- Autocompletion
       -- By default, you may press `<c-space>` to show the documentation.
       -- Optionally, set `auto_show = true` to show the documentation after a delay.
       documentation = {
-        auto_show = false,
-        auto_show_delay_ms = 500,
+        auto_show = true,
+        auto_show_delay_ms = 400,
         window = {
           border = 'rounded', -- Options: "single", "double", "rounded", "solid", "shadow", or "none"
         },
         treesitter_highlighting = true,
       },
+      ghost_text = { enabled = true },
       menu = {
-        -- ghost_text = { enabled = true },
-        --
         border = 'rounded', -- Options: "single", "double", "rounded", "solid", "shadow", or "none"
+        winhighlight = 'Normal:Normal,FloatBorder:None,CursorLine:Visual,Search:None',
         draw = {
 
-          -- columns = { { 'label', 'label_description', gap = 1 }, { 'kind_icon', 'kind' } },
-          columns = { { 'kind_icon' }, { 'label', gap = 1 } },
+          columns = { { 'kind_icon', gap = 1 }, { 'label', 'label_description', gap = 1 } },
+          -- columns = { { 'kind_icon' }, { 'label', gap = 1 } },
           components = constant.components,
         },
       },
@@ -120,5 +120,9 @@ return { -- Autocompletion
 
     -- Shows a signature help window while you type arguments for a function
     signature = { enabled = true },
+  },
+  opts_extend = {
+    'sources.default',
+    'sources.providers',
   },
 }

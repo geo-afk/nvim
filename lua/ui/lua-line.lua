@@ -9,6 +9,38 @@ return {
     },
     event = 'VeryLazy',
     config = function()
+      -- ================================================================================================
+      -- CUSTOM COMPONENTS
+      -- ================================================================================================
+
+      -- Scrollbar Component
+      local scrollbar_component = require('lualine.component'):extend()
+
+      function scrollbar_component:init(opts)
+        opts.reverse = opts.reverse or false
+        scrollbar_component.super.init(self, opts)
+      end
+
+      function scrollbar_component:update_status()
+        local scroll_bar_blocks = { '▁', '▂', '▃', '▄', '▅', '▆', '▇', '█' }
+        local curr_line = vim.api.nvim_win_get_cursor(0)[1]
+        local lines = vim.api.nvim_buf_line_count(0)
+
+        if lines == 0 or curr_line > lines then
+          return ''
+        end
+
+        if self.options.reverse then
+          return string.rep(scroll_bar_blocks[8 - math.floor(curr_line / lines * 7)], 2)
+        else
+          return string.rep(scroll_bar_blocks[math.floor(curr_line / lines * 7) + 1], 2)
+        end
+      end
+
+      -- ================================================================================================
+      -- UTILITY FUNCTIONS
+      -- ================================================================================================
+
       local function sanitize(str)
         if not str or str == '' then
           return ''
@@ -16,12 +48,9 @@ return {
         return tostring(str):gsub('[<>%%]', ''):gsub('[\r\n]', '')
       end
 
-      local function get_line_info()
-        local current_line = vim.fn.line '.'
-        local total_lines = vim.fn.line '$'
-        local column = vim.fn.col '.'
-        return string.format('%d:%d/%d', current_line, column, total_lines)
-      end
+      -- ================================================================================================
+      -- LEFT SIDE COMPONENTS
+      -- ================================================================================================
 
       local function get_filename_with_context()
         local filename = vim.fn.expand '%:t'
@@ -33,8 +62,6 @@ return {
 
         local modified = vim.bo.modified and ' ●' or ''
         local readonly = vim.bo.readonly and ' 󰌾' or ''
-
-        -- Show parent directory if not in root
         local context = filepath ~= '.' and filepath ~= '' and '…/' .. vim.fn.fnamemodify(filepath, ':t') .. '/' or ''
 
         return '  ' .. context .. filename .. modified .. readonly
@@ -43,7 +70,7 @@ return {
       local function get_active_lsps()
         local clients = vim.lsp.get_clients { bufnr = 0 }
         if #clients == 0 then
-          return '' -- Return empty string instead of 'No LSP' for cleaner look
+          return ''
         end
 
         local client_names = {}
@@ -58,7 +85,6 @@ return {
           return ''
         end
 
-        -- Format with icon and limit display length
         local lsp_string = table.concat(client_names, ', ')
         if #lsp_string > 25 then
           lsp_string = lsp_string:sub(1, 22) .. '...'
@@ -67,28 +93,13 @@ return {
         return '󰿘 ' .. lsp_string
       end
 
-      local function get_word_count()
-        if vim.bo.filetype == 'markdown' or vim.bo.filetype == 'text' or vim.bo.filetype == 'tex' then
-          local words = vim.fn.wordcount()
-          return '󰈭 ' .. words.words .. 'w'
-        end
-        return ''
-      end
+      -- ================================================================================================
+      -- GIT COMPONENTS
+      -- ================================================================================================
 
-      local function get_macro_recording()
-        local recording_register = vim.fn.reg_recording()
-        if recording_register == '' then
-          return ''
-        end
-        return '🎬 @' .. recording_register
-      end
-
-      -- Enhanced git branch function with fallback
       local function get_git_branch()
-        -- First try gitsigns
         local branch = vim.b.gitsigns_head
 
-        -- Fallback to git command if gitsigns not available
         if not branch or branch == '' then
           local git_dir = vim.fn.finddir('.git', '.;')
           if git_dir ~= '' then
@@ -111,7 +122,6 @@ return {
         return ' ' .. branch
       end
 
-      -- Enhanced git diff functions with better error handling
       local function get_git_added()
         local gitsigns = vim.b.gitsigns_status_dict
         if gitsigns and gitsigns.added and gitsigns.added > 0 then
@@ -150,11 +160,64 @@ return {
         return ''
       end
 
+      -- ================================================================================================
+      -- RIGHT SIDE COMPONENTS
+      -- ================================================================================================
+
+      local function get_word_count()
+        if vim.bo.filetype == 'markdown' or vim.bo.filetype == 'text' or vim.bo.filetype == 'tex' then
+          local words = vim.fn.wordcount()
+          return '󰈭 ' .. words.words .. 'w'
+        end
+        return ''
+      end
+
+      local function get_location_info()
+        local current_line = vim.fn.line '.'
+        local total_lines = vim.fn.line '$'
+        local column = vim.fn.col '.'
+        return string.format('%d:%d/%d', current_line, column, total_lines)
+      end
+
+      local function get_lazy_updates()
+        return ' ﮮ '
+      end
+
+      -- ================================================================================================
+      -- THEME COLORS
+      -- ================================================================================================
+
+      local function get_theme_colors()
+        local theme = color_theme.get_palette()
+        return {
+          -- Primary colors
+          bg = theme.bg0 or '#1e2124',
+          fg = theme.fg or '#abb2bf',
+
+          -- Accent colors
+          blue = theme.blue or '#61afef',
+          green = theme.green or '#98c379',
+          yellow = theme.yellow or '#e5c07b',
+          red = theme.red or '#e86671',
+          purple = theme.purple or '#c678dd',
+          orange = theme.orange or '#d19a66',
+          cyan = theme.cyan or '#56b6c2',
+
+          -- Background variations
+          bg_light = theme.bg1 or '#31353f',
+          bg_lighter = theme.bg2 or '#3e4451',
+        }
+      end
+
+      -- ================================================================================================
+      -- LUALINE SETUP
+      -- ================================================================================================
+
       require('lualine').setup {
         options = {
           icons_enabled = true,
           theme = color_theme.get_lualine_theme(),
-          component_separators = { left = '', right = '' },
+          component_separators = { left = '│', right = '│' },
           section_separators = { left = '', right = '' },
           disabled_filetypes = {
             statusline = { 'alpha', 'dashboard', 'snacks_dashboard', 'snacks_notif', 'snacks_terminal', 'snacks_lazygit' },
@@ -164,55 +227,74 @@ return {
           globalstatus = true,
           refresh = { statusline = 100, tabline = 1000, winbar = 1000 },
         },
+
+        extensions = {
+          'mason',
+          'lazy',
+          'nvim-tree',
+          'quickfix',
+          'toggleterm',
+          'trouble',
+          'fugitive',
+        },
+
         sections = {
+          -- ========================================================================================
+          -- LEFT SECTION A: MODE & MACRO
+          -- ========================================================================================
           lualine_a = {
             {
               'mode',
               fmt = function(str)
                 local mode_map = {
-                  NORMAL = ' 󰋜 N',
-                  INSERT = ' 󰏪 I',
-                  VISUAL = ' 󰈈 V',
-                  ['V-LINE'] = ' 󰈈 VL',
-                  ['V-BLOCK'] = ' 󰈈 VB',
-                  COMMAND = ' 󰘳 C',
-                  REPLACE = ' 󰑙 R',
-                  ['V-REPLACE'] = ' 󰑙 VR',
-                  SELECT = ' 󰒉 S',
-                  TERMINAL = ' T',
+                  NORMAL = '󰋙 ',
+                  INSERT = '󰏪 I',
+                  VISUAL = '󰈈 V',
+                  ['V-LINE'] = '󰈈 VL',
+                  ['V-BLOCK'] = '󰈈 VB',
+                  COMMAND = '󰘳 C',
+                  REPLACE = '󰑙 R',
+                  ['V-REPLACE'] = '󰑙 VR',
+                  SELECT = '󰒉 S',
+                  TERMINAL = '󰆍 T',
                 }
                 return mode_map[str] or str:sub(1, 1)
               end,
-              separator = { left = '', right = '' },
+              separator = { left = '', right = '' },
               padding = { left = 0, right = 1 },
               color = function()
                 return {
-                  fg = '#61afef',
-                  bg = '#31353f',
+                  fg = '#1a1b26', -- Dark foreground for contrast
+                  bg = '#7aa2f7', -- Softer blue for mode
                   gui = 'bold',
                 }
               end,
-            },
-            {
-              get_macro_recording,
-              cond = function()
-                return vim.fn.reg_recording() ~= ''
-              end,
-              color = { fg = '#ff79c6', gui = 'bold' },
-              padding = { left = 0, right = 1 },
+              -- separator = { left = '', right = '' },
+              -- padding = { left = 1, right = 1 },
+              -- color = function()
+              --   local colors = get_theme_colors()
+              --   return {
+              --     fg = colors.bg,
+              --     bg = colors.cyan,
+              --     gui = 'bold',
+              --   }
+              -- end,
             },
           },
+
+          -- ========================================================================================
+          -- LEFT SECTION B: GIT INFO
+          -- ========================================================================================
           lualine_b = {
-            -- Git branch with better visibility
             {
               get_git_branch,
               padding = { left = 1, right = 1 },
-              separator = { left = '', right = '' },
+              separator = { left = '', right = '' },
               color = function()
                 local theme = color_theme.get_palette()
                 return {
-                  fg = theme.bg0 or '#282c34',
-                  bg = theme.blue or '#61afef',
+                  fg = theme.bg0 or '#1a1b26',
+                  bg = theme.teal or '#4ec9b0', -- Teal for git branch
                   gui = 'bold',
                 }
               end,
@@ -220,12 +302,11 @@ return {
                 return get_git_branch() ~= ''
               end,
             },
-            -- Git status indicators with improved conditions
             {
               get_git_added,
               color = function()
-                local theme = color_theme.get_palette()
-                return { fg = theme.green or '#98c379', gui = 'bold' }
+                local colors = get_theme_colors()
+                return { fg = colors.green, gui = 'bold' }
               end,
               padding = { left = 1, right = 0 },
               cond = function()
@@ -235,8 +316,8 @@ return {
             {
               get_git_changed,
               color = function()
-                local theme = color_theme.get_palette()
-                return { fg = theme.yellow or '#e5c07b', gui = 'bold' }
+                local colors = get_theme_colors()
+                return { fg = colors.yellow, gui = 'bold' }
               end,
               padding = { left = 1, right = 0 },
               cond = function()
@@ -246,8 +327,8 @@ return {
             {
               get_git_removed,
               color = function()
-                local theme = color_theme.get_palette()
-                return { fg = theme.red or '#e86671', gui = 'bold' }
+                local colors = get_theme_colors()
+                return { fg = colors.red, gui = 'bold' }
               end,
               padding = { left = 1, right = 1 },
               cond = function()
@@ -257,47 +338,27 @@ return {
             {
               get_git_clean,
               color = function()
-                local theme = color_theme.get_palette()
-                return { fg = theme.green or '#98c379', gui = 'bold' }
+                local colors = get_theme_colors()
+                return { fg = colors.green, gui = 'bold' }
               end,
               padding = { left = 1, right = 1 },
               cond = function()
                 return get_git_clean() ~= ''
               end,
             },
-            -- Alternative: Use built-in diff component as fallback
-            {
-              'diff',
-              symbols = { added = '󰐙 ', modified = '󰷈 ', removed = '󰍶 ' },
-              diff_color = {
-                added = function()
-                  local theme = color_theme.get_palette()
-                  return { fg = theme.green or '#98c379' }
-                end,
-                modified = function()
-                  local theme = color_theme.get_palette()
-                  return { fg = theme.yellow or '#e5c07b' }
-                end,
-                removed = function()
-                  local theme = color_theme.get_palette()
-                  return { fg = theme.red or '#e86671' }
-                end,
-              },
-              padding = { left = 1, right = 1 },
-              cond = function()
-                -- Show built-in diff if custom gitsigns components aren't working
-                return vim.b.gitsigns_status_dict == nil and vim.fn.isdirectory '.git' == 1
-              end,
-            },
           },
+
+          -- ========================================================================================
+          -- CENTER SECTION: FILENAME, DIAGNOSTICS & LSP
+          -- ========================================================================================
           lualine_c = {
             {
               get_filename_with_context,
-              padding = { left = 1, right = 2 },
+              padding = { left = 1, right = 1 },
               color = function()
-                local theme = color_theme.get_palette()
+                local colors = get_theme_colors()
                 return {
-                  fg = theme.fg or '#abb2bf',
+                  fg = colors.fg,
                   gui = vim.bo.modified and 'bold,italic' or 'italic',
                 }
               end,
@@ -309,27 +370,42 @@ return {
               colored = true,
               update_in_insert = false,
               diagnostics_color = {
-                error = { fg = color_theme.get_palette().red },
-                warn = { fg = color_theme.get_palette().orange },
-                info = { fg = color_theme.get_palette().blue },
-                hint = { fg = color_theme.get_palette().bg0 },
+                error = function()
+                  local colors = get_theme_colors()
+                  return { fg = colors.red }
+                end,
+                warn = function()
+                  local colors = get_theme_colors()
+                  return { fg = colors.orange }
+                end,
+                info = function()
+                  local colors = get_theme_colors()
+                  return { fg = colors.blue }
+                end,
+                hint = function()
+                  local colors = get_theme_colors()
+                  return { fg = colors.cyan }
+                end,
               },
+              padding = { left = 1, right = 1 },
             },
+
+            -- Spacer to push LSP to center-right
             {
               function()
                 return '%='
               end,
-              padding = 10,
+              padding = 0,
             },
 
             {
               get_active_lsps,
               padding = { left = 1, right = 1 },
               color = function()
-                local theme = color_theme.get_palette()
+                local colors = get_theme_colors()
                 return {
-                  fg = theme.bg0 or '#282c34',
-                  bg = theme.purple or '#c678dd',
+                  fg = colors.bg,
+                  bg = colors.blue,
                   gui = 'bold',
                 }
               end,
@@ -338,31 +414,89 @@ return {
                 return get_active_lsps() ~= ''
               end,
             },
-            {
-              function()
-                return '%='
-              end,
-              padding = 0,
-            },
           },
+
+          -- ========================================================================================
+          -- RIGHT SECTION X: NOICE, LAZY, FILE INFO
+          -- ========================================================================================
           lualine_x = {
             {
-              get_word_count,
-              padding = { left = 0, right = 1 },
-              separator = { left = '', right = '│' },
+              function()
+                return require('noice').api.status.command.get()
+              end,
+              cond = function()
+                return package.loaded['noice'] and require('noice').api.status.command.has()
+              end,
+              color = function()
+                local colors = get_theme_colors()
+                return {
+                  fg = colors.bg,
+                  bg = colors.orange,
+                  gui = 'bold',
+                }
+              end,
+              padding = { left = 1, right = 1 },
+              separator = { left = '', right = '' },
             },
             {
-              'filetype',
-              padding = { left = 0, right = 1 },
-              separator = { left = '', right = '│' },
+              get_lazy_updates,
+              cond = function()
+                return package.loaded['lazy'] and require('lazy.status').has_updates()
+              end,
+              color = function()
+                local colors = get_theme_colors()
+                return {
+                  fg = colors.bg,
+                  bg = colors.yellow,
+                  gui = 'bold',
+                }
+              end,
+              separator = { left = '', right = '' },
+              padding = { left = 1, right = 1 },
+            },
+            {
+              'fileformat',
+              symbols = {
+                unix = '󰌽',
+                dos = '󰍲',
+                mac = '',
+              },
+              color = function()
+                local colors = get_theme_colors()
+                return { fg = colors.purple, gui = 'bold' }
+              end,
+              padding = { left = 1, right = 0 },
+            },
+            {
+              'encoding',
+              fmt = string.upper,
+              color = function()
+                local colors = get_theme_colors()
+                return { fg = colors.blue, gui = 'bold' }
+              end,
+              padding = { left = 1, right = 0 },
+            },
+            {
+              get_word_count,
+              padding = { left = 1, right = 1 },
+              color = function()
+                local colors = get_theme_colors()
+                return { fg = colors.cyan, gui = 'bold' }
+              end,
             },
           },
+
+          -- ========================================================================================
+          -- RIGHT SECTION Y: FILE TYPE & SIZE
+          -- ========================================================================================
           lualine_y = {
             {
-              get_line_info,
-              icon = '󰉸',
-              padding = { left = 0, right = 1 },
-              separator = { left = '', right = '│' },
+              'filetype',
+              padding = { left = 1, right = 1 },
+              color = function()
+                local colors = get_theme_colors()
+                return { fg = colors.green, gui = 'bold' }
+              end,
             },
             {
               'filesize',
@@ -370,55 +504,92 @@ return {
               cond = function()
                 return vim.fn.getfsize(vim.fn.expand '%') > 1024
               end,
-              padding = { left = 0, right = 1 },
-              separator = { left = '', right = '│' },
+              padding = { left = 1, right = 1 },
+              color = function()
+                local colors = get_theme_colors()
+                return { fg = colors.yellow }
+              end,
             },
           },
+
+          -- ========================================================================================
+          -- RIGHT SECTION Z: LOCATION, SCROLL & TIME
+          -- ========================================================================================
           lualine_z = {
             {
               function()
-                return ' ' .. os.date '%H:%M'
+                return '󰕭 ' .. get_location_info()
               end,
-              padding = { left = 0, right = 1 },
               color = function()
+                local colors = get_theme_colors()
                 return {
-                  fg = '#61afef',
-                  bg = '#31353f',
+                  fg = colors.bg,
+                  bg = colors.green,
                   gui = 'bold',
                 }
               end,
+              separator = { left = '', right = '' },
+              padding = { left = 1, right = 1 },
+            },
+            {
+              scrollbar_component,
+              color = function()
+                local colors = get_theme_colors()
+                return {
+                  fg = colors.bg,
+                  bg = colors.yellow,
+                  gui = 'bold',
+                }
+              end,
+              separator = { left = '', right = '' },
+              padding = { left = 1, right = 1 },
             },
           },
         },
+
+        -- ========================================================================================
+        -- INACTIVE SECTIONS
+        -- ========================================================================================
         inactive_sections = {
           lualine_a = {},
           lualine_b = {},
           lualine_c = {
             {
-              get_filename,
-              padding = { left = 1, right = 1 },
+              get_filename_with_context,
+              color = function()
+                local colors = get_theme_colors()
+                return { fg = colors.bg_lighter }
+              end,
             },
           },
           lualine_x = {
             {
               'location',
               padding = { left = 1, right = 1 },
+              color = function()
+                local colors = get_theme_colors()
+                return { fg = colors.bg_lighter }
+              end,
             },
           },
           lualine_y = {},
           lualine_z = {},
         },
-        extensions = { 'toggleterm', 'quickfix', 'fugitive', 'trouble', 'lazy', 'mason' },
       }
 
-      -- Enhanced autocmds for better git integration
+      -- ================================================================================================
+      -- AUTOCMDS FOR REFRESH
+      -- ================================================================================================
+
       local group = vim.api.nvim_create_augroup('LualineLSP', { clear = true })
+
       vim.api.nvim_create_autocmd({ 'LspAttach', 'LspDetach' }, {
         group = group,
         callback = function()
           require('lualine').refresh()
         end,
       })
+
       vim.api.nvim_create_autocmd('DiagnosticChanged', {
         group = group,
         callback = function()
@@ -426,7 +597,6 @@ return {
         end,
       })
 
-      -- Add git-specific autocmds for better refresh
       vim.api.nvim_create_autocmd({ 'User' }, {
         pattern = 'GitSignsUpdate',
         group = group,
@@ -438,17 +608,17 @@ return {
       vim.api.nvim_create_autocmd({ 'BufEnter', 'FocusGained' }, {
         group = group,
         callback = function()
-          -- Refresh when entering buffer or gaining focus (for git changes)
           vim.defer_fn(function()
             require('lualine').refresh()
           end, 100)
         end,
       })
 
-      local palette = color_theme.get_palette()
+      -- Set custom highlight
+      local colors = get_theme_colors()
       vim.api.nvim_set_hl(0, 'LualineLspCenter', {
-        fg = palette.fg or '#abb2bf',
-        bg = palette.bg2 or '#3e4451',
+        fg = colors.fg,
+        bg = colors.bg_lighter,
         italic = true,
       })
     end,
