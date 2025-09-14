@@ -110,7 +110,7 @@ M.mason_tool_install = {
   'eslint_d', -- Faster than eslint
   'gotests',
   'iferr',
-  'sqlfmt',
+  -- 'sqruff',
   'gomodifytags',
   -- Optional: Add based on your needs
   -- "jsonls",

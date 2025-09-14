@@ -15,6 +15,7 @@ return {
   },
   opts = {
     notify_on_error = false,
+    log_level = vim.log.levels.DEBUG,
     format_on_save = function(bufnr)
       local disable_filetypes = { c = true, cpp = true }
       if disable_filetypes[vim.bo[bufnr].filetype] then
@@ -37,11 +38,18 @@ return {
         'goimports',
         'golines',
       },
-      sql = { 'sqlfmt' },
+      -- sql = { 'sqruff' },
       css = { 'biome' },
       html = { 'biome' },
       json = { 'biome' },
       -- python = { "isort", "black" },
+    },
+    formatters = {
+      sqruff = {
+        command = 'sqruff',
+        args = { 'lint', '$FILENAME' },
+        stdin = false, -- sqruff processes files directly
+      },
     },
   },
 }

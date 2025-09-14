@@ -99,7 +99,6 @@ return {
 
       local function get_git_branch()
         local branch = vim.b.gitsigns_head
-
         if not branch or branch == '' then
           local git_dir = vim.fn.finddir('.git', '.;')
           if git_dir ~= '' then
@@ -522,7 +521,11 @@ return {
               get_filename_with_context,
               color = function()
                 local colors = color_theme.get_palette()
-                return { fg = colors.bg_lighter }
+                return {
+                  fg = colors.bg,
+                  bg = colors.yellow,
+                  gui = 'bold',
+                }
               end,
             },
           },
@@ -532,7 +535,11 @@ return {
               padding = { left = 1, right = 1 },
               color = function()
                 local colors = color_theme.get_palette()
-                return { fg = colors.bg_lighter }
+                return {
+                  fg = colors.bg,
+                  bg = colors.yellow,
+                  gui = 'bold',
+                }
               end,
             },
           },
@@ -576,14 +583,6 @@ return {
             require('lualine').refresh()
           end, 100)
         end,
-      })
-
-      -- Set custom highlight
-      local colors = color_theme.get_palette()
-      vim.api.nvim_set_hl(0, 'LualineLspCenter', {
-        fg = colors.fg,
-        bg = colors.bg_lighter,
-        italic = true,
       })
     end,
   },

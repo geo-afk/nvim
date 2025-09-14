@@ -5,7 +5,7 @@ return {
     local lint = require 'lint'
     local eslint = lint.linters.eslint_d
     lint.linters_by_ft = {
-      sql = { 'sqlfluff' }, -- SQL
+      -- sql = { 'sqruff' }, -- SQL
       html = { 'htmlhint' }, -- SQL
       go = { 'staticcheck' },
       typescript = { 'biomejs' }, -- TypeScript

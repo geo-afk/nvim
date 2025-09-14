@@ -23,21 +23,21 @@ function M.on_attach(client, bufnr)
     })
   end
 
-  if client:supports_method(vim.lsp.protocol.Methods.textDocument_foldingRange) then
-    vim.wo.foldmethod = 'expr'
-    vim.wo.foldexpr = 'v:lua.vim.lsp.foldexpr()'
-
-    -- Example: map <leader>zf to toggle folds
-    vim.keymap.set('n', '<leader>zf', function()
-      if vim.wo.foldenable then
-        vim.wo.foldenable = false
-        print 'Folds disabled'
-      else
-        vim.wo.foldenable = true
-        print 'Folds enabled'
-      end
-    end, { buffer = true, desc = 'Toggle LSP folds' })
-  end
+  -- if client:supports_method(vim.lsp.protocol.Methods.textDocument_foldingRange) then
+  --   vim.wo.foldmethod = 'expr'
+  --   vim.wo.foldexpr = 'v:lua.vim.lsp.foldexpr()'
+  --
+  --   -- Example: map <leader>zf to toggle folds
+  --   vim.keymap.set('n', '<leader>zf', function()
+  --     if vim.wo.foldenable then
+  --       vim.wo.foldenable = false
+  --       print 'Folds disabled'
+  --     else
+  --       vim.wo.foldenable = true
+  --       print 'Folds enabled'
+  --     end
+  --   end, { buffer = true, desc = 'Toggle LSP folds' })
+  -- end
 
   vim.api.nvim_buf_create_user_command(bufnr, 'LspSemanticHlStop', function(args)
     vim.lsp.semantic_tokens.stop(bufnr, args.args)
@@ -59,8 +59,8 @@ function M.setup_keymaps(args)
   vim.keymap.set('n', '<leader>cC', vim.lsp.codelens.refresh, { desc = 'Refresh & display codelens' })
 
   vim.keymap.set('n', '<leader>lpd', function()
-    local params = vim.lsp.util.make_position_params()
-    return vim.lsp.buf_request(0, vim.lsp.protocol.Methods.textDocument_definition, params, function(_, result)
+    local params = vim.lsp.util.make_position_params(nil, 'utf-8')
+    return vim.lsp.buf_request(vim.api.nvim_get_current_buf(), vim.lsp.protocol.Methods.textDocument_definition, params, function(_, result)
       if result == nil or vim.tbl_isempty(result) then
         return
       end
