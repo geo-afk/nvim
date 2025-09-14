@@ -4,14 +4,17 @@ return {
   config = function()
     local lint = require 'lint'
     local eslint = lint.linters.eslint_d
+    local sqruff = lint.linters.sqruff -- Reference to sqruff linter
+
     lint.linters_by_ft = {
-      -- sql = { 'sqruff' }, -- SQL
-      html = { 'htmlhint' }, -- SQL
+      sql = { 'sqruff' }, -- SQL
+      html = { 'htmlhint' }, -- HTML
       go = { 'staticcheck' },
       typescript = { 'biomejs' }, -- TypeScript
       javascript = { 'biomejs' }, -- JavaScript
     }
 
+    -- Configure eslint_d args (unchanged)
     eslint.args = {
       '--no-warn-ignored',
       '--format',
@@ -22,6 +25,20 @@ return {
         return vim.fn.expand '%:p'
       end,
     }
+
+    -- Configure sqruff args to point to a config file
+    sqruff.args = {
+      '--format',
+      'json', -- Output format compatible with nvim-lint
+      '--config',
+      vim.fn.stdpath 'config' .. '\\.sqruff',
+      '--stdin',
+      '--stdin-filename',
+      function()
+        return vim.fn.expand '%:p'
+      end,
+    }
+
     -- Create an autocommand group for linting
     local lint_augroup = vim.api.nvim_create_augroup('lint', { clear = true })
 

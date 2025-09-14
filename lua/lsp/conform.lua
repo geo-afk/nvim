@@ -34,11 +34,11 @@ return {
       typescriptreact = { 'biome' },
       javascriptreact = { 'biome' },
       go = {
-        'gofumpt',
         'goimports',
+        'gofumpt',
         'golines',
       },
-      -- sql = { 'sqruff' },
+      sql = { 'sqruff' },
       css = { 'biome' },
       html = { 'biome' },
       json = { 'biome' },
@@ -47,8 +47,8 @@ return {
     formatters = {
       sqruff = {
         command = 'sqruff',
-        args = { 'lint', '$FILENAME' },
-        stdin = false, -- sqruff processes files directly
+        args = { 'fix', '--config', vim.fn.stdpath 'config' .. '\\.sqruff', '$FILENAME' },
+        stdin = false,
       },
     },
   },

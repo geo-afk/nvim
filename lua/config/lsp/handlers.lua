@@ -58,15 +58,15 @@ function M.setup_keymaps(args)
   vim.keymap.set({ 'n', 'x' }, '<leader>cc', vim.lsp.codelens.run, { desc = 'run code lens' })
   vim.keymap.set('n', '<leader>cC', vim.lsp.codelens.refresh, { desc = 'Refresh & display codelens' })
 
-  vim.keymap.set('n', '<leader>lpd', function()
-    local params = vim.lsp.util.make_position_params(nil, 'utf-8')
-    return vim.lsp.buf_request(vim.api.nvim_get_current_buf(), vim.lsp.protocol.Methods.textDocument_definition, params, function(_, result)
-      if result == nil or vim.tbl_isempty(result) then
-        return
-      end
-      vim.lsp.util.preview_location(result[1], { border = vim.g.FloatBorders, title = 'Preview definition', title_pos = 'left' })
-    end)
-  end, { desc = 'LSP: floating preview' })
+  -- vim.keymap.set('n', '<leader>lpd', function()
+  --   local params = vim.lsp.util.make_position_params(nil, 'utf-8')
+  --   return vim.lsp.buf_request(vim.api.nvim_get_current_buf(), vim.lsp.protocol.Methods.textDocument_definition, params, function(_, result)
+  --     if result == nil or vim.tbl_isempty(result) then
+  --       return
+  --     end
+  --     vim.lsp.util.preview_location(result[1], { border = vim.g.FloatBorders, title = 'Preview definition', title_pos = 'left' })
+  --   end)
+  -- end, { desc = 'LSP: floating preview' })
 
   vim.keymap.set('n', '<leader>ci', function()
     vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled())

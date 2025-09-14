@@ -1,0 +1,83 @@
+[sqruff]
+exclude_rules = LT08, RF02, L014,L016
+rules = RF02
+encoding = autodetect
+dialect = postgres
+templater = raw
+
+
+[sqruff:indentation]
+indent_unit = space
+tab_space_size = 2
+indented_ctes = True
+indented_joins = True
+indented_using_on = False
+indented_on_contents = True
+allow_implicit_indents = True
+
+
+[sqlfluff:layout:type:comma]
+spacing_before = touch
+line_position = trailing
+
+
+[sqruff:layout:type:alias_expression]
+spacing_before = align
+align_within = select_clause
+align_scope = bracketed
+
+
+
+[sqruff:templating]
+# Templating settings (e.g., for Jinja, if used)
+template_style = jinja
+
+
+[sqlfluff:templater:jinja]
+apply_dbt_builtins = True
+
+[sqlfluff:rules]
+allow_scalar = True
+single_table_references = consistent
+unquoted_identifiers_policy = all
+
+
+[sqlfluff:rules:capitalisation.literals]
+# Null & Boolean Literals
+capitalisation_policy = consistent
+# Comma separated list of words to ignore for this rule
+ignore_words = None
+ignore_words_regex = None
+
+[sqlfluff:rules:capitalisation.types]
+# Data Types
+extended_capitalisation_policy = consistent
+# Comma separated list of words to ignore for this rule
+ignore_words = None
+ignore_words_regex = None
+
+
+[sqlfluff:rules:references.keywords]
+# Keywords should not be used as identifiers.
+unquoted_identifiers_policy = aliases
+capitalisation_policy = upper
+quoted_identifiers_policy = none
+ignore_words = None
+ignore_words_regex = None
+
+[sqlfluff:rules:references.special_chars]
+# Special characters in identifiers
+unquoted_identifiers_policy = all
+quoted_identifiers_policy = all
+allow_space_in_identifier = False
+additional_allowed_characters = None
+ignore_words = None
+ignore_words_regex = None
+
+[sqlfluff:rules:references.quoting]
+# Policy on quoted and unquoted identifiers
+prefer_quoted_identifiers = False
+prefer_quoted_keywords = False
+ignore_words = None
+ignore_words_regex = None
+force_enable = False
