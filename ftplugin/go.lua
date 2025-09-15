@@ -59,8 +59,7 @@ vim.api.nvim_create_user_command('GoIfErr', function(opts)
 end, { desc = 'Generate error handling with iferr for current position' })
 
 vim.api.nvim_create_user_command('GoRun', function()
-  local file = vim.fn.expand '%'
-  local cmd = string.format('go run %s', file)
+  local cmd = string.format 'make watch'
   -- Open a terminal in a horizontal split with 20% of the screen height
   vim.cmd('botright 20split | terminal ' .. cmd)
   -- Start the terminal in insert mode

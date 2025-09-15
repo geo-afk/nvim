@@ -14,7 +14,7 @@ return {
     },
   },
   opts = {
-    notify_on_error = false,
+    notify_on_error = true,
     log_level = vim.log.levels.DEBUG,
     format_on_save = function(bufnr)
       local disable_filetypes = { c = true, cpp = true }
@@ -38,18 +38,31 @@ return {
         'gofumpt',
         'golines',
       },
-      sql = { 'sqruff' },
+      sql = { 'sleek', 'sqlfmt' },
       css = { 'biome' },
       html = { 'biome' },
       json = { 'biome' },
       -- python = { "isort", "black" },
     },
     formatters = {
-      sqruff = {
-        command = 'sqruff',
-        args = { 'fix', '--config', vim.fn.stdpath 'config' .. '\\.sqruff', '$FILENAME' },
-        stdin = false,
+      sqlfmt = {
+        append_args = { '--dialect', 'clickhouse' },
       },
+      sleek = {
+        command = 'sleek',
+        args = {
+          '--uppercase=true',
+          '--indent-spaces=3',
+          '--trailing-newline=false',
+          -- '$FILENAME',
+        },
+        stdin = true,
+      },
+      -- sqruff = {
+      --   command = 'sqruff',
+      --   args = { 'fix', '--config', vim.fn.stdpath 'config' .. '\\.sqruff', '$FILENAME' },
+      --   stdin = false,
+      -- },
     },
   },
 }

@@ -9,3 +9,15 @@
 -- end
 --
 -- vim.keymap.set('n', '<leader>fs', format_sql, { desc = 'Format SQL' })
+
+local function format_sql()
+  local filename = vim.api.nvim_buf_get_name(0)
+  if filename ~= '' then
+    vim.cmd('!sleek ' .. vim.fn.shellescape(filename))
+    vim.cmd 'e!' -- Reload the buffer
+  else
+    vim.notify('Buffer is not associated with a file.', vim.log.levels.WARN)
+  end
+end
+
+vim.keymap.set('n', '<leader>fs', format_sql, { desc = 'Format SQL' })

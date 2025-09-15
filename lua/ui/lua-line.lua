@@ -455,7 +455,7 @@ return {
           lualine_y = {
             {
               'filetype',
-              padding = { left = 1, right = 1 },
+              padding = { left = 2, right = 1 },
               color = function()
                 local colors = color_theme.get_palette()
                 return { fg = colors.green, gui = 'bold' }
@@ -491,7 +491,7 @@ return {
                   gui = 'bold',
                 }
               end,
-              separator = { left = '', right = '' },
+              separator = { left = ' ', right = '' },
               padding = { left = 1, right = 1 },
             },
             {
