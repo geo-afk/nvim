@@ -9,19 +9,19 @@ end
 -- Common on_attach function
 function M.on_attach(client, bufnr)
   -- Enable inlay hints if supported
-  if client.supports_method 'textDocument/inlayHint' then
+  if client:supports_method 'textDocument/inlayHint' then
     vim.lsp.inlay_hint.enable(true, { bufnr = bufnr })
   end
 
   -- Enable codelens if supported
-  if client.supports_method 'textDocument/codelens' then
-    vim.lsp.codelens.enabled = true
-    vim.lsp.codelens.refresh()
-    vim.api.nvim_create_autocmd({ 'BufEnter', 'CursorHold', 'InsertLeave' }, {
-      buffer = bufnr,
-      callback = vim.lsp.codelens.refresh,
-    })
-  end
+  -- if client.supports_method 'textDocument/codelens' then
+  --   vim.lsp.codelens.enabled = true
+  --   vim.lsp.codelens.refresh()
+  --   vim.api.nvim_create_autocmd({ 'BufEnter', 'CursorHold', 'InsertLeave' }, {
+  --     buffer = bufnr,
+  --     callback = vim.lsp.codelens.refresh,
+  --   })
+  -- end
 
   -- if client:supports_method(vim.lsp.protocol.Methods.textDocument_foldingRange) then
   --   vim.wo.foldmethod = 'expr'
@@ -38,25 +38,17 @@ function M.on_attach(client, bufnr)
   --     end
   --   end, { buffer = true, desc = 'Toggle LSP folds' })
   -- end
-
-  vim.api.nvim_buf_create_user_command(bufnr, 'LspSemanticHlStop', function(args)
-    vim.lsp.semantic_tokens.stop(bufnr, args.args)
-  end, { desc = 'LSP: stop semantic tokens' })
-  vim.api.nvim_buf_create_user_command(bufnr, 'LspSemanticHlStart', function(args)
-    vim.lsp.semantic_tokens.start(bufnr, args.args)
-  end, { desc = 'LSP: stop semantic tokens' })
 end
 
 -- Setup keymaps (called once globally)
 function M.setup_keymaps(args)
   vim.keymap.set('n', 'K', vim.lsp.buf.hover, { desc = 'Get Descriptions' })
-  -- vim.keymap.set('n', '<leader>ca', vim.lsp.buf.code_action, { desc = 'Code Actions' })
   vim.keymap.set('n', 'gD', vim.lsp.buf.declaration, { desc = 'Go to Declaration' })
   vim.keymap.set('n', 'gi', vim.lsp.buf.implementation, { desc = 'Go to Implementation' })
   vim.keymap.set('n', '<C-k>', vim.lsp.buf.signature_help, { desc = 'Signature Help' })
   vim.keymap.set('n', '<leader>vd', vim.diagnostic.open_float, { desc = 'open float diagnostic' })
-  vim.keymap.set({ 'n', 'x' }, '<leader>cc', vim.lsp.codelens.run, { desc = 'run code lens' })
-  vim.keymap.set('n', '<leader>cC', vim.lsp.codelens.refresh, { desc = 'Refresh & display codelens' })
+  -- vim.keymap.set({ 'n', 'x' }, '<leader>cc', vim.lsp.codelens.run, { desc = 'run code lens' })
+  -- vim.keymap.set('n', '<leader>cC', vim.lsp.codelens.refresh, { desc = 'Refresh & display codelens' })
 
   -- vim.keymap.set('n', '<leader>lpd', function()
   --   local params = vim.lsp.util.make_position_params(nil, 'utf-8')

@@ -27,7 +27,7 @@ function M.setup()
 
       -- Use the modern client.supports_method API (available in nvim 0.10+)
       local function client_supports_method(lsp_client, method, bufnr)
-        return lsp_client.supports_method(method, { bufnr = bufnr })
+        return lsp_client:supports_method(method, { bufnr = bufnr })
       end
 
       local Methods = vim.lsp.protocol.Methods or {}
@@ -62,7 +62,7 @@ M.servers = {
   html = 'html',
   sqls = 'sqls',
   lua_ls = 'lua_ls',
-  typos_lsp = 'typos',
+  -- typos_lsp = 'typos_lsp',
   ts_ls = 'typescript',
   angularls = 'angularls',
   tailwindcss = 'tailwindcss',

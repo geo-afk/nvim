@@ -105,9 +105,9 @@ M.mason_tool_install = {
   'biome',
   -- General formatters/linters
   -- 'prettier',
-  -- 'prettierd',
+  'prettierd',
   'stylua',
-  'eslint_d', -- Faster than eslint
+  -- 'eslint_d', -- Faster than eslint
   'gotests',
   'iferr',
   -- 'sqruff',

@@ -1,3 +1,8 @@
+-- ============================================================
+-- setting Auto-Sessions so when session is restored on startup.
+-- ============================================================
+vim.o.sessionoptions = 'blank,buffers,curdir,folds,help,tabpages,winsize,winpos,terminal,localoptions'
+
 -- =======================================================================
 --  Compatibility / Neovim Version Checks
 -- =======================================================================

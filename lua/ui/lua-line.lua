@@ -204,11 +204,10 @@ return {
         extensions = {
           'mason',
           'lazy',
-          'nvim-tree',
+          -- 'nvim-tree',
           'quickfix',
           'toggleterm',
           'trouble',
-          'fugitive',
         },
 
         sections = {

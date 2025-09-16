@@ -1,5 +1,6 @@
 [default]
-extend-ignore-words = ["noice"]
+[default.check-filename]
+extend-ignore-words = ["noice", 'eferences']
 [default.extend-words]
 noice = "noice"
 eferences = "eferences"

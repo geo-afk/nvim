@@ -9,11 +9,10 @@ return { -- Autocompletion
     {
       'L3MON4D3/LuaSnip',
       version = '2.*',
+
       build = (function()
         -- Build Step is needed for regex support in snippets.
-        -- This step is not supported in many windows environments.
-        -- Remove the below condition to re-enable on windows.
-        if vim.fn.has 'win32' == 1 or vim.fn.executable 'make' == 0 then
+        if vim.fn.executable 'make' == 0 then
           return
         end
         return 'make install_jsregexp'
@@ -82,7 +81,7 @@ return { -- Autocompletion
         },
         treesitter_highlighting = true,
       },
-      ghost_text = { enabled = true },
+      -- ghost_text = { enabled = true },
       menu = {
         border = 'rounded', -- Options: "single", "double", "rounded", "solid", "shadow", or "none"
         winhighlight = 'Normal:Normal,FloatBorder:None,CursorLine:Visual,Search:None',
@@ -121,8 +120,8 @@ return { -- Autocompletion
     -- Shows a signature help window while you type arguments for a function
     signature = { enabled = true },
   },
-  opts_extend = {
-    'sources.default',
-    'sources.providers',
-  },
+  -- opts_extend = {
+  --   'sources.default',
+  --   'sources.providers',
+  -- },
 }

@@ -9,9 +9,10 @@ return {
     lint.linters_by_ft = {
       sql = { 'sqruff' }, -- SQL
       html = { 'htmlhint' }, -- HTML
-      go = { 'staticcheck' },
+      go = { 'staticcheck', 'typos' },
       typescript = { 'biomejs' }, -- TypeScript
       javascript = { 'biomejs' }, -- JavaScript
+      lua = { 'typos' }, -- JavaScript
     }
 
     -- Configure eslint_d args (unchanged)

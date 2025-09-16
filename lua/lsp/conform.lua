@@ -29,25 +29,29 @@ return {
     end,
     formatters_by_ft = {
       lua = { 'stylua' },
-      javascript = { 'biome' },
-      typescript = { 'biome' },
-      typescriptreact = { 'biome' },
-      javascriptreact = { 'biome' },
+      javascript = { 'prettierd' },
+      typescript = { 'prettierd ' },
+      typescriptreact = { 'prettierd' },
+      javascriptreact = { 'prettierd' },
       go = {
         'goimports',
         'gofumpt',
         'golines',
       },
-      sql = { 'sleek', 'sqlfmt' },
-      css = { 'biome' },
-      html = { 'biome' },
-      json = { 'biome' },
+      sql = { 'sleek' },
+      -- sql = { 'sleek', 'sqlfmt' },
+      css = { 'prettierd' },
+      html = { 'prettierd' },
+      -- ✓ prettierd
+      htmlangular = { 'prettierd' },
+      json = { 'prettierd' },
       -- python = { "isort", "black" },
     },
     formatters = {
-      sqlfmt = {
-        append_args = { '--dialect', 'clickhouse' },
-      },
+
+      -- sqlfmt = {
+      --   append_args = { '--dialect', 'clickhouse' },
+      -- },
       sleek = {
         command = 'sleek',
         args = {
@@ -58,11 +62,6 @@ return {
         },
         stdin = true,
       },
-      -- sqruff = {
-      --   command = 'sqruff',
-      --   args = { 'fix', '--config', vim.fn.stdpath 'config' .. '\\.sqruff', '$FILENAME' },
-      --   stdin = false,
-      -- },
     },
   },
 }
