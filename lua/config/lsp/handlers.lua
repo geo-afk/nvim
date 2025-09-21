@@ -13,6 +13,13 @@ function M.on_attach(client, bufnr)
     vim.lsp.inlay_hint.enable(true, { bufnr = bufnr })
   end
 
+  -- if client:supports_method 'textDocument/completion' then
+  --   -- Optional: trigger autocompletion on EVERY keypress. May be slow!
+  --   -- local chars = {}; for i = 32, 126 do table.insert(chars, string.char(i)) end
+  --   -- client.server_capabilities.completionProvider.triggerCharacters = chars
+  --   vim.lsp.completion.enable(true, client.id, bufnr, { autotrigger = true })
+  -- end
+
   -- Enable codelens if supported
   -- if client.supports_method 'textDocument/codelens' then
   --   vim.lsp.codelens.enabled = true
@@ -42,7 +49,10 @@ end
 
 -- Setup keymaps (called once globally)
 function M.setup_keymaps(args)
-  vim.keymap.set('n', 'K', vim.lsp.buf.hover, { desc = 'Get Descriptions' })
+  vim.keymap.set('n', 'K', function()
+    vim.lsp.buf.hover { border = 'rounded' }
+  end, { desc = 'Get Descriptions' })
+
   vim.keymap.set('n', 'gD', vim.lsp.buf.declaration, { desc = 'Go to Declaration' })
   vim.keymap.set('n', 'gi', vim.lsp.buf.implementation, { desc = 'Go to Implementation' })
   vim.keymap.set('n', '<C-k>', vim.lsp.buf.signature_help, { desc = 'Signature Help' })

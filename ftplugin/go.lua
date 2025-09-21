@@ -59,12 +59,19 @@ vim.api.nvim_create_user_command('GoIfErr', function(opts)
 end, { desc = 'Generate error handling with iferr for current position' })
 
 vim.api.nvim_create_user_command('GoRun', function()
-  local cmd = string.format 'make watch'
+  local cmd
+  if vim.fn.filereadable 'Makefile' == 1 then
+    cmd = 'make watch'
+  else
+    cmd = 'go run .'
+  end
+
   -- Open a terminal in a horizontal split with 20% of the screen height
   vim.cmd('botright 20split | terminal ' .. cmd)
+
   -- Start the terminal in insert mode
   vim.cmd 'startinsert'
-end, { desc = 'Run the current Go file in a terminal' })
+end, { desc = 'Run the current Go project in a terminal' })
 
 vim.keymap.set('n', '<leader>gt', ':GoTests -all<CR>', { desc = 'Generate tests for all functions' })
 vim.keymap.set('n', '<leader>gm', ':GoModifyTags -add-tags json<CR>', { desc = 'Add JSON tags' })

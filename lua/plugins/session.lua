@@ -17,7 +17,7 @@ return {
       vim.keymap.set('n', keys, cmd, { desc = desc })
     end
 
-    map('<leader>ws', '<cmd>AutoSession save"<CR>', 'Save session')
+    map('<leader>ws', '<cmd>AutoSession save<CR>', 'Save session')
     map('<leader>wr', '<cmd>AutoSession restore<CR>', 'Restore last session')
     map('<leader>wd', '<cmd>AutoSession delete<CR>', 'Delete current session')
   end,

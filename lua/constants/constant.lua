@@ -1,4 +1,36 @@
 local M = {}
+
+local function get_lsp_completion_context(completion)
+  local ok, source_name = pcall(function()
+    return vim.lsp.get_client_by_id(completion.client_id).name
+  end)
+  if not ok then
+    return nil
+  end
+  if source_name == 'ts_ls' or source_name == 'texlab' then
+    return completion.detail
+  elseif source_name == 'pyright' and completion.labelDetails ~= nil then
+    return completion.labelDetails.description
+  elseif source_name == 'clangd' then
+    local doc = completion.documentation
+    if doc == nil then
+      return
+    end
+    local import_str = doc.value
+    import_str = import_str:gsub('[\n]+', '')
+    local str
+    str = import_str:match '<(.-)>'
+    if str then
+      return '<' .. str .. '>'
+    end
+    str = import_str:match '["\'](.-)["\']'
+    if str then
+      return '"' .. str .. '"'
+    end
+    return nil
+  end
+end
+
 M.kind_icons = {
   Version = ' ',
   Unknown = '  ',
@@ -72,38 +104,44 @@ M.components = {
       return highlight
     end,
   },
-  -- label = {
-  --   width = { fill = true, max = 60 },
-  --   text = function(ctx)
-  --     local highlights_info = require('colorful-menu').blink_highlights(ctx)
-  --     if highlights_info ~= nil then
-  --       -- Or you want to add more item to label
-  --       return highlights_info.label
-  --     else
-  --       return ctx.label
-  --     end
-  --   end,
-  --   highlight = function(ctx)
-  --     local highlights = {}
-  --     local highlights_info = require('colorful-menu').blink_highlights(ctx)
-  --     if highlights_info ~= nil then
-  --       highlights = highlights_info.highlights
-  --     end
-  --     for _, idx in ipairs(ctx.label_matched_indices) do
-  --       table.insert(highlights, { idx, idx + 1, group = 'BlinkCmpLabelMatch' })
-  --     end
-  --     -- Do something else
-  --     return highlights
-  --   end,
-  -- },
   label = {
+    width = { fill = true, max = 60 },
     text = function(ctx)
-      return require('colorful-menu').blink_components_text(ctx)
+      local highlights_info = require('colorful-menu').blink_highlights(ctx)
+      if highlights_info ~= nil then
+        -- Or you want to add more item to label
+        return highlights_info.label
+      else
+        return ctx.label
+      end
     end,
     highlight = function(ctx)
-      return require('colorful-menu').blink_components_highlight(ctx)
+      local highlights = {}
+      local highlights_info = require('colorful-menu').blink_highlights(ctx)
+      if highlights_info ~= nil then
+        highlights = highlights_info.highlights
+      end
+      for _, idx in ipairs(ctx.label_matched_indices) do
+        table.insert(highlights, { idx, idx + 1, group = 'BlinkCmpLabelMatch' })
+      end
+      -- Do something else
+      return highlights
     end,
   },
+  -- label = {
+  --   text = function(ctx)
+  --     return require('colorful-menu').blink_components_text(ctx)
+  --   end,
+  --   highlight = function(ctx)
+  --     return require('colorful-menu').blink_components_highlight(ctx)
+  --   end,
+  -- },
+  -- label_description = {
+  --   text = function(ctx)
+  --     return get_lsp_completion_context(ctx.item)
+  --   end,
+  --   highlight = 'BlinkCmpLabelDescription',
+  -- },
 }
 
 return M

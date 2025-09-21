@@ -27,6 +27,7 @@ return {
         end,
       }
       require('notify').setup {
+        merge_duplicates = true,
         background_colour = '#00000000',
       }
       -- vim.cmd.colorscheme 'tokyonight-night'
@@ -74,20 +75,19 @@ return {
     name = 'catppuccin',
     priority = 1000,
 
-    -- config = function()
-    --   require('catppuccin').setup {
-    --     flavour = 'auto', -- latte, frappe, macchiato, mocha
-    --     background = { -- :h background
-    --
-    --       dark = 'mocha',
-    --     },
-    --     transparent_background = false, -- disables setting the background color.
-    --     float = {
-    --       transparent = false, -- enable transparent floating windows
-    --       solid = false, -- use solid styling for floating windows, see |winborder|
-    --     },
-    --
-    --   }
-    -- end,
+    config = function()
+      require('catppuccin').setup {
+        flavour = 'auto', -- latte, frappe, macchiato, mocha
+        background = { -- :h background
+
+          dark = 'mocha',
+        },
+        transparent_background = false, -- disables setting the background color.
+        float = {
+          transparent = false, -- enable transparent floating windows
+          solid = false, -- use solid styling for floating windows, see |winborder|
+        },
+      }
+    end,
   },
 }

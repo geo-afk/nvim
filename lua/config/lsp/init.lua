@@ -61,6 +61,7 @@ M.servers = {
   gopls = 'go',
   html = 'html',
   sqls = 'sqls',
+  prolog = 'prolog',
   lua_ls = 'lua_ls',
   -- typos_lsp = 'typos_lsp',
   ts_ls = 'typescript',
@@ -84,6 +85,7 @@ function M.setup_lsps()
       vim.notify('Failed to load LSP config for ' .. key .. ': ' .. tostring(config), vim.log.levels.WARN)
     end
   end
+  vim.lsp.enable { 'prolog' }
 end
 
 return M
