@@ -1,36 +1,5 @@
 local M = {}
 
-local function get_lsp_completion_context(completion)
-  local ok, source_name = pcall(function()
-    return vim.lsp.get_client_by_id(completion.client_id).name
-  end)
-  if not ok then
-    return nil
-  end
-  if source_name == 'ts_ls' or source_name == 'texlab' then
-    return completion.detail
-  elseif source_name == 'pyright' and completion.labelDetails ~= nil then
-    return completion.labelDetails.description
-  elseif source_name == 'clangd' then
-    local doc = completion.documentation
-    if doc == nil then
-      return
-    end
-    local import_str = doc.value
-    import_str = import_str:gsub('[\n]+', '')
-    local str
-    str = import_str:match '<(.-)>'
-    if str then
-      return '<' .. str .. '>'
-    end
-    str = import_str:match '["\'](.-)["\']'
-    if str then
-      return '"' .. str .. '"'
-    end
-    return nil
-  end
-end
-
 M.kind_icons = {
   Version = ' ',
   Unknown = '  ',
@@ -87,6 +56,11 @@ M.components = {
         local color_item = require('nvim-highlight-colors').format(ctx.item.documentation, { kind = ctx.kind })
         if color_item and color_item.abbr ~= '' then
           icon = color_item.abbr
+        end
+      elseif vim.tbl_contains({ 'Path' }, ctx.source_name) then
+        local dev_icon, _ = require('nvim-web-devicons').get_icon(ctx.label)
+        if dev_icon then
+          icon = dev_icon
         end
       end
       return icon .. ctx.icon_gap

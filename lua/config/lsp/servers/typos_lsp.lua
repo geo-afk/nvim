@@ -1,5 +1,3 @@
-local Information = false
-
 return {
   settings = {
     typos_lsp = {

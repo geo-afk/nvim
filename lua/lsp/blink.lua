@@ -56,7 +56,7 @@ return { -- autocompletion
       -- <c-k>: toggle signature help
       --
       -- see :h blink-cmp-config-keymap for defining your own keymap
-      preset = 'enter',
+      preset = 'super-tab',
       ['<tab>'] = {
         function(cmp)
           if cmp.snippet_active() then

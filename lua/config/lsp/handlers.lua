@@ -1,4 +1,7 @@
 local M = {}
+local lsp, diagnostic = vim.lsp, vim.diagnostic
+local aucmd, augroup = vim.api.nvim_create_autocmd, vim.api.nvim_create_augroup
+
 
 -- Get capabilities with blink.cmp integration
 function M.get_capabilities()
@@ -11,6 +14,35 @@ function M.on_attach(client, bufnr)
   -- Enable inlay hints if supported
   if client:supports_method 'textDocument/inlayHint' then
     vim.lsp.inlay_hint.enable(true, { bufnr = bufnr })
+  end
+
+  if not client.server_capabilities.semanticTokensProvider then
+    local semantic = client.config.capabilities.textDocument.semanticTokens
+    client.server_capabilities.semanticTokensProvider = {
+      full = true,
+      legend = {
+        tokenTypes = semantic.tokenTypes,
+        tokenModifiers = semantic.tokenModifiers,
+      },
+      range = true,
+    }
+  end
+
+
+  if client:supports_method(lsp.protocol.Methods.textDocument_documentHighlight) then
+    local under_cursor_highlights = augroup("LspDocHighlight", { clear = false })
+    aucmd({ "CursorHold", "CursorHoldI", "InsertLeave", "BufEnter" }, {
+      group = under_cursor_highlights,
+      desc = "Highlight references under the cursor",
+      buffer = bufnr,
+      callback = lsp.buf.document_highlight,
+    })
+    aucmd({ "CursorMoved", "InsertEnter", "BufLeave" }, {
+      group = under_cursor_highlights,
+      desc = "Clear highlight references",
+      buffer = bufnr,
+      callback = lsp.buf.clear_references,
+    })
   end
 
   -- if client:supports_method 'textDocument/completion' then
@@ -46,6 +78,29 @@ function M.on_attach(client, bufnr)
   --   end, { buffer = true, desc = 'Toggle LSP folds' })
   -- end
 end
+
+-- aucmd("LspAttach", {
+--     desc = "My LSP settings",
+--     group = augroup("UserLspConfig", {}),
+--     callback = function(args)
+--         ---@type vim.lsp.Client
+--         local client = assert(lsp.get_client_by_id(args.data.client_id))
+--         setup_mappings(args.buf)
+--         setup_aucmds(client, args.buf)
+--
+--         -- Automatically show completion
+--         -- if client:supports_method(lsp.protocol.Methods.textDocument_completion) then
+--         --     -- Optional: trigger autocompletion on EVERY keypress. May be slow!
+--         --     local chars = {}
+--         --     for i = 32, 126 do
+--         --         table.insert(chars, string.char(i))
+--         --     end
+--         --     client.server_capabilities.completionProvider.triggerCharacters = chars
+--         --
+--         --     lsp.completion.enable(true, client.id, args.buf, { autotrigger = true })
+--         -- end
+--     end,
+-- })
 
 -- Setup keymaps (called once globally)
 function M.setup_keymaps(args)

@@ -1,5 +1,16 @@
 local opts = { noremap = true, silent = true }
 
+
+-- Make sure to go to proper indentation level when pressing i
+-- source: https://www.reddit.com/r/neovim/comments/12rqyl8/5_smart_minisnippets_for_making_text_editing_more/
+vim.keymap.set("n", "i", function()
+  if #vim.fn.getline "." == 0 then
+    return [["_cc]]
+  else
+    return "i"
+  end
+end, { expr = true })
+
 -- Panes resizing
 vim.keymap.set('n', '+', ':vertical resize +5<CR>')
 vim.keymap.set('n', '_', ':vertical resize -5<CR>')
@@ -10,12 +21,12 @@ vim.keymap.set('n', '-', ':resize -5<CR>')
 -- vim.keymap.set("n", "<CR>", "ciw", opts)  -- Commented out: This overwrites word on Enter - too disruptive
 -- vim.keymap.set("n", "<BS>", "ci", opts)   -- Commented out: This changes text on Backspace - too disruptive
 
-vim.keymap.set('n', 'n', 'nzzv', opts)
-vim.keymap.set('n', 'N', 'Nzzv', opts)
-vim.keymap.set('n', '*', '*zzv', opts)
-vim.keymap.set('n', '#', '#zzv', opts)
-vim.keymap.set('n', 'g*', 'g*zz', opts)
-vim.keymap.set('n', 'g#', 'g#zz', opts)
+vim.keymap.set('n', 'n', 'nzz', opts)
+-- vim.keymap.set('n', 'N', 'Nzzv', opts)
+-- vim.keymap.set('n', '*', '*zzv', opts)
+-- vim.keymap.set('n', '#', '#zzv', opts)
+-- vim.keymap.set('n', 'g*', 'g*zz', opts)
+-- vim.keymap.set('n', 'g#', 'g#zz', opts)
 
 -- vim.cmd [[
 --   autocmd CursorHold * lua vim.diagnostic.open_float(nil, { focusable = false })

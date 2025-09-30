@@ -108,5 +108,5 @@ return {
   },
   cmd = cmd,
   root_markers = { 'angular.json', 'nx.json' },
-  filetypes = { 'javascript', 'typescript', 'html', 'typescriptreact', 'typescript.tsx', 'htmlangular' },
+  filetypes = { 'htmlangular' },
 }

@@ -1,3 +1,8 @@
+-- BACKUP AND SWAP
+vim.opt.swapfile = false
+vim.opt.undofile = true
+
+-- Correct Neovim Statusline Syntax
 -- ============================================================
 -- setting Auto-Sessions so when session is restored on startup.
 -- ============================================================
@@ -20,26 +25,26 @@ vim.g.loaded_netrwPlugin = 1
 -- =======================================================================
 --  General UI Settings
 -- =======================================================================
-vim.o.number = true -- Show line numbers
-vim.o.mouse = 'a' -- Enable mouse support
-vim.o.showmode = false -- Don’t show mode in command line (already shown in statusline)
-vim.o.laststatus = 3 -- Global statusline (instead of per window)
-vim.o.cmdheight = 0 -- Hide command line unless needed
-vim.o.cursorline = true -- Highlight the current line
-vim.o.scrolloff = 5 -- Keep 5 lines visible above/below cursor
+vim.o.number = true          -- Show line numbers
+vim.o.mouse = 'a'            -- Enable mouse support
+vim.o.showmode = false       -- Don’t show mode in command line (already shown in statusline)
+vim.o.laststatus = 3         -- Global statusline (instead of per window)
+vim.o.cmdheight = 0          -- Hide command line unless needed
+vim.o.cursorline = true      -- Highlight the current line
+vim.o.scrolloff = 5          -- Keep 5 lines visible above/below cursor
 vim.opt.termguicolors = true -- Enable true color support
-vim.g.have_nerd_font = true -- Enable Nerd Font icons if available
+vim.g.have_nerd_font = true  -- Enable Nerd Font icons if available
 
 -- =======================================================================
 --  Editing Behavior
 -- =======================================================================
 vim.bo.commentstring = '-- %s' -- Default comment style for Lua-like files
-vim.o.tabstop = 2 -- Tab width = 2 spaces
-vim.o.shiftwidth = 2 -- Indent width = 2 spaces
-vim.o.expandtab = true -- Use spaces instead of tabs
-vim.o.autoindent = true -- Maintain indent from previous line
-vim.o.smartindent = false -- Disable smart indent
-vim.o.cindent = false -- Disable C-style indent
+vim.o.tabstop = 2              -- Tab width = 2 spaces
+vim.o.shiftwidth = 2           -- Indent width = 2 spaces
+vim.o.expandtab = true         -- Use spaces instead of tabs
+vim.o.autoindent = true        -- Maintain indent from previous line
+vim.o.smartindent = false      -- Disable smart indent
+vim.o.cindent = false          -- Disable C-style indent
 
 -- =======================================================================
 --  Clipboard
@@ -51,8 +56,8 @@ end)
 -- =======================================================================
 --  Search
 -- =======================================================================
-vim.o.ignorecase = true -- Case-insensitive search...
-vim.o.smartcase = true -- ...unless uppercase is used
+vim.o.ignorecase = true    -- Case-insensitive search...
+vim.o.smartcase = true     -- ...unless uppercase is used
 vim.o.inccommand = 'split' -- Live preview substitutions
 
 -- =======================================================================
@@ -114,7 +119,7 @@ vim.o.confirm = true -- Ask to save when quitting with unsaved changes
 -- =======================================================================
 --  Plugin/Framework Specific Globals
 -- =======================================================================
-vim.g.lazyvim_cmp = 'blink.cmp' -- Completion plugin
+vim.g.lazyvim_cmp = 'blink.cmp'                       -- Completion plugin
 vim.g.root_spec = { 'lsp', { '.git', 'lua' }, 'cwd' } -- Project root detection
 
 -- =======================================================================
