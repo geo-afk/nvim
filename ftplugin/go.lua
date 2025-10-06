@@ -60,20 +60,55 @@ end, { desc = 'Generate error handling with iferr for current position' })
 
 vim.api.nvim_create_user_command('GoRun', function()
   local cmd
-  if vim.fn.filereadable 'Makefile' == 1 then
-    cmd = 'make watch'
-  else
-    cmd = 'go run .'
-  end
+  -- if vim.fn.filereadable 'Makefile' == 1 then
+  -- 	cmd = 'make watch'
+  -- else
+  -- 	cmd = 'go run .'
+  -- end
+
+  cmd = 'go run .'
 
   -- Open a terminal in a horizontal split with 20% of the screen height
-  vim.cmd('botright 20split | terminal ' .. cmd)
+  vim.cmd('botright 15split | terminal ' .. cmd)
 
   -- Start the terminal in insert mode
   vim.cmd 'startinsert'
 end, { desc = 'Run the current Go project in a terminal' })
 
-vim.keymap.set('n', '<leader>gt', ':GoTests -all<CR>', { desc = 'Generate tests for all functions' })
+--[[
+  Run tests with gotestsum
+  Examples:
+    :GoTestRun        -> run all tests (./...)
+    :GoTestRun %      -> run tests in current file
+    :GoTestRun % -run MyFunc -> run a specific test in current file
+]]
+vim.api.nvim_create_user_command('GoTestRun', function(opts)
+  local args = opts.args ~= '' and opts.args or './...'
+  local cmd = string.format('gotestsum --mat=testname --hide-summary=skipped -- -v %s', args)
+
+  -- open a bottom terminal split
+  vim.cmd 'botright split | resize 15'
+  vim.cmd('terminal ' .. cmd)
+  vim.cmd 'startinsert'
+end, { nargs = '*', desc = 'Run Go tests with gotestsum' })
+
+-- Run all tests
+vim.keymap.set('n', '<leader>ga', ':GoTestRun<CR>', { desc = 'Run all Go tests' })
+
+-- Run tests in current file
+vim.keymap.set('n', '<leader>gf', function()
+  local file = vim.fn.expand '%'
+  vim.cmd('GoTestRun ' .. file)
+end, { desc = 'Run Go tests in current file' })
+
+-- Run nearest test under cursor
+vim.keymap.set('n', '<leader>gc', function()
+  local testname = vim.fn.expand '<cword>'
+  local file = vim.fn.expand '%'
+  vim.cmd('GoTestRun ' .. file .. ' -run ' .. testname)
+end, { desc = 'Run nearest Go test' })
+
+vim.keymap.set('n', '<leader>gt', ':GoTests -all<CR>', { desc = 'Generate tests  all functions' })
 vim.keymap.set('n', '<leader>gm', ':GoModifyTags -add-tags json<CR>', { desc = 'Add JSON tags' })
 vim.keymap.set('n', '<leader>gr', ':GoModifyTags -remove-tags json<CR>', { desc = 'Remove JSON tags' })
 vim.keymap.set('n', '<leader>go', ':GoRun<CR>', { desc = 'Run the current Go file' })
