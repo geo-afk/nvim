@@ -57,7 +57,7 @@ function M.create_terminal(cmd)
 
   -- Start terminal
   vim.api.nvim_buf_call(buf, function()
-    vim.cmd.term(cmd or "bash")
+    vim.cmd.term(cmd or "nu")
     vim.cmd("startinsert")
   end)
 
