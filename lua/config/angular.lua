@@ -1,6 +1,6 @@
 function _G.userCommandCompletion(lead, line, _)
   local values = {}
-  for value in line:gmatch '%S+' do
+   for value in line:gmatch '%S+' do
     table.insert(values, value)
   end
 
@@ -22,7 +22,7 @@ function _G.userCommandCompletion(lead, line, _)
   }
 
   local matches = {}
-  for _, command in ipairs(commands) do
+   for _, command in ipairs(commands) do
     if command:find(lead) then
       table.insert(matches, command)
     end
