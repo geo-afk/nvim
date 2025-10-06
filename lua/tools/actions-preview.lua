@@ -7,6 +7,7 @@ return {
   opts = {
     backend = 'vim',
     picker = 'buffer',
+    filter = { 'kind', 'line' },
     opts = {
       hotkeys = true,
     },
