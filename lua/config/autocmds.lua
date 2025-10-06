@@ -11,6 +11,19 @@ local function augroup(name)
   return vim.api.nvim_create_augroup('lazyvim_' .. name, { clear = true })
 end
 
+-- Enable spell checking  certain file types
+vim.api.nvim_create_autocmd(
+  { 'BufRead', 'BufNewFile' },
+  -- { pattern = { "*.txt", "*.md", "*.tex" }, command = [[setlocal spell<cr> setlocal spelllang=en,de<cr>]] }
+  {
+    pattern = { '*.txt', '*.md', '*.tex' },
+    callback = function()
+      vim.opt.spell = true
+      vim.opt.spelllang = 'en'
+    end,
+  }
+)
+
 vim.api.nvim_create_autocmd('TextYankPost', {
   desc = 'Highlight when yanking (copying) text',
   group = vim.api.nvim_create_augroup('kickstart-highlight-yank', { clear = true }),
@@ -53,3 +66,24 @@ vim.api.nvim_create_autocmd({ 'BufWritePre' }, {
     vim.fn.mkdir(vim.fn.fnamemodify(file, ':p:h'), 'p')
   end,
 })
+
+
+-- Force Angular component templates to use htmlangular
+vim.filetype.add {
+  pattern = {
+    ['.*%.component%.html'] = 'htmlangular', -- classic Angular template files
+    ['.*/src/app/.*%.html'] = function(path, bufnr)
+      -- Check if angular.json exists in the project root
+      local project_root = vim.fs.find('angular.json', {
+        path = path,
+        upward = true,
+      })[1]
+
+      if project_root then
+        return 'htmlangular'
+      end
+
+      return 'html' -- fallback to regular html
+    end,
+  },
+}
