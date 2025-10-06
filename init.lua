@@ -3,3 +3,4 @@ vim.g.maplocalleader = ' '
 vim.keymap.set({ 'n', 'v' }, '<Space>', '<Nop>', { silent = true })
 
 require 'config.lazy'
+require("config.neovide")
