@@ -86,7 +86,7 @@ return {
         -- this will be applied to label description for unsupported languages
         fallback_extra_info_hl = '@comment',
       },
-      -- If the built-in logic fails to find a suitable highlight group for a label,
+      -- If the built-in logic fails to find a suitable highlight group  a label,
       -- this highlight is applied to the label.
       fallback_highlight = '@variable',
       -- If provided, the plugin truncates the final displayed text to
