@@ -1,24 +1,17 @@
 return {
-  'rmagatti/auto-session',
-  lazy = false,
-
-  ---@type AutoSession.Config
-  opts = {
-    suppressed_dirs = { '~/', '~/Documents', '~/Desktop', '~/Music', '/' },
-    -- log_level = "debug",
+  'DrKJeff16/project.nvim',
+  lazy = true,
+  version = false, -- Get the latest release
+  cmd = { -- Lazy-load by commands
+    'Project',
+    'ProjectAdd',
+    'ProjectConfig',
+    'ProjectDelete',
+    'ProjectHistory',
+    'ProjectRecents',
+    'ProjectRoot',
+    'ProjectSession',
   },
-
-  config = function(_, opts)
-    -- setup
-    require('auto-session').setup(opts)
-
-    -- keymaps for sessions
-    local map = function(keys, cmd, desc)
-      vim.keymap.set('n', keys, cmd, { desc = desc })
-    end
-
-    map('<leader>ws', '<cmd>AutoSession save<CR>', 'Save session')
-    map('<leader>wr', '<cmd>AutoSession restore<CR>', 'Restore last session')
-    map('<leader>wd', '<cmd>AutoSession delete<CR>', 'Delete current session')
-  end,
+  ---@type Project.Config.Options
+  opts = {},
 }

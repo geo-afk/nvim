@@ -102,20 +102,6 @@ M.components = {
       return highlights
     end,
   },
-  -- label = {
-  --   text = function(ctx)
-  --     return require('colorful-menu').blink_components_text(ctx)
-  --   end,
-  --   highlight = function(ctx)
-  --     return require('colorful-menu').blink_components_highlight(ctx)
-  --   end,
-  -- },
-  -- label_description = {
-  --   text = function(ctx)
-  --     return get_lsp_completion_context(ctx.item)
-  --   end,
-  --   highlight = 'BlinkCmpLabelDescription',
-  -- },
 }
 
 return M

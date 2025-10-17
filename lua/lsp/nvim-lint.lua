@@ -13,6 +13,7 @@ return {
       typescript = { 'biomejs' }, -- TypeScript
       javascript = { 'biomejs' }, -- JavaScript
       lua = { 'typos' }, -- JavaScript
+      python = { 'ruff' }, -- JavaScript
     }
 
     -- Configure eslint_d args (unchanged)

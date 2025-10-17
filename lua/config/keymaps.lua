@@ -1,13 +1,12 @@
 local opts = { noremap = true, silent = true }
 
-
 -- Make sure to go to proper indentation level when pressing i
 -- source: https://www.reddit.com/r/neovim/comments/12rqyl8/5_smart_minisnippets_for_making_text_editing_more/
-vim.keymap.set("n", "i", function()
-  if #vim.fn.getline "." == 0 then
+vim.keymap.set('n', 'i', function()
+  if #vim.fn.getline '.' == 0 then
     return [["_cc]]
   else
-    return "i"
+    return 'i'
   end
 end, { expr = true })
 
@@ -17,9 +16,15 @@ vim.keymap.set('n', '_', ':vertical resize -5<CR>')
 vim.keymap.set('n', '=', ':resize +5<CR>')
 vim.keymap.set('n', '-', ':resize -5<CR>')
 
+-- paste over currently selected text without yanking it
+vim.keymap.set('v', 'p', '"_dp')
+vim.keymap.set('v', 'P', '"_dP')
+
 -- Map enter to ciw in normal mode
 -- vim.keymap.set("n", "<CR>", "ciw", opts)  -- Commented out: This overwrites word on Enter - too disruptive
 -- vim.keymap.set("n", "<BS>", "ci", opts)   -- Commented out: This changes text on Backspace - too disruptive
+
+vim.keymap.set('n', 'p', '_p', { desc = 'Paste without copying to clipboard', noremap = true, silent = true })
 
 vim.keymap.set('n', 'n', 'nzz', opts)
 -- vim.keymap.set('n', 'N', 'Nzzv', opts)

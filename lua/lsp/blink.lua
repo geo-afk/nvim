@@ -98,12 +98,17 @@ return { -- autocompletion
       },
       -- ghost_text = { enabled = true },
       menu = {
+        auto_show = true,
+        auto_show_delay_ms = 0,
+        enabled = true,
+        min_width = 15,
+        max_height = 10,
         border = 'rounded', -- options: "single", "double", "rounded", "solid", "shadow", or "none"
         winhighlight = 'normal:normal,floatborder:none,cursorline:visual,search:none',
         draw = {
 
-          columns = { { 'kind_icon', gap = 1 }, { 'label', 'label_description', gap = 1 } },
-          -- columns = { { 'kind_icon' }, { 'label', gap = 1 } },
+          -- columns = { { 'kind_icon', gap = 1 }, { 'label', 'label_description', gap = 1 } },
+          columns = { { 'kind_icon' }, { 'label', gap = 1 } },
           components = constant.components,
         },
       },

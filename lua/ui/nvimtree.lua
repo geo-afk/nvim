@@ -41,7 +41,7 @@ return {
       on_attach = on_attach, -- <<-- IMPORTANT: attach your function here
       sort_by = 'case_sensitive',
       view = {
-        width = 31,
+        width = 30, -- Increased width for better folder visibility
         side = 'left',
       },
       renderer = {
@@ -98,10 +98,10 @@ return {
         timeout = 500,
       },
 
-      -- 🔑 Make sure the root follows your project
+      -- 🔑 Always show the project root; disable updating root on file focus
       update_focused_file = {
         enable = true,
-        update_root = true,
+        update_root = false, -- Changed to false to keep root at project level
       },
       respect_buf_cwd = true,
       sync_root_with_cwd = true,

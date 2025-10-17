@@ -46,12 +46,23 @@ return { -- Fuzzy Finder (files, lsp, etc)
         ['ui-select'] = {
           require('telescope.themes').get_dropdown(),
         },
+        projects = {
+          prompt_prefix = '󱎸  ',
+          layout_strategy = 'horizontal',
+          layout_config = {
+            anchor = 'N',
+            height = 0.25,
+            width = 0.6,
+            prompt_position = 'bottom',
+          },
+        },
       },
     }
 
     -- Enable Telescope extensions if they are installed
     pcall(require('telescope').load_extension, 'fzf')
     pcall(require('telescope').load_extension, 'ui-select')
+    pcall(require('telescope').load_extension, 'projects')
 
     -- See `:help telescope.builtin`
     local builtin = require 'telescope.builtin'

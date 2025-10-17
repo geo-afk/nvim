@@ -9,15 +9,19 @@ return {
         close_command = 'bdelete! %d', -- command to close buffer
         right_mouse_command = 'bdelete! %d',
         left_mouse_command = 'buffer %d',
-        middle_mouse_command = nil,
-        buffer_close_icon = '×', -- close icon
+        middle_mouse_command = 'bdelete! %d',
+        indicator = {
+          icon = '☕',
+          style = 'icon', -- Highlight active buffer with underline for clarity
+        },
+        buffer_close_icon = '', -- Custom close icon
         modified_icon = '●', -- modified icon
-        close_icon = '×', -- global close icon
-        left_trunc_marker = '◀',
-        right_trunc_marker = '▶',
-        max_name_length = 30,
-        max_prefix_length = 15, -- prefix used when a buffer name is duplicate
-        tab_size = 21,
+        close_icon = '-', -- Icon for closing all the tabs
+        left_trunc_marker = '', -- Marker for left overflow
+        right_trunc_marker = '', -- Marker for right overflow
+        max_name_length = 18, -- Set a max buffer name length
+        max_prefix_length = 15, -- Set a max prefix length for truncated buffers
+        tab_size = 20,
         diagnostics = 'nvim_lsp', -- optional LSP diagnostics
         offsets = {
           {
@@ -27,13 +31,18 @@ return {
             text_align = 'left',
           },
         },
+        diagnostics_indicator = function(count, level, diagnostics_dict, context)
+          local error_count = diagnostics_dict.error or 0
+          return error_count > 0 and '  ' .. error_count or ''
+        end,
         show_buffer_icons = true,
         show_buffer_close_icons = true,
-        show_close_icon = false, -- no global close icon
+        show_close_icon = true, -- no global close icon
         show_tab_indicators = true,
         persist_buffer_sort = true,
         separator_style = 'thick', -- can also be 'slant' or 'thick'
-        enforce_regular_tabs = false,
+        enforce_regular_tabs = true,
+        color_icons = true,
         always_show_bufferline = true,
       },
       -- Subtle bracket-style highlighting for transparent backgrounds

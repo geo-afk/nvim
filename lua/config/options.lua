@@ -1,6 +1,12 @@
 -- BACKUP AND SWAP
 vim.opt.swapfile = false
 vim.opt.undofile = true
+-- vim.opt.spell = true
+vim.opt.guicursor = {
+  'n-v-c:block-blinkwait700-blinkoff400-blinkon250', -- Normal, Visual, Command: block cursor
+  'i-ci-sm:ver15-blinkwait700-blinkoff400-blinkon250', -- Insert and related: thin blinking line
+  'r-cr-o:hor20', -- Replace modes: horizontal underline
+}
 
 -- Correct Neovim Statusline Syntax
 -- ============================================================
@@ -138,6 +144,14 @@ vim.g.root_spec = { 'lsp', { '.git', 'lua' }, 'cwd' } -- Project root detection
 -- vim.opt.shellcmdflag = '--commands' -- Changed from "-c"
 -- vim.opt.shellquote = ''
 -- vim.opt.shellxquote = ''
+
+vim.opt.shell = 'powershell'
+vim.opt.shellcmdflag = '-NoLogo -NoProfile -ExecutionPolicy RemoteSigned -Command'
+vim.opt.shellquote = ''
+vim.opt.shellxquote = ''
+vim.opt.shellredir = '2>&1 | Out-File -Encoding UTF8 %s'
+vim.opt.shellpipe = '2>&1 | Out-File -Encoding UTF8 %s'
+vim.opt.shelltemp = false
 
 -- =======================================================================
 --  Legacy Vimscript Configurations

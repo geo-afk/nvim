@@ -21,7 +21,7 @@ return {
     },
 
     -- Format for blame text
-    current_line_blame_matter = '     <author> • <author_time:%Y-%m-%d %H:%M> • <summary>',
+    -- current_line_blame_matter = '     <author> • <author_time:%Y-%m-%d %H:%M> • <summary>',
 
     preview_config = {
       border = 'single',

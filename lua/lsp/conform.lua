@@ -22,7 +22,7 @@ return {
         return nil
       else
         return {
-          timeout_ms = 5000,
+          timeout_ms = 700,
           lsp_fallback = true,
         }
       end
@@ -45,6 +45,7 @@ return {
       -- ✓ prettierd
       htmlangular = { 'prettierd' },
       json = { 'prettierd' },
+      python = { 'ruff' },
       -- python = { "isort", "black" },
     },
     formatters = {

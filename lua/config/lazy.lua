@@ -42,6 +42,7 @@ vim.filetype.add {
 require 'config.options'
 require 'config.keymaps'
 require 'config.autocmds'
+-- require('config.tabline').render()
 -- require 'config.angular'
 -- You can also load other setup code here if needed
 

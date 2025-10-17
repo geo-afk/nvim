@@ -2,37 +2,61 @@ local M = {}
 local lsp, diagnostic = vim.lsp, vim.diagnostic
 local aucmd, augroup = vim.api.nvim_create_autocmd, vim.api.nvim_create_augroup
 
-
 -- Get capabilities with blink.cmp integration
 function M.get_capabilities()
   local original_capabilities = vim.lsp.protocol.make_client_capabilities()
-  return require('blink.cmp').get_lsp_capabilities(original_capabilities)
+  return vim.tbl_deep_extend('force', original_capabilities, require('blink.cmp').get_lsp_capabilities(original_capabilities))
 end
 
--- aucmd("LspAttach", {
---     desc = "My LSP settings",
---     group = augroup("UserLspConfig", {}),
---     callback = function(args)
---         ---@type vim.lsp.Client
---         local client = assert(lsp.get_client_by_id(args.data.client_id))
---         setup_mappings(args.buf)
---         setup_aucmds(client, args.buf)
---
---         -- Automatically show completion
---         -- if client:supports_method(lsp.protocol.Methods.textDocument_completion) then
---         --     -- Optional: trigger autocompletion on EVERY keypress. May be slow!
---         --     local chars = {}
---         --     for i = 32, 126 do
---         --         table.insert(chars, string.char(i))
---         --     end
---         --     client.server_capabilities.completionProvider.triggerCharacters = chars
---         --
---         --     lsp.completion.enable(true, client.id, args.buf, { autotrigger = true })
---         -- end
---     end,
--- })
+local lsp_rename = function()
+  local curr_name = vim.fn.expand '<cword>'
+  local value = vim.fn.input('LSP Rename: ', curr_name)
+  local lsp_params = vim.lsp.util.make_position_params()
 
--- Setup keymaps (called once globally)
+  if not value or #value == 0 or curr_name == value then
+    return
+  end
+
+  -- request lsp rename
+  lsp_params.newName = value
+  vim.lsp.buf_request(0, 'textDocument/rename', lsp_params, function(_, res, ctx, _)
+    if not res then
+      return
+    end
+
+    local client = vim.lsp.get_client_by_id(ctx.client_id)
+    vim.lsp.util.apply_workspace_edit(res, client.offset_encoding)
+
+    local changed_files_count = 0
+    local changed_instances_count = 0
+
+    if res.documentChanges then
+      for _, changed_file in pairs(res.documentChanges) do
+        changed_instances_count = changed_instances_count + #changed_file.edits
+        changed_files_count = changed_files_count + 1
+      end
+    elseif res.changes then
+      for _, changed_file in pairs(res.changes) do
+        changed_instances_count = changed_instances_count + #changed_file
+        changed_files_count = changed_files_count + 1
+      end
+    end
+
+    -- compose the right print message
+    vim.notify(
+      string.format(
+        'Renamed %s instance%s in %s file%s.',
+        changed_instances_count,
+        changed_instances_count == 1 and '' or 's',
+        changed_files_count,
+        changed_files_count == 1 and '' or 's'
+      )
+    )
+
+    vim.cmd 'silent! wa'
+  end)
+end
+
 function M.setup_keymaps(args)
   vim.keymap.set('n', 'K', function()
     vim.lsp.buf.hover { border = 'rounded' }
@@ -42,8 +66,8 @@ function M.setup_keymaps(args)
   vim.keymap.set('n', 'gi', vim.lsp.buf.implementation, { desc = 'Go to Implementation' })
   vim.keymap.set('n', '<C-k>', vim.lsp.buf.signature_help, { desc = 'Signature Help' })
   vim.keymap.set('n', '<leader>vd', vim.diagnostic.open_float, { desc = 'open float diagnostic' })
-  -- vim.keymap.set({ 'n', 'x' }, '<leader>cc', vim.lsp.codelens.run, { desc = 'run code lens' })
-  -- vim.keymap.set('n', '<leader>cC', vim.lsp.codelens.refresh, { desc = 'Refresh & display codelens' })
+  vim.keymap.set({ 'n', 'x' }, '<leader>cc', vim.lsp.codelens.run, { desc = 'run code lens' })
+  vim.keymap.set('n', '<leader>cC', vim.lsp.codelens.refresh, { desc = 'Refresh & display codelens' })
 
   -- vim.keymap.set('n', '<leader>lpd', function()
   --   local params = vim.lsp.util.make_position_params(nil, 'utf-8')
@@ -66,7 +90,10 @@ function M.setup_keymaps(args)
 
   -- Rename the variable under your cursor.
   --  Most Language Servers support renaming across files, etc.
-  map('grn', vim.lsp.buf.rename, '[R]e[n]ame')
+  -- map('grn', vim.lsp.buf.rename, '[R]e[n]ame')
+  map('grn', function()
+    lsp_rename()
+  end, '[R]e[n]ame')
 
   -- Execute a code action, usually your cursor needs to be on top of an error
   -- or a suggestion from your LSP for this to activate.

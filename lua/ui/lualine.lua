@@ -74,7 +74,7 @@ return {
         end
 
         local client_names = {}
-        for  _, client in ipairs(clients) do
+        for _, client in ipairs(clients) do
           if client.name ~= 'null-ls' and client.name ~= 'copilot' then
             local clean_name = client.name:gsub('_', ' '):gsub('^%l', string.upper)
             table.insert(client_names, clean_name)

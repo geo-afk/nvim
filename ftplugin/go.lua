@@ -84,7 +84,7 @@ end, { desc = 'Run the current Go project in a terminal' })
 ]]
 vim.api.nvim_create_user_command('GoTestRun', function(opts)
   local args = opts.args ~= '' and opts.args or './...'
-  local cmd = string.format('gotestsum --mat=testname --hide-summary=skipped -- -v %s', args)
+  local cmd = string.format('gotestsum --format pkgname --hide-summary=skipped %s .', args)
 
   -- open a bottom terminal split
   vim.cmd 'botright split | resize 15'
