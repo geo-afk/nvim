@@ -87,18 +87,18 @@ M.servers = {
   tailwindcss = 'tailwindcss',
 }
 
-local function test_lsp()
-  vim.lsp.log.set_level 'trace' -- Or 'debug' for less noise
-
-  local bufnr = vim.api.nvim_get_current_buf()
-  vim.lsp.config['testing-lsp'] = {
-    cmd = { 'C:\\Users\\KoolAid\\Pictures\\Projects\\go\\LSP\\main.exe' },
-    root_dir = vim.fs.dirname(vim.api.nvim_buf_get_name(bufnr)), -- Use buffer's dir as root
-    filetypes = { 'markdown' },
-    root_markers = { { '.md' } },
-  }
-  vim.lsp.enable 'testing-lsp'
-end
+-- local function test_lsp()
+--   vim.lsp.log.set_level 'trace' -- Or 'debug' for less noise
+--
+--   local bufnr = vim.api.nvim_get_current_buf()
+--   vim.lsp.config['testing-lsp'] = {
+--     cmd = { 'C:\\Users\\KoolAid\\Pictures\\Projects\\go\\LSP\\main.exe' },
+--     root_dir = vim.fs.dirname(vim.api.nvim_buf_get_name(bufnr)), -- Use buffer's dir as root
+--     filetypes = { 'markdown' },
+--     root_markers = { { '.md' } },
+--   }
+--   vim.lsp.enable 'testing-lsp'
+-- end
 
 function M.setup_lsps()
   -- Default setup  lsp clients
@@ -111,12 +111,13 @@ function M.setup_lsps()
 
     if ok then
       vim.lsp.config(key, config)
+      vim.lsp.enable(key, true)
     else
       vim.notify('Failed to load LSP config  ' .. key .. ': ' .. tostring(config), vim.log.levels.WARN)
     end
   end
 
-  test_lsp()
+  -- test_lsp()
 end
 
 return M

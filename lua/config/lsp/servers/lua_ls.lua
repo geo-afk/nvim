@@ -3,7 +3,13 @@ return {
     Lua = {
 
       completion = {
-        callSnippet = 'Replace',
+        autoRequire = true,
+				callSnippet = "Both",
+				displayContext = 5,
+				enable = true,
+				keywordSnippet = "Both",
+				portfix = ".",
+				showWord = "Enable",
       },
 
       workspace = {
@@ -21,6 +27,15 @@ return {
         semicolon = 'All',
         setType = false,
       },
+      telemetry = {
+				enable = false,
+			},
+			diagnostics = {
+				globals = { "vim", "scroll" },
+			},
+			doc = {
+				privateName = { "^_" },
+			},
     },
   },
 }

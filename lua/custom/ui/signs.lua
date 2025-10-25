@@ -1,0 +1,56 @@
+return {
+  file = {
+    modified = "•",
+    not_saved = "󰉉",
+    readonly = "󰌾",
+    created = "●",
+    unnamed = " No Name",
+  },
+  git = {
+    added = " ",
+    modified = " ",
+    removed = " ",
+    renamed = "󰑕 ",
+    branch = "",
+    ignored = " ",
+    unstaged = "󰄱 ",
+    staged = " ",
+    untracked = "",
+  },
+  fzf = {
+    git = {
+      added = "",
+      modified = "",
+      removed = "",
+      renamed = "󰑕",
+    },
+  },
+  full_diagnostic = {
+    ok = "",
+    error = "",
+    warning = "",
+    warn = "",
+    info = "",
+    hint = "",
+    -- other = "󰠠 ",
+  },
+  diagnostic = {
+    error = "●",
+    warning = "●",
+    warn = "●",
+    info = "●",
+    hint = "●",
+    ok = "●",
+    other = "●",
+  },
+  others = {
+    copilot = " ",
+    copilot_disabled = " ",
+    terminal = " ",
+    folder = "󰉖 ",
+    loading = " ",
+    checkmark = " ",
+    error_x = " ",
+  },
+}
+
