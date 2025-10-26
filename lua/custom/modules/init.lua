@@ -1,2 +1,2 @@
-require("custom.modules.window_swapper")
-require("custom.modules.winbar_breadcrumbs")
+require('custom.modules.window_swapper').setup()
+require 'custom.modules.breadcrumbs'
