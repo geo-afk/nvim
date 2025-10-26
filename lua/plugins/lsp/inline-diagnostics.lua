@@ -1,6 +1,6 @@
 return {
   'inline_diagnostic',
-  dir = vim.fn.stdpath('config') .. '/lua/custom/diagnostics',
+  dir = vim.fn.stdpath 'config' .. '/lua/custom/diagnostics',
   config = function()
     local inline_diag = require 'custom.diagnostics'
     inline_diag.setup {
@@ -20,17 +20,17 @@ return {
     -- Manual controls
     vim.keymap.set('n', '<leader>dt', function()
       inline_diag.toggle()
-    end)
+    end, { desc = 'Toggle Diagnostics' })
     vim.keymap.set('n', '<leader>de', function()
       inline_diag.enable()
-    end)
+    end, { desc = 'Enable Diagnostics' })
     vim.keymap.set('n', '<leader>dd', function()
       inline_diag.disable()
-    end)
+    end, { desc = 'Disable Diagnostics' })
 
     -- Debug
     vim.keymap.set('n', '<leader>ds', function()
       vim.print(inline_diag.status())
-    end)
+    end, { desc = 'Show Diagnostics Status' })
   end,
 }

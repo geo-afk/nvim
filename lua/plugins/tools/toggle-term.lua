@@ -143,27 +143,27 @@ return {
 
       -- ========== WHICH-KEY REGISTRATION ==========
       -- Register which-key mappings
-     
-local ok, wk = pcall(require, 'which-key')
-if ok then
-  local mappings = {
-    { '<leader>t', group = 'Terminal' }, --  is a Nerd Font terminal icon
-    { '<leader>tt', '<cmd>ToggleTerm<cr>', desc = 'Toggle Default Terminal' },
+
+      local ok, wk = pcall(require, 'which-key')
+      if ok then
+        local mappings = {
+          { '<leader>t', group = 'Terminal' }, --  is a Nerd Font terminal icon
+          { '<leader>tt', '<cmd>ToggleTerm<cr>', desc = 'Toggle Default Terminal' },
           { '<leader>t1', '<cmd>1ToggleTerm<cr>', desc = 'Terminal 1' },
-    { '<leader>ts', desc = '🚀 Open Scooter' },
-    { '<leader>tr', desc = '🔍 Search Selected Text (Scooter)', mode = 'v' },
-  }
+          { '<leader>ts', desc = '🚀 Open Scooter' },
+          { '<leader>tr', desc = '🔍 Search Selected Text (Scooter)', mode = 'v' },
+        }
 
-  for i = 2, terminal_count do
-    table.insert(mappings, {
-      '<leader>t' .. i,
-      '<cmd>lua _TERMINAL_' .. i .. '_TOGGLE()<cr>',
-      desc = 'Terminal ' .. i,
-    })
-  end
+        for i = 2, terminal_count do
+          table.insert(mappings, {
+            '<leader>t' .. i,
+            '<cmd>lua _TERMINAL_' .. i .. '_TOGGLE()<cr>',
+            desc = 'Terminal ' .. i,
+          })
+        end
 
-  wk.add(mappings)
-end
+        wk.add(mappings)
+      end
     end,
   },
 }
