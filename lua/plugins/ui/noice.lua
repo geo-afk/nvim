@@ -4,7 +4,7 @@ return {
   enabled = true,
   dependencies = {
     'MunifTanjim/nui.nvim',
-    'rcarriga/nvim-notify', -- optional but looks good with Noice
+    -- 'rcarriga/nvim-notify', -- optional but looks good with Noice
   },
   opts = {
     notify = {
@@ -128,14 +128,14 @@ return {
         opts = { skip = true },
       },
     },
-    messages = {
-      enabled = true, -- must be enabled for prompts
-      view = 'notify', -- normal messages go to notify
-      view_error = 'notify',
-      view_warn = 'notify',
-      view_history = 'messages',
-      view_search = 'virtualtext',
-    },
+    -- messages = {
+    --   enabled = true, -- must be enabled for prompts
+    --   view = 'notify', -- normal messages go to notify
+    --   view_error = 'notify',
+    --   view_warn = 'notify',
+    --   view_history = 'messages',
+    --   view_search = 'virtualtext',
+    -- },
     health = { checker = true },
     popupmenu = { enabled = true },
     signature = { enabled = true },

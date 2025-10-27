@@ -134,13 +134,11 @@ end
 ---@return string
 function Status_line()
   local filetype = vim.bo.filetype
-  local filetypes = { 'neo-tree', 'minifiles', 'NvimTree', 'oil', 'TelescopePrompt', 'fzf', 'snacks_picker_input' }
+  local filetypes = { 'neo-tree', 'minifiles', 'oil', 'TelescopePrompt', 'fzf', 'snacks_picker_input' }
 
   if vim.tbl_contains(filetypes, filetype) then
     local home_dir = os.getenv 'HOME'
-    local api = require 'nvim-tree.api'
-    local node = api.tree.get_node_under_cursor()
-    local dir = filetype == 'NvimTree' and node.absolute_path or vim.fn.getcwd()
+    local dir = vim.fn.getcwd()
     dir = dir:gsub('^' .. home_dir, '~')
     local ft = filetype:sub(1, 1):upper() .. filetype:sub(2)
     return c.decorator { name = ft .. ': ' .. dir, align = 'left' }
