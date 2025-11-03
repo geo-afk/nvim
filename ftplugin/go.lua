@@ -92,24 +92,44 @@ vim.api.nvim_create_user_command('GoTestRun', function(opts)
   vim.cmd 'startinsert'
 end, { nargs = '*', desc = 'Run Go tests with gotestsum' })
 
--- Run all tests
-vim.keymap.set('n', '<leader>ga', ':GoTestRun<CR>', { desc = 'Run all Go tests' })
+-- Safe load which-key
+local ok, wk = pcall(require, 'which-key')
+if not ok then
+  vim.notify('which-key not found!', vim.log.levels.WARN)
+  return
+end
 
--- Run tests in current file
-vim.keymap.set('n', '<leader>gf', function()
-  local file = vim.fn.expand '%'
-  vim.cmd('GoTestRun ' .. file)
-end, { desc = 'Run Go tests in current file' })
+local icon = '⚙️'
 
--- Run nearest test under cursor
-vim.keymap.set('n', '<leader>gc', function()
-  local testname = vim.fn.expand '<cword>'
-  local file = vim.fn.expand '%'
-  vim.cmd('GoTestRun ' .. file .. ' -run ' .. testname)
-end, { desc = 'Run nearest Go test' })
-
-vim.keymap.set('n', '<leader>gt', ':GoTests -all<CR>', { desc = 'Generate tests  all functions' })
-vim.keymap.set('n', '<leader>gm', ':GoModifyTags -add-tags json<CR>', { desc = 'Add JSON tags' })
-vim.keymap.set('n', '<leader>gr', ':GoModifyTags -remove-tags json<CR>', { desc = 'Remove JSON tags' })
-vim.keymap.set('n', '<leader>go', ':GoRun<CR>', { desc = 'Run the current Go file' })
-vim.keymap.set('n', '<leader>ge', ':GoIfErr<CR>', { desc = 'Insert if err snippet' })
+-- Define Go-related keymaps
+wk.add {
+  {
+    mode = { 'n' },
+    { '<leader>g', icon = { icon = icon, hl = 'MiniIconsBrown' }, group = 'Golang' },
+    { '<leader>gt', ':GoTests -all<CR>', desc = ' Generate tests for all functions', mode = 'n' },
+    { '<leader>gm', ':GoModifyTags -add-tags json<CR>', desc = ' Add JSON tags', mode = 'n' },
+    { '<leader>ga', ':GoTestRun<CR>', desc = ' Run all Go tests', mode = 'n' },
+    {
+      '<leader>gc',
+      function()
+        local testname = vim.fn.expand '<cword>'
+        local file = vim.fn.expand '%'
+        vim.cmd('GoTestRun ' .. file .. ' -run ' .. testname)
+      end,
+      desc = ' Run nearest Go test',
+      mode = 'n',
+    },
+    {
+      '<leader>gf',
+      function()
+        local file = vim.fn.expand '%'
+        vim.cmd('GoTestRun ' .. file)
+      end,
+      desc = ' Run Go tests in current file',
+      mode = 'n',
+    },
+    { '<leader>gr', ':GoModifyTags -remove-tags json<CR>', desc = ' Remove JSON tags', mode = 'n' },
+    { '<leader>go', ':GoRun<CR>', desc = ' Run current Go File', mode = 'n' },
+    { '<leader>ge', ':GoIfErr<CR>', desc = ' Insert if err snippet', mode = 'n' },
+  },
+}

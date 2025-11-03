@@ -34,6 +34,8 @@ vim.g.loaded_netrwPlugin = 1
 --  General UI Settings
 -- =======================================================================
 vim.o.number = true -- Show line numbers
+-- vim.o.winborder = "rounded"
+vim.opt.winborder = 'rounded'
 vim.o.mouse = 'a' -- Enable mouse support
 vim.o.showmode = false -- Don’t show mode in command line (already shown in statusline)
 vim.o.laststatus = 3 -- Global statusline (instead of per window)
@@ -54,6 +56,7 @@ vim.o.autoindent = true -- Maintain indent from previous line
 vim.o.smartindent = false -- Disable smart indent
 vim.o.cindent = false -- Disable C-style indent
 vim.o.showtabline = 2
+vim.o.wrap = false
 -- =======================================================================
 --  Clipboard
 -- =======================================================================
@@ -103,7 +106,6 @@ vim.opt.listchars = {
   conceal = '',
 }
 vim.opt.showbreak = '↪ ' -- Show wrapped lines with symbol
--- vim.opt.winborder = 'rounded'
 vim.opt.fillchars = {
   fold = ' ',
   foldopen = '',
@@ -134,15 +136,16 @@ vim.g.root_spec = { 'lsp', { '.git', 'lua' }, 'cwd' } -- Project root detection
 -- =======================================================================
 --  Shell Configuration (Nushell)
 -- =======================================================================
--- vim.opt.shell = 'nu'
--- vim.opt.shellcmdflag = '--commands' -- Changed from "-c"
--- vim.opt.shellquote = ''
--- vim.opt.shellxquote = ''
-
-vim.opt.shell = 'powershell'
-vim.opt.shellcmdflag = '-NoLogo -NoProfile -ExecutionPolicy RemoteSigned -Command'
+vim.opt.shell = 'nu'
+vim.opt.shellcmdflag = '--commands' -- Changed from "-c"
 vim.opt.shellquote = ''
 vim.opt.shellxquote = ''
-vim.opt.shellredir = '2>&1 | Out-File -Encoding UTF8 %s'
-vim.opt.shellpipe = '2>&1 | Out-File -Encoding UTF8 %s'
-vim.opt.shelltemp = false
+
+-- -- Set PowerShell 7+ as default shell
+-- vim.opt.shell = 'pwsh'
+-- vim.opt.shellcmdflag = '-NoLogo -NoProfile -ExecutionPolicy RemoteSigned -Command'
+-- vim.opt.shellquote = ''
+-- vim.opt.shellxquote = ''
+-- vim.opt.shellredir = '| Out-File -Encoding UTF8 %s'
+-- vim.opt.shellpipe = '| Out-File -Encoding UTF8 %s'
+-- vim.opt.shelltemp = false

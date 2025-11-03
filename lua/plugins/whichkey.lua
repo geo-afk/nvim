@@ -7,15 +7,23 @@ return {
     defaults = {},
     show_help = true,
     spec = {
-      { '<leader>/', group = 'Find IN Current Buffer' },
-      { '<leader>b', group = 'Buffer' },
       { '<leader>e', icon = { icon = '📁', hl = 'MiniIconsBrown' }, group = 'Snacks File Explorer' },
-      { '<leader>c', group = 'Code' },
-      { '<leader>d', group = 'Inline Diagnostics' },
-      { '<leader>s', group = 'Search' },
-      { '<leader>w', group = 'Session' },
+      { '<leader>/', group = 'Find IN Current Buffer' },
       { '<leader>x', group = 'Diagnostics/Quickfix' },
-      --     { "<leader><Tab>", group = "Tab" },
+      { '<leader>d', group = 'Inline Diagnostics' },
+      { '<leader>q', group = 'Quick-Fix List' },
+      { '<leader>p', group = 'Plugins/UI' },
+      { '<leader>w', group = 'Session' },
+      { '<leader>b', group = 'Buffer' },
+      { '<leader>s', group = 'Search' },
+      { '<leader>m', icon = { icon = '🔖', hl = 'MiniIconsOrange' }, group = 'Marks' },
+      { '<leader>i', icon = { icon = 'ⓘ', hl = 'MiniIconsBlue' }, group = 'Info' }, -- UTF info symbol
+      { '<leader>c', group = 'Code' },
+      { '<leader>u', icon = { icon = '↩️', hl = 'MiniIconsPurple' }, group = 'Undo' },
+      { '<leader>g', group = 'Git' },
+      { 'm', group = 'Marks' },
+      { 'g', group = 'Goto' },
+      -- { "<leader><Tab>", group = "Tab" },
     },
   },
   keys = {
@@ -26,7 +34,6 @@ return {
       end,
       desc = 'Buffer Local Keymaps (which-key)',
     },
-
     {
       '<leader>e',
       function()

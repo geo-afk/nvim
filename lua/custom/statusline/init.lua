@@ -137,7 +137,7 @@ function Status_line()
   local filetypes = { 'neo-tree', 'minifiles', 'oil', 'TelescopePrompt', 'fzf', 'snacks_picker_input' }
 
   if vim.tbl_contains(filetypes, filetype) then
-    local home_dir = os.getenv 'HOME'
+    local home_dir = vim.loop.os_homedir() or ''
     local dir = vim.fn.getcwd()
     dir = dir:gsub('^' .. home_dir, '~')
     local ft = filetype:sub(1, 1):upper() .. filetype:sub(2)

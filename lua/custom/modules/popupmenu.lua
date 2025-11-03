@@ -66,7 +66,8 @@ local function get_context_items()
   end
 
   -- Git actions if in a repo
-  local in_git = vim.fn.system 'git rev-parse --is-inside-work-tree 2>/dev/null' == 'true\n'
+  local git_check = vim.fn.system 'git rev-parse --is-inside-work-tree 2>/dev/null'
+  local in_git = vim.trim(git_check) == 'true'
   if in_git then
     table.insert(items, 'Git blame')
     table.insert(items, 'Git status')
@@ -89,6 +90,22 @@ end
 -- Format each item
 local function format_item(item)
   return '• ' .. item
+end
+
+-- Helper function to open URLs
+local function open_url(url)
+  local sysname = vim.loop.os_uname().sysname:lower()
+  local cmd
+
+  if sysname:match 'darwin' then
+    cmd = { 'open', url }
+  elseif sysname:match 'windows' then
+    cmd = { 'cmd.exe', '/c', 'start', url }
+  else
+    cmd = { 'xdg-open', url }
+  end
+
+  vim.fn.jobstart(cmd, { detach = true })
 end
 
 -- Define what happens when user selects an item
@@ -120,21 +137,28 @@ local function perform_action(item)
   elseif item == 'Paste' then
     vim.cmd 'normal! P'
   elseif item == 'Undo' then
-    vim.cmd 'normal! u'
+    vim.cmd 'undo'
   elseif item == 'Redo' then
-    vim.cmd 'normal! <C-r>'
+    vim.cmd 'redo'
   elseif item == 'Select all' then
     vim.cmd 'normal! ggVG'
   elseif item == 'Find word' then
     if word ~= '' then
-      vim.cmd('normal! /' .. vim.fn.escape(word, '/') .. '<CR>')
+      vim.fn.setreg('/', word)
+      vim.cmd 'normal! n'
     end
   elseif item == 'Replace in line' then
-    vim.ui.input({ prompt = 'Replace ' .. word .. ' with: ' }, function(new_word)
-      if new_word and new_word ~= '' then
-        vim.cmd('%s/\\<' .. vim.fn.escape(word, '/') .. '\\>/' .. vim.fn.escape(new_word, '/') .. '/g')
-      end
-    end)
+    if word ~= '' then
+      vim.ui.input({ prompt = 'Replace ' .. word .. ' with: ' }, function(new_word)
+        if new_word and new_word ~= '' then
+          local line_num = vim.fn.line '.'
+          -- Replace only in current line
+          vim.cmd(line_num .. 's/\\<' .. vim.fn.escape(word, '/\\') .. '\\>/' .. vim.fn.escape(new_word, '/\\') .. '/g')
+        end
+      end)
+    else
+      vim.notify('No word under cursor', vim.log.levels.WARN)
+    end
   elseif item == 'Inspect' then
     vim.cmd 'Inspect'
   elseif item == 'Hover' then
@@ -180,18 +204,32 @@ local function perform_action(item)
       vim.cmd '!git diff'
     end
   elseif item == 'Open URL' then
-    vim.api.nvim_feedkeys('gx', 'n', true)
+    -- Extract URL from current line at cursor position
+    local col = vim.fn.col '.'
+    for url in line:gmatch 'https?://[%w-_%.%?%.:/%+=&%%#]+' do
+      local start_pos = line:find(url, 1, true)
+      local end_pos = start_pos + #url - 1
+      if start_pos and col >= start_pos and col <= end_pos then
+        open_url(url)
+        vim.notify('Opening: ' .. url, vim.log.levels.INFO)
+        return
+      end
+    end
+    vim.notify('No URL found under cursor', vim.log.levels.WARN)
   elseif item == 'Back' then
-    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes('<C-t>', true, false, true), 'n', true)
+    -- Use Ctrl-O to go back in jump list (more reliable than Ctrl-T)
+    vim.cmd 'normal! \x0f' -- \x0f is Ctrl-O
   end
 end
 
 -- Show the floating right-click menu
 function PopupMenu.show()
-  local menu = Menu:new(get_context_items, format_item, {
+  local keymaps = {
     ['<CR>'] = { desc = 'Select', fn = perform_action, close = true },
     q = { desc = 'Close', fn = function() end, close = true },
-  }, {
+  }
+
+  local opts = {
     legend = { include = true, style = 'horizontal' },
     resize = { horizontal = true, vertical = true },
     position = vim.fn.has 'gui_running' == 1 and 'mouse' or 'cursor',
@@ -200,8 +238,9 @@ function PopupMenu.show()
       border = 'rounded',
       style = 'minimal',
     },
-  })
+  }
 
+  local menu = Menu:new(get_context_items, format_item, keymaps, opts)
   menu()
 end
 
