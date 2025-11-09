@@ -1,5 +1,6 @@
+---@diagnostic disable: missing-parameter
 -- popupmenu.lua
-local Menu = require 'custom.modules.menu' -- your Menu class file
+local Menu = require 'custom.right_menu.menu' -- your Menu class file
 
 local PopupMenu = {}
 

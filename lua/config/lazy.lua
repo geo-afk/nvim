@@ -43,9 +43,10 @@ require('lazy').setup {
   checker = { enabled = true },
 }
 
-require 'custom.modules'
+require 'custom.breadcrumb'
 require 'custom.extensions'
 require 'custom.commandline'
+require 'custom.right_menu'
 
 -- UI Components
 require 'custom.statusline'
