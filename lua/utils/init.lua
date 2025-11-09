@@ -1,6 +1,5 @@
 local M = {}
 
--- from https://github.com/NvChad/ui/blob/main/lua/nvchad_ui/icons.lua
 M.nvchad_icons = {
   Array = "[]",
   Boolean = "",

@@ -791,14 +791,14 @@ end
 
 -- Setup keymaps and autocmds for symbols search
 local function setup_symbols_keymaps(
-  search_bufnr,
-  symbols_bufnr,
-  search_win,
-  symbols_win,
-  original_win,
-  cursor_pos,
-  search_state,
-  symbol_data
+    search_bufnr,
+    symbols_bufnr,
+    search_win,
+    symbols_win,
+    original_win,
+    cursor_pos,
+    search_state,
+    symbol_data
 )
   local original_bufnr = search_state.original_bufnr
 
