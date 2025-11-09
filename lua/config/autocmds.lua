@@ -121,6 +121,21 @@ vim.filetype.add {
   },
 }
 
+
+-- create group once (clear = true to avoid duplicates)
+local no_auto_comment_grp = vim.api.nvim_create_augroup("NoAutoComment", { clear = true })
+
+vim.api.nvim_create_autocmd("FileType", {
+  group = no_auto_comment_grp,
+  pattern = "*", -- all filetypes
+  callback = function()
+    -- Remove individually
+    vim.opt_local.formatoptions:remove("r")
+    vim.opt_local.formatoptions:remove("o")
+    vim.opt_local.formatoptions:remove("c") -- if you also want to stop auto-wrap of comments
+  end,
+})
+
 -- close some filetypes with <q>
 vim.api.nvim_create_autocmd('FileType', {
   group = vim.api.nvim_create_augroup('close_with_q', { clear = true }),

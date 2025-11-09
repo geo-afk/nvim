@@ -4,4 +4,6 @@ print = function(...)
   _G._print('PRINT from:', info.short_src, info.currentline, ...)
 end
 
+---@diagnostic disable-next-line: deprecated
+vim.uv = vim.uv or vim.loop
 require 'config.lazy'

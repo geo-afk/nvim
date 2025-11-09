@@ -20,7 +20,7 @@ return {
       { '<leader>i', icon = { icon = 'ⓘ', hl = 'MiniIconsBlue' }, group = 'Info' }, -- UTF info symbol
       { '<leader>c', group = 'Code' },
       { '<leader>u', icon = { icon = '↩️', hl = 'MiniIconsPurple' }, group = 'Undo' },
-      { '<leader>g', group = 'Git' },
+      { '<leader>v', group = 'Git' },
       { 'm', group = 'Marks' },
       { 'g', group = 'Goto' },
       -- { "<leader><Tab>", group = "Tab" },

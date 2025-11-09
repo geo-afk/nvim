@@ -99,13 +99,17 @@ if not ok then
   return
 end
 
-local icon = '⚙️'
+-- local icon = '⚙️'
 
 -- Define Go-related keymaps
 wk.add {
   {
     mode = { 'n' },
-    { '<leader>g', icon = { icon = icon, hl = 'MiniIconsBrown' }, group = 'Golang' },
+    {
+      '<leader>g',
+      -- icon = { icon = icon, hl = 'MiniIconsBrown' },
+      group = 'Go LSP',
+    },
     { '<leader>gt', ':GoTests -all<CR>', desc = ' Generate tests for all functions', mode = 'n' },
     { '<leader>gm', ':GoModifyTags -add-tags json<CR>', desc = ' Add JSON tags', mode = 'n' },
     { '<leader>ga', ':GoTestRun<CR>', desc = ' Run all Go tests', mode = 'n' },

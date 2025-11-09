@@ -1,28 +1,29 @@
 local ut = require 'utils'
 local c = require 'custom.statusline.components'
 local colors = c.colors
+local animation = require 'custom.statusline.animation'
 local normal_hl = vim.api.nvim_get_hl(0, { name = 'Normal' })
 local statusline_hl = vim.api.nvim_get_hl(0, { name = 'StatusLine' })
 local fg_lighten = normal_hl.bg and ut.darken(string.format('#%06x', normal_hl.bg), 0.6) or colors.stealth
 
--- Modern color palette
-local modern_colors = {
-  -- Mode colors - vibrant and distinct
-  normal = '#7AA2F7', -- Cool blue
-  insert = '#9ECE6A', -- Fresh green
-  visual = '#BB9AF7', -- Purple
-  replace = '#F7768E', -- Coral red
-  command = '#E0AF68', -- Golden yellow
-  terminal = '#73DACA', -- Teal
+-- Enable lazyredraw globally for smooth navigation (toggleable)
+vim.o.lazyredraw = true
 
-  -- UI colors
+-- Enhanced modern color palette (TokyoNight-inspired)
+local modern_colors = {
+  normal = '#7AA2F7',
+  insert = '#9ECE6A',
+  visual = '#BB9AF7',
+  replace = '#F7768E',
+  command = '#E0AF68',
+  terminal = '#73DACA',
+
   bg_darker = statusline_hl.bg and string.format('#%06x', statusline_hl.bg) or '#1a1b26',
   bg_lighter = '#24283b',
   fg_main = '#c0caf5',
   fg_dim = '#565f89',
   accent = '#7dcfff',
 
-  -- Status colors
   git_add = '#9ece6a',
   git_change = '#e0af68',
   git_delete = '#f7768e',
@@ -40,23 +41,17 @@ vim.api.nvim_set_hl(0, 'SLModified', { fg = '#FF7EB6', bg = statusline_hl.bg })
 vim.api.nvim_set_hl(0, 'SLMatches', { fg = colors.bg_hl, bg = colors.fg_hl })
 vim.api.nvim_set_hl(0, 'SLDecorator', { fg = '#1a1b26', bg = '#7AA2F7', bold = true })
 
--- Mode-specific highlights (background)
-vim.api.nvim_set_hl(0, 'StatusNormal', { bg = modern_colors.normal, fg = '#1a1b26', bold = true })
-vim.api.nvim_set_hl(0, 'StatusInsert', { bg = modern_colors.insert, fg = '#1a1b26', bold = true })
-vim.api.nvim_set_hl(0, 'StatusVisual', { bg = modern_colors.visual, fg = '#1a1b26', bold = true })
-vim.api.nvim_set_hl(0, 'StatusReplace', { bg = modern_colors.replace, fg = '#1a1b26', bold = true })
-vim.api.nvim_set_hl(0, 'StatusCommand', { bg = modern_colors.command, fg = '#1a1b26', bold = true })
-vim.api.nvim_set_hl(0, 'StatusTerminal', { bg = modern_colors.terminal, fg = '#1a1b26', bold = true })
+local function create_mode_hl(name, bg_color)
+  vim.api.nvim_set_hl(0, 'Status' .. name, { bg = bg_color, fg = '#1a1b26', bold = true })
+  vim.api.nvim_set_hl(0, 'Status' .. name .. 'Inv', { fg = bg_color, bg = statusline_hl.bg, bold = true })
+end
+create_mode_hl('Normal', modern_colors.normal)
+create_mode_hl('Insert', modern_colors.insert)
+create_mode_hl('Visual', modern_colors.visual)
+create_mode_hl('Replace', modern_colors.replace)
+create_mode_hl('Command', modern_colors.command)
+create_mode_hl('Terminal', modern_colors.terminal)
 
--- Mode-specific highlights (foreground/inverted)
-vim.api.nvim_set_hl(0, 'StatusNormalInv', { fg = modern_colors.normal, bg = statusline_hl.bg, bold = true })
-vim.api.nvim_set_hl(0, 'StatusInsertInv', { fg = modern_colors.insert, bg = statusline_hl.bg, bold = true })
-vim.api.nvim_set_hl(0, 'StatusVisualInv', { fg = modern_colors.visual, bg = statusline_hl.bg, bold = true })
-vim.api.nvim_set_hl(0, 'StatusReplaceInv', { fg = modern_colors.replace, bg = statusline_hl.bg, bold = true })
-vim.api.nvim_set_hl(0, 'StatusCommandInv', { fg = modern_colors.command, bg = statusline_hl.bg, bold = true })
-vim.api.nvim_set_hl(0, 'StatusTerminalInv', { fg = modern_colors.terminal, bg = statusline_hl.bg, bold = true })
-
--- Modern right section highlights
 vim.api.nvim_set_hl(0, 'SLAccent', { fg = modern_colors.accent, bg = statusline_hl.bg, bold = true })
 vim.api.nvim_set_hl(0, 'SLDim', { fg = modern_colors.fg_dim, bg = statusline_hl.bg })
 vim.api.nvim_set_hl(0, 'SLFileInfo', { fg = modern_colors.fg_main, bg = statusline_hl.bg })
@@ -65,7 +60,7 @@ vim.api.nvim_set_hl(0, 'SLFiletype', { fg = modern_colors.fg_dim, bg = statuslin
 vim.api.nvim_set_hl(0, 'SLScrollbar', { fg = modern_colors.accent, bg = statusline_hl.bg, bold = true })
 vim.api.nvim_set_hl(0, 'SLSeparator', { fg = modern_colors.fg_dim, bg = statusline_hl.bg })
 
--- Get current mode information
+-- Full mode map (static)
 local function get_mode_info()
   local mode_map = {
     ['n'] = { name = 'NORMAL', hl = 'StatusNormal', hl_inv = 'StatusNormalInv', icon = '󰋜' },
@@ -107,16 +102,21 @@ local function get_mode_info()
   }
 
   local mode = vim.api.nvim_get_mode().mode
-  return mode_map[mode] or { name = 'UNKNOWN', hl = 'StatusNormal', hl_inv = 'StatusNormalInv', icon = '󰋜' }
+  local info = mode_map[mode] or { name = 'UNKNOWN', hl = 'StatusNormal', hl_inv = 'StatusNormalInv', icon = '󰋜' }
+  if animation.enabled then
+    local animated_bg = animation.animate_mode(modern_colors.normal)
+    vim.api.nvim_set_hl(0, info.hl, { bg = animated_bg, fg = '#1a1b26', bold = true })
+  end
+  return info
 end
 
--- Mode indicator component
+-- Mode indicator (flat block)
 local function mode_indicator()
   local mode_info = get_mode_info()
-  local sep_right = '%#' .. mode_info.hl_inv .. '#' .. ''
+  local sep_right = '%#' .. mode_info.hl_inv .. '# │'
 
   return table.concat {
-    '%#' .. mode_info.hl .. '#',
+    '%#' .. mode_info.hl .. '#█',
     ' ',
     mode_info.icon,
     ' ',
@@ -126,10 +126,28 @@ local function mode_indicator()
   }
 end
 
--- Modern separator component
 local function separator()
-  return '%#SLSeparator# · %*'
+  return '%#SLSeparator# │ %*'
 end
+
+-- Throttled redraw (500ms for large files perf)
+local refresh_timer = nil
+local function throttled_redraw()
+  if refresh_timer then refresh_timer:stop() end
+  local lines = vim.api.nvim_buf_line_count(0)
+  local delay = (lines > 10000) and 500 or 250
+  refresh_timer = vim.loop.new_timer()
+  refresh_timer:start(delay, 0, vim.schedule_wrap(function()
+    vim.cmd('redrawstatus')
+    refresh_timer:stop()
+  end))
+end
+
+-- WinScrolled for scroll-only updates (less jitter than BufEnter)
+vim.api.nvim_create_autocmd({ 'ModeChanged', 'DiagnosticChanged', 'WinScrolled', 'FileType', 'BufWritePost' }, {
+  callback = function() vim.schedule(throttled_redraw) end,
+  group = vim.api.nvim_create_augroup('StatuslineAsync', { clear = true }),
+})
 
 ---@return string
 function Status_line()
@@ -145,33 +163,50 @@ function Status_line()
   end
 
   local components = {
-    -- Left section
     mode_indicator(),
-    c.padding(),
-    c.git_branch(),
-    c.git_status_simple(),
-    c.fileinfo { add_icon = false }, -- REMOVED ICON HERE
-    c.lsp_diagnostics_simple(),
+    c.padding(1),
+    c.git_branch(),             -- Cached
+    c.git_status_simple(),      -- Cached
+    c.fileinfo { add_icon = true },
+    c.lsp_diagnostics_simple(), -- Cached
+    -- c.LSP(),  -- Cached
 
-    -- Middle/Right align
+    -- vim.o.columns > 100 and c.get_fileinfo_widget() or '',
+
     '%=',
 
-    -- Right section - modernized and cleaner
     c.maximized_status(),
     c.show_macro_recording(),
     c.lsp_progress(),
     c.terminal_status(),
     c.search_count(),
+    -- c.lang_version(), -- Cond + cached
     separator(),
     '%#SLPosition#' .. c.get_position() .. '%*',
     separator(),
     '%#SLFiletype#' .. vim.bo.filetype:lower() .. '%*',
-    c.padding(),
-    '%#SLScrollbar#' .. c.scrollbar2() .. '%*',
-    c.padding(),
+    c.meta_info(),                              -- Cond
+    c.padding(1),
+    '%#SLScrollbar#' .. c.scrollbar2() .. '%*', -- Conditional
+    c.padding(1),
   }
 
   return table.concat(components)
 end
 
+-- Toggles
+function _G.toggle_statusline_animation()
+  animation.toggle()
+end
+
+vim.keymap.set('n', '<leader>sa', _G.toggle_statusline_animation, { desc = 'Toggle Statusline Animation' })
+
+function _G.toggle_lazyredraw()
+  vim.o.lazyredraw = not vim.o.lazyredraw
+  print('lazyredraw: ' .. tostring(vim.o.lazyredraw))
+end
+
+vim.keymap.set('n', '<leader>lr', _G.toggle_lazyredraw, { desc = 'Toggle Lazy Redraw' })
+
 vim.o.statusline = '%!luaeval("Status_line()")'
+

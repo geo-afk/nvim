@@ -9,7 +9,8 @@ function M.setup()
 
   -- Check if Neovim version is 0.10 or higher
   if version.major == 0 and version.minor < 10 then
-    vim.notify('This configuration requires Neovim 0.10 or higher. Current version: ' .. version_string, vim.log.levels.ERROR)
+    vim.notify('This configuration requires Neovim 0.10 or higher. Current version: ' .. version_string,
+      vim.log.levels.ERROR)
     return
   end
 
@@ -82,7 +83,7 @@ M.servers = {
   sqls = 'sqls',
   lua_ls = 'lua_ls',
   typos_lsp = 'typos_lsp',
-  ts_ls = 'typescript',
+  vtsls = 'vtsls',
   angularls = 'angularls',
   tailwindcss = 'tailwindcss',
 }

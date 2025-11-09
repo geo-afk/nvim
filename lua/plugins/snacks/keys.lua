@@ -98,21 +98,21 @@ M.keymappings = {
   },
   -- GIT
   {
-    '<leader>gb',
+    '<leader>vb',
     function()
       Snacks.picker.git_branches()
     end,
     desc = '󰗲 Branches',
   },
   {
-    '<leader>gs',
+    '<leader>vs',
     function()
       Snacks.picker.git_status()
     end,
     desc = '󰗲 Status',
   },
   {
-    '<leader>gl',
+    '<leader>vl',
     function()
       Snacks.picker.git_log()
     end,
@@ -120,7 +120,7 @@ M.keymappings = {
   },
   -- TEMP replacement for tinygit's `interactiveStaging`
   {
-    '<leader>ga',
+    '<leader>va',
     function()
       Snacks.picker.git_diff {
         layout = 'big_preview',
