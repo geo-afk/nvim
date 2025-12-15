@@ -47,37 +47,37 @@ M.kind_icons = {
 }
 
 M.components = {
-  kind_icon = {
-    text = function(ctx)
-      -- default kind icon
-      local icon = ctx.kind_icon
-      -- if LSP source, check for color derived from documentation
-      if ctx.item.source_name == 'LSP' then
-        local color_item = require('nvim-highlight-colors').format(ctx.item.documentation, { kind = ctx.kind })
-        if color_item and color_item.abbr ~= '' then
-          icon = color_item.abbr
-        end
-      elseif vim.tbl_contains({ 'Path' }, ctx.source_name) then
-        local dev_icon, _ = require('nvim-web-devicons').get_icon(ctx.label)
-        if dev_icon then
-          icon = dev_icon
-        end
-      end
-      return icon .. ctx.icon_gap
-    end,
-    highlight = function(ctx)
-      -- default highlight group
-      local highlight = 'BlinkCmpKind' .. ctx.kind
-      -- if LSP source, check for color derived from documentation
-      if ctx.item.source_name == 'LSP' then
-        local color_item = require('nvim-highlight-colors').format(ctx.item.documentation, { kind = ctx.kind })
-        if color_item and color_item.abbr_hl_group then
-          highlight = color_item.abbr_hl_group
-        end
-      end
-      return highlight
-    end,
-  },
+  -- kind_icon = {
+  --   text = function(ctx)
+  --     -- default kind icon
+  --     local icon = ctx.kind_icon
+  --     -- if LSP source, check for color derived from documentation
+  --     if ctx.item.source_name == 'LSP' then
+  --       local color_item = require('nvim-highlight-colors').format(ctx.item.documentation, { kind = ctx.kind })
+  --       if color_item and color_item.abbr ~= '' then
+  --         icon = color_item.abbr
+  --       end
+  --     elseif vim.tbl_contains({ 'Path' }, ctx.source_name) then
+  --       local dev_icon, _ = require('nvim-web-devicons').get_icon(ctx.label)
+  --       if dev_icon then
+  --         icon = dev_icon
+  --       end
+  --     end
+  --     return icon .. ctx.icon_gap
+  --   end,
+  --   highlight = function(ctx)
+  --     -- default highlight group
+  --     local highlight = 'BlinkCmpKind' .. ctx.kind
+  --     -- if LSP source, check for color derived from documentation
+  --     if ctx.item.source_name == 'LSP' then
+  --       local color_item = require('nvim-highlight-colors').format(ctx.item.documentation, { kind = ctx.kind })
+  --       if color_item and color_item.abbr_hl_group then
+  --         highlight = color_item.abbr_hl_group
+  --       end
+  --     end
+  --     return highlight
+  --   end,
+  -- },
   label = {
     width = { fill = true, max = 60 },
     text = function(ctx)

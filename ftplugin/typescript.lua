@@ -1,5 +1,5 @@
 -- Load the toggle module and create the command
-local toggle = require 'constants.toggle_angular'
+local toggle = require 'plugin.config.toggle_angular'
 
 vim.api.nvim_create_user_command('ToggleAngularFile', toggle.toggle_angular_file, {})
 

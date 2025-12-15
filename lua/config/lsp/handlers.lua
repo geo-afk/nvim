@@ -4,8 +4,7 @@ local M = {}
 -- Get capabilities with blink.cmp integration
 function M.get_capabilities()
   local original_capabilities = vim.lsp.protocol.make_client_capabilities()
-  return vim.tbl_deep_extend('force', original_capabilities,
-    require('blink.cmp').get_lsp_capabilities(original_capabilities))
+  return vim.tbl_deep_extend('force', original_capabilities, require('blink.cmp').get_lsp_capabilities(original_capabilities))
 end
 
 local lsp_rename = function()

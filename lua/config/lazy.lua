@@ -6,7 +6,7 @@ if not (vim.uv or vim.loop).fs_stat(lazypath) then
   if vim.v.shell_error ~= 0 then
     vim.api.nvim_echo({
       { 'Failed to clone lazy.nvim:\n', 'ErrorMsg' },
-      { out,                            'WarningMsg' },
+      { out, 'WarningMsg' },
       { '\nPress any key to exit...' },
     }, true, {})
     vim.fn.getchar()
@@ -43,11 +43,6 @@ require('lazy').setup {
   checker = { enabled = true },
 }
 
-require 'custom.breadcrumb'
-require 'custom.extensions'
-require 'custom.commandline'
-require 'custom.right_menu'
-
--- UI Components
-require 'custom.statusline'
-require('custom.tabline').setup { enabled = true }
+-- require('custom.theme').setup()
+-- require 'custom.breadcrumb'
+-- require 'custom.right_menu'

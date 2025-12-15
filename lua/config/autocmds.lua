@@ -106,33 +106,27 @@ vim.filetype.add {
   pattern = {
     ['.*%.component%.html'] = 'htmlangular', -- classic Angular template files
     ['.*/src/app/.*%.html'] = function(path, bufnr)
-      -- Check if angular.json exists in the project root
-      local project_root = vim.fs.find('angular.json', {
-        path = path,
-        upward = true,
-      })[1]
+      local angular_file = vim.fn.findfile('angular.json', vim.fn.getcwd() .. ';')
 
-      if project_root then
+      if angular_file ~= '' then
         return 'htmlangular'
       end
-
-      return 'html' -- fallback to regular html
+      return 'html'
     end,
   },
 }
 
-
 -- create group once (clear = true to avoid duplicates)
-local no_auto_comment_grp = vim.api.nvim_create_augroup("NoAutoComment", { clear = true })
+local no_auto_comment_grp = vim.api.nvim_create_augroup('NoAutoComment', { clear = true })
 
-vim.api.nvim_create_autocmd("FileType", {
+vim.api.nvim_create_autocmd('FileType', {
   group = no_auto_comment_grp,
-  pattern = "*", -- all filetypes
+  pattern = '*', -- all filetypes
   callback = function()
     -- Remove individually
-    vim.opt_local.formatoptions:remove("r")
-    vim.opt_local.formatoptions:remove("o")
-    vim.opt_local.formatoptions:remove("c") -- if you also want to stop auto-wrap of comments
+    vim.opt_local.formatoptions:remove 'r'
+    vim.opt_local.formatoptions:remove 'o'
+    vim.opt_local.formatoptions:remove 'c' -- if you also want to stop auto-wrap of comments
   end,
 })
 

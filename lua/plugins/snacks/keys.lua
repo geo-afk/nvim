@@ -228,29 +228,6 @@ M.keymappings = {
     desc = '󰃁 Select mark',
   },
   -- Undo
-
-  {
-    '<leader>ut',
-    function()
-      local ok, picker = pcall(function()
-        return require('snacks').picker
-      end)
-      if ok and picker and picker.undo then
-        picker.undo()
-      else
-        vim.notify('Snacks undo picker not available yet', vim.log.levels.WARN)
-      end
-    end,
-    desc = '󰋚 Undo tree',
-  },
-  -- Quickfix
-  {
-    '<leader>qq',
-    function()
-      Snacks.picker.qflist()
-    end,
-    desc = ' Search qf-list',
-  },
 }
 
 return M

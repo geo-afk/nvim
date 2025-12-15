@@ -1,4 +1,4 @@
-local constant = require 'plugin_config.blink_util'
+local constant = require 'plugin.config.blink_util'
 
 return { -- autocompletion
   'saghen/blink.cmp',
@@ -24,13 +24,12 @@ return { -- autocompletion
         {
           'rafamadriz/friendly-snippets',
           config = function()
-            require('luasnip.loaders.from_vscode').lazy_load()
+            -- require('luasnip.loaders.from_vscode').lazy_load()
           end,
         },
       },
       opts = {},
     },
-    'folke/lazydev.nvim',
   },
   --- @module 'blink.cmp'
   opts = {

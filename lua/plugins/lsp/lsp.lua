@@ -1,4 +1,4 @@
-local lsp_util = require 'plugin_config.lsp_util'
+local lsp_util = require 'plugin.config.lsp_util'
 
 return {
   -- Main LSP Configuration

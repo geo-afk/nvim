@@ -1,6 +1,39 @@
+[files]
+extend-exclude = [
+  "noice",
+  'eferences'
+]
+ignore-hidden = true
+ignore-files = true
+ignore-dot = true
+ignore-vcs = true
+ignore-global = true
+ignore-parent = true
+
+
+
 [default]
-[default.check-filename]
-extend-ignore-words = ["noice", 'eferences']
+binary = false
+check-filename = true
+check-file = true
+unicode=true
+locale = "en"
+extend-ignore-re = []
+extend-ignore-identifiers-re = []
+extend-ignore-words-re = []
+
 [default.extend-words]
-noice = "noice"
-eferences = "eferences"
+# <typo> = "<correction>"
+# taits = "taits"
+# tais = "taits"
+
+[default.extend-identifiers]
+# <typo> = "<correction>"
+## Names
+# Hte = "Hte"
+# ## External
+# ERROR_FILENAME_EXCED_RANGE = "ERROR_FILENAME_EXCED_RANGE"
+# ERROR_FILENAME_EXCEDE_RANGE = "ERROR_FILENAME_EXCED_RANGE"
+
+[type.NAME]
+extend-glob = []
