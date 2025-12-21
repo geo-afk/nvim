@@ -1,15 +1,17 @@
 return {
   settings = {
     Lua = {
-
+      runtime = {
+        version = 'LuaJIT',
+      },
       completion = {
         autoRequire = true,
-				callSnippet = "Both",
-				displayContext = 5,
-				enable = true,
-				keywordSnippet = "Both",
-				portfix = ".",
-				showWord = "Enable",
+        callSnippet = 'Both',
+        displayContext = 5,
+        enable = true,
+        keywordSnippet = 'Both',
+        portfix = '.',
+        showWord = 'Enable',
       },
 
       workspace = {
@@ -28,14 +30,14 @@ return {
         setType = false,
       },
       telemetry = {
-				enable = false,
-			},
-			diagnostics = {
-				globals = { "vim", "scroll" },
-			},
-			doc = {
-				privateName = { "^_" },
-			},
+        enable = false,
+      },
+      diagnostics = {
+        globals = { 'vim', 'scroll' },
+      },
+      doc = {
+        privateName = { '^_' },
+      },
     },
   },
 }

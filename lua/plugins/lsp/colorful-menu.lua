@@ -27,7 +27,7 @@ return {
           -- When true, label for field and variable will format like "foo: Foo"
           -- instead of go's original syntax "foo Foo". If align_type_to_right is
           -- true, this option has no effect.
-          add_colon_before_type = false,
+          add_colon_before_type = true,
           -- See https://github.com/xzbdmw/colorful-menu.nvim/pull/36
           preserve_type_when_truncate = true,
         },

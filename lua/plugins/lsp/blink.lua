@@ -8,7 +8,7 @@ return { -- autocompletion
     -- snippet engine
     {
       'l3mon4d3/luasnip',
-      version = '2.*',
+      version = 'v2.*',
 
       build = (function()
         -- build step is needed for regex support in snippets.
@@ -17,6 +17,7 @@ return { -- autocompletion
         end
         return 'make install_jsregexp'
       end)(),
+
       dependencies = {
         -- `friendly-snippets` contains a variety of premade snippets.
         --    see the readme about individual language/framework/plugin snippets:
@@ -28,7 +29,32 @@ return { -- autocompletion
           end,
         },
       },
-      opts = {},
+      -- opts = {},
+      opts = { history = true, updateevents = 'TextChanged,TextChangedI' },
+      config = function(_, opts)
+        require('luasnip').config.set_config(opts)
+        require('luasnip').config.set_config(opts)
+        -- vscode format
+        require('luasnip.loaders.from_vscode').lazy_load { exclude = vim.g.vscode_snippets_exclude or {} }
+        require('luasnip.loaders.from_vscode').lazy_load { paths = vim.g.vscode_snippets_path or '' }
+
+        -- snipmate format
+        require('luasnip.loaders.from_snipmate').load()
+        require('luasnip.loaders.from_snipmate').lazy_load { paths = vim.g.snipmate_snippets_path or '' }
+
+        -- lua format
+        require('luasnip.loaders.from_lua').load()
+        require('luasnip.loaders.from_lua').lazy_load { paths = vim.g.lua_snippets_path or '' }
+
+        -- fix luasnip #258
+        vim.api.nvim_create_autocmd('InsertLeave', {
+          callback = function()
+            if require('luasnip').session.current_nodes[vim.api.nvim_get_current_buf()] and not require('luasnip').session.jump_active then
+              require('luasnip').unlink_current()
+            end
+          end,
+        })
+      end,
     },
   },
   --- @module 'blink.cmp'
@@ -105,9 +131,9 @@ return { -- autocompletion
         border = 'rounded', -- options: "single", "double", "rounded", "solid", "shadow", or "none"
         winhighlight = 'normal:normal,floatborder:none,cursorline:visual,search:none',
         draw = {
-
+          padding = { false and 0 or 1, 1 },
           -- columns = { { 'kind_icon', gap = 1 }, { 'label', 'label_description', gap = 1 } },
-          columns = { { 'kind_icon' }, { 'label', gap = 1 } },
+          columns = { { 'kind_icon' }, { 'kind' }, { 'label', gap = 1 } },
           components = constant.components,
         },
       },
@@ -117,7 +143,6 @@ return { -- autocompletion
         },
       },
     },
-
     sources = {
       default = function()
         local success, node = pcall(vim.treesitter.get_node)
@@ -127,13 +152,16 @@ return { -- autocompletion
         -- 👇 snippets placed last
         return { 'lazydev', 'lsp', 'path', 'buffer', 'snippets' }
       end,
+      per_filetype = {
+        lua = { inherit_defaults = true, 'lazydev' },
+      },
       providers = {
         buffer = {
           name = 'buffer',
           max_items = 4,
           score_offset = -2,
         },
-        lazydev = { module = 'lazydev.integrations.blink', score_offset = 100 },
+        lazydev = { name = 'LazyDev', module = 'lazydev.integrations.blink', score_offset = 100 },
         snippets = {
           name = 'snippets',
           score_offset = -5, -- 👈 ensures snippets rank below vars/lsp
@@ -153,7 +181,46 @@ return { -- autocompletion
     fuzzy = { implementation = 'lua' },
 
     -- shows a signature help window while you type arguments for a function
-    signature = { enabled = true },
+
+    signature = {
+      enabled = true,
+      window = {
+        min_width = 1,
+        max_width = 100,
+        max_height = 10,
+        border = 'rounded',
+        winblend = 0,
+        winhighlight = 'Normal:BlinkCmpSignatureHelp,FloatBorder:BlinkCmpSignatureHelpBorder',
+        scrollbar = false, -- Note that the gutter will be disabled when border ~= 'none'
+        -- Which directions to show the window,
+        -- falling back to the next direction when there's not enough space,
+        -- or another window is in the way
+        direction_priority = { 'n', 's' },
+        -- Can accept a function if you need more control
+        -- direction_priority = function()
+        --   if condition then return { 'n', 's' } end
+        --   return { 's', 'n' }
+        -- end,
+
+        -- Disable if you run into performance issues
+        -- treesitter_highlighting = true,
+        -- show_documentation = true,
+      },
+      trigger = {
+        -- Show the signature help automatically
+        enabled = true,
+        -- Show the signature help window after typing any of alphanumerics, `-` or `_`
+        show_on_keyword = true,
+        blocked_trigger_characters = {},
+        blocked_retrigger_characters = {},
+        -- Show the signature help window after typing a trigger character
+        show_on_trigger_character = true,
+        -- Show the signature help window when entering insert mode
+        show_on_insert = true,
+        -- Show the signature help window when the cursor comes after a trigger character when entering insert mode
+        show_on_insert_on_trigger_character = true,
+      },
+    },
   },
   opts_extend = {
     'sources.default',

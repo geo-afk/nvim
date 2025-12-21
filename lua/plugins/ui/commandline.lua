@@ -3,7 +3,7 @@ return {
     'geo-afk/cmdline.nvim',
     -- event = { 'BufReadPre', 'BufNewFile' },
     config = function()
-      require('colorhint').setup {
+      require('cmdline').setup {
         completion = {
           smart_enabled = true,
           lsp_enabled = true,

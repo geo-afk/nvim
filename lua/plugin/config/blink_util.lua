@@ -1,12 +1,43 @@
+-- plugin/config/blink_util.lua
 local M = {}
 
+local source_icons = {
+  lsp = '', -- LSP icon
+  lazydev = '', -- lazydev / Lua
+  path = '', -- Path completion
+  buffer = '', -- Buffer words
+  snippets = '', -- Snippets
+  -- Add more if you enable other sources (e.g., copilot = '')
+}
+
+-- Helper for contrasting text color on color swatches
+local function get_contrast_fg(hex)
+  hex = hex:gsub('#', '')
+  local r = tonumber(hex:sub(1, 2), 16) / 255
+  local g = tonumber(hex:sub(3, 4), 16) / 255
+  local b = tonumber(hex:sub(5, 6), 16) / 255
+  local lum = 0.2126 * r + 0.7152 * g + 0.0722 * b
+  return lum > 0.5 and '#000000' or '#FFFFFF'
+end
+
+-- Modern, clean kind icons (codicons-inspired)
 M.kind_icons = {
   Version = ' ',
   Unknown = '  ',
+  Null = '󰟢',
+  Namespace = '󰌗',
+  Text = '󰉿',
   Calculator = ' ',
+  Watch = '󰥔',
+  Folder = '󰉋',
+  Table = '',
+  File = '󰈚',
+  TypeParameter = '󰊄',
+  Operator = '󰆕',
   Emoji = '󰞅 ',
   Copilot = '',
-  Text = ' ',
+  Keyword = '󰌋',
+  Snippet = '',
   Method = '󰊕',
   Function = '󰊕',
   Constructor = '󰒓',
@@ -23,20 +54,13 @@ M.kind_icons = {
   Unit = ' ',
   Value = '󰦨',
   Key = ' ',
-  Keyword = '󰻾',
   Constant = '󰏿',
   Enum = ' ',
   EnumMember = ' ',
-  Snippet = '󱄽',
   Color = '󰏘',
-  File = '󰈔',
   Reference = '󰬲',
-  Folder = '󰉋',
   Event = '󱐋',
-  Operator = '󰪚',
-  TypeParameter = '󰬛',
 
-  Null = ' ',
   Number = '󰎠 ',
   Object = ' ',
   Package = ' ',
@@ -47,60 +71,119 @@ M.kind_icons = {
 }
 
 M.components = {
-  -- kind_icon = {
-  --   text = function(ctx)
-  --     -- default kind icon
-  --     local icon = ctx.kind_icon
-  --     -- if LSP source, check for color derived from documentation
-  --     if ctx.item.source_name == 'LSP' then
-  --       local color_item = require('nvim-highlight-colors').format(ctx.item.documentation, { kind = ctx.kind })
-  --       if color_item and color_item.abbr ~= '' then
-  --         icon = color_item.abbr
-  --       end
-  --     elseif vim.tbl_contains({ 'Path' }, ctx.source_name) then
-  --       local dev_icon, _ = require('nvim-web-devicons').get_icon(ctx.label)
-  --       if dev_icon then
-  --         icon = dev_icon
-  --       end
-  --     end
-  --     return icon .. ctx.icon_gap
-  --   end,
-  --   highlight = function(ctx)
-  --     -- default highlight group
-  --     local highlight = 'BlinkCmpKind' .. ctx.kind
-  --     -- if LSP source, check for color derived from documentation
-  --     if ctx.item.source_name == 'LSP' then
-  --       local color_item = require('nvim-highlight-colors').format(ctx.item.documentation, { kind = ctx.kind })
-  --       if color_item and color_item.abbr_hl_group then
-  --         highlight = color_item.abbr_hl_group
-  --       end
-  --     end
-  --     return highlight
-  --   end,
-  -- },
-  label = {
-    width = { fill = true, max = 60 },
+  kind_icon = {
     text = function(ctx)
-      local highlights_info = require('colorful-menu').blink_highlights(ctx)
-      if highlights_info ~= nil then
-        -- Or you want to add more item to label
-        return highlights_info.label
-      else
-        return ctx.label
+      local icon = ctx.kind_icon .. (ctx.icon_gap or ' ')
+
+      if ctx.item.source_name == 'LSP' then
+        local color_item = require('nvim-highlight-colors').format(ctx.item.documentation, { kind = ctx.kind })
+        if color_item and color_item.abbr ~= '' then
+          icon = color_item.abbr
+        end
       end
+
+      -- Override with devicons for paths
+      if ctx.source_name == 'Path' then
+        local ok, devicons = pcall(require, 'nvim-web-devicons')
+        if ok then
+          local dev_icon, _ = devicons.get_icon(ctx.label)
+          if dev_icon then
+            icon = dev_icon .. ' '
+          end
+        end
+      end
+
+      -- Color swatch preview for Color kind (Tailwind, CSS, etc.)
+      if ctx.kind == 'Color' then
+        local hex = nil
+
+        -- Try to get documentation from LSP item
+        local doc = ctx.item.documentation
+        if type(doc) == 'string' then
+          hex = doc:match '^#(%x%x%x%x%x%x)$'
+        elseif type(doc) == 'table' and doc.kind == 'markdown' then
+          hex = doc.value:match '^#(%x%x%x%x%x%x)$'
+        end
+
+        -- Fallback to label description (often contains the color value)
+        if not hex and ctx.label_description then
+          hex = ctx.label_description:match '#(%x%x%x%x%x%x)'
+        end
+
+        if hex then
+          hex = '#' .. hex:upper()
+          local hl_name = 'BlinkCmpColor' .. hex:sub(2)
+          if vim.fn.hlexists(hl_name) == 0 then
+            vim.api.nvim_set_hl(0, hl_name, { fg = get_contrast_fg(hex), bg = hex })
+          end
+          ctx.highlight = hl_name
+          icon = '󱓻' -- Solid colored block
+        end
+      end
+
+      return ' ' .. icon .. ' '
+    end,
+    highlight = function(ctx)
+      local highlight = 'BlinkCmpKind' .. ctx.kind
+
+      -- Fallback to nvim-highlight-colors if available
+      if ctx.item.source_name == 'LSP' then
+        local ok, _ = pcall(require, 'nvim-highlight-colors')
+        if ok then
+          local color_item = require('nvim-highlight-colors').format(ctx.item.documentation, { kind = ctx.kind })
+          if color_item and color_item.abbr_hl_group then
+            highlight = color_item.abbr_hl_group
+          end
+        end
+      end
+
+      return highlight
+    end,
+  },
+
+  label = {
+    -- width = { fill = true, max = 60 },
+    text = function(ctx)
+      local ok, colorful = pcall(require, 'colorful-menu')
+      if ok then
+        local highlights_info = colorful.blink_highlights(ctx)
+        if highlights_info then
+          return highlights_info.label
+        end
+      end
+      return ctx.label
     end,
     highlight = function(ctx)
       local highlights = {}
-      local highlights_info = require('colorful-menu').blink_highlights(ctx)
-      if highlights_info ~= nil then
-        highlights = highlights_info.highlights
+
+      local ok, colorful = pcall(require, 'colorful-menu')
+      if ok then
+        local highlights_info = colorful.blink_highlights(ctx)
+        if highlights_info then
+          highlights = highlights_info.highlights
+        end
       end
-      for _, idx in ipairs(ctx.label_matched_indices) do
+
+      for _, idx in ipairs(ctx.label_matched_indices or {}) do
         table.insert(highlights, { idx, idx + 1, group = 'BlinkCmpLabelMatch' })
       end
-      -- Do something else
+
+      -- Deprecated items
+      if ctx.deprecated then
+        table.insert(highlights, { 1, -1, group = 'BlinkCmpLabelDeprecated' })
+      end
+
       return highlights
     end,
+  },
+
+  -- Source icon on the far right
+  source_icon = {
+    text = function(ctx)
+      local icon = source_icons[ctx.source_name:lower()]
+      return icon or '' -- fallback unknown source
+    end,
+    highlight = 'BlinkCmpSource', -- You can link this to Comment or define your own
   },
 }
 

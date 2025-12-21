@@ -1,6 +1,44 @@
 local M = {}
 
 -- ============================================================================
+-- Collapse multiple diagnostic signs into one sign per severity on each line
+-- E.g. EEEEEWWWHH → EWH
+-- Source: https://neovim.io/doc/user/diagnostic.html#diagnostic-handlers-example
+-- ============================================================================
+local function setup_sign_collapsing()
+  local ns = vim.api.nvim_create_namespace 'collapse_signs'
+  local orig_signs_handler = vim.diagnostic.handlers.signs
+
+  vim.diagnostic.handlers.signs = {
+    show = function(_, bufnr, _, opts)
+      local diagnostics = vim.diagnostic.get(bufnr)
+
+      local signs_per_severity_per_line = {}
+      for _, d in ipairs(diagnostics) do
+        local lnum = d.lnum
+        local severity = d.severity
+        signs_per_severity_per_line[lnum] = signs_per_severity_per_line[lnum] or {}
+       signs_per_severity_per_line[lnum][severity] = signs_per_severity_per_line[lnum][severity] or {}
+        table.insert(signs_per_severity_per_line[lnum][severity], d)
+      end
+
+      local filtered_diagnostics = {}
+      for _, signs_per_line in pairs(signs_per_severity_per_line) do
+        for _, signs_per_severity in pairs(signs_per_line) do
+          table.insert(filtered_diagnostics, signs_per_severity[1])
+        end
+      end
+
+      orig_signs_handler.show(ns, bufnr, filtered_diagnostics, opts)
+    end,
+
+    hide = function(_, bufnr)
+      orig_signs_handler.hide(ns, bufnr)
+    end,
+  }
+end
+
+-- ============================================================================
 -- STATE
 -- ============================================================================
 local api = vim.api
@@ -285,6 +323,9 @@ end
 -- ============================================================================
 function M.setup(user_config)
   config = vim.tbl_deep_extend('force', DEFAULT_CONFIG, user_config or {})
+
+  -- Setup sign collapsing once when the plugin is configured
+  setup_sign_collapsing()
 
   -- Auto-attach on LSP
   api.nvim_create_autocmd('LspAttach', {

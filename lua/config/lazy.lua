@@ -46,3 +46,15 @@ require('lazy').setup {
 -- require('custom.theme').setup()
 -- require 'custom.breadcrumb'
 -- require 'custom.right_menu'
+-- vim.opt.statusline = "%!v:lua.require'plugin.test2'()"
+
+-- require('plugin.test').setup {
+--   enabled = true,
+--   mode = 'bg_n_virtual', -- Shows both background and symbol
+--   virt_text = '󱓻 ',
+--   border_radius = 0.25, -- Subtle rounding (0.0-0.5)
+--   highlight = {
+--     hex = true,
+--     lspvars = true,
+--   },
+-- }

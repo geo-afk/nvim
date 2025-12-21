@@ -1,6 +1,6 @@
 local M = {}
 
-M.mason_tool_install = {
+M.lsp_tools = {
   -- Go tools
   'gofumpt',
   'goimports',
@@ -31,7 +31,7 @@ M.mason_lsp = {
   'html',
   'angularls',
   'tailwindcss',
-  'vtsls',
+  'ts_ls',
 }
 
 return M
