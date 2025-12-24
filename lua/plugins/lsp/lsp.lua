@@ -1,4 +1,37 @@
-local lsp_util = require 'plugin.config.lsp_util'
+local lsp_tools = {
+  -- Go tools
+  'gofumpt',
+  'goimports',
+  'golines',
+  'gotests',
+  'staticcheck',
+  'biome',
+  -- General formatters/linters
+  -- 'prettier',
+  'prettierd',
+  'stylua',
+  -- 'eslint_d', -- Faster than eslint
+  'gotests',
+  'iferr',
+  -- 'sqruff',
+  'gomodifytags',
+  -- Optional: Add based on your needs
+  -- "jsonls",
+  -- "marksman", -- Markdown LSP
+}
+
+local mason_lsp = {
+  'sqls',
+  'html',
+  'cssls',
+  'gopls',
+  -- 'ts_ls',
+  'lua_ls',
+  'typos_lsp',
+  'angularls',
+  'tailwindcss',
+  'emmet_language_server',
+}
 
 return {
   -- Main LSP Configuration
@@ -17,7 +50,7 @@ return {
     local mr = require 'mason-registry'
 
     mr.refresh(function()
-      for _, tool in ipairs(lsp_util.lsp_tools) do
+      for _, tool in ipairs(lsp_tools) do
         local p = mr.get_package(tool)
         if not p:is_installed() then
           p:install()
@@ -35,7 +68,7 @@ return {
       },
     }
     require('mason-lspconfig').setup {
-      ensure_installed = lsp_util.mason_lsp,
+      ensure_installed = mason_lsp,
       automatic_installation = false,
     }
     lsp_config.setup_lsps()

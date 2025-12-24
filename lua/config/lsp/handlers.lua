@@ -23,7 +23,9 @@ function M.setup_keymaps(args)
 
   -- Declarations, Definitions, Implementations
   map('n', 'gD', vim.lsp.buf.declaration, 'Go to Declaration')
-  map('n', 'gd', function()
+  map('n', 'gd', vim.lsp.buf.definition, 'Goto Definition')
+
+  map('n', '<S-j>', function()
     require('utils.peek').peek_definition()
   end, 'Peek Definition')
 

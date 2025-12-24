@@ -57,18 +57,18 @@ vim.keymap.set('v', '<A-k>', ":<C-u>execute \"'<,'>move '<-\" . (v:count1 + 1)<c
 vim.keymap.set('v', '<', '<gv')
 vim.keymap.set('v', '>', '>gv')
 
-local strings = require("utils.strings")
+local strings = require 'utils.strings'
 
-vim.keymap.set({ "n", "v" }, "<leader>rw", strings.replace_word_under_cursor,
-  { desc = "Replace `<cword>` instance in buffer" })
+vim.keymap.set({ 'n', 'v' }, '<leader>rw', strings.replace_word_under_cursor, { desc = 'Replace `<cword>` instance in buffer' })
 
-vim.keymap.set({ "n", "x" }, "j", "v:count == 0 ? 'gj' : 'j'", { desc = "Down", expr = true, silent = true })
-vim.keymap.set({ "n", "x" }, "<Down>", "v:count == 0 ? 'gj' : 'j'", { desc = "Down", expr = true, silent = true })
-vim.keymap.set({ "n", "x" }, "k", "v:count == 0 ? 'gk' : 'k'", { desc = "Up", expr = true, silent = true })
-vim.keymap.set({ "n", "x" }, "<Up>", "v:count == 0 ? 'gk' : 'k'", { desc = "Up", expr = true, silent = true })
+vim.keymap.set({ 'n', 'x' }, 'j', "v:count == 0 ? 'gj' : 'j'", { desc = 'Down', expr = true, silent = true })
+vim.keymap.set({ 'n', 'x' }, '<Down>', "v:count == 0 ? 'gj' : 'j'", { desc = 'Down', expr = true, silent = true })
+vim.keymap.set({ 'n', 'x' }, 'k', "v:count == 0 ? 'gk' : 'k'", { desc = 'Up', expr = true, silent = true })
+vim.keymap.set({ 'n', 'x' }, '<Up>', "v:count == 0 ? 'gk' : 'k'", { desc = 'Up', expr = true, silent = true })
 
+vim.keymap.set({ 'i', 'n', 's' }, '<esc>', function()
+  vim.cmd 'noh'
+  return '<esc>'
+end, { expr = true, desc = 'Escape and Clear hlsearch' })
 
-vim.keymap.set({ "i", "n", "s" }, "<esc>", function()
-  vim.cmd "noh"
-  return "<esc>"
-end, { expr = true, desc = "Escape and Clear hlsearch" })
+vim.keymap.set('n', '<leader>qq', '<cmd>qa<cr>', { desc = 'Quit All' })

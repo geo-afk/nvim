@@ -18,7 +18,7 @@ local function setup_sign_collapsing()
         local lnum = d.lnum
         local severity = d.severity
         signs_per_severity_per_line[lnum] = signs_per_severity_per_line[lnum] or {}
-       signs_per_severity_per_line[lnum][severity] = signs_per_severity_per_line[lnum][severity] or {}
+        signs_per_severity_per_line[lnum][severity] = signs_per_severity_per_line[lnum][severity] or {}
         table.insert(signs_per_severity_per_line[lnum][severity], d)
       end
 
@@ -51,6 +51,7 @@ local debounce_timer = nil
 -- ============================================================================
 -- ICONS & SEVERITY NAMES
 -- ============================================================================
+
 local SEVERITY_ICONS = {
   [vim.diagnostic.severity.ERROR] = ' ',
   [vim.diagnostic.severity.WARN] = ' ',
@@ -76,8 +77,8 @@ local SEVERITY_HL = {
 -- DEFAULT CONFIG
 -- ============================================================================
 local DEFAULT_CONFIG = {
-  -- Display position: 'eol' for end-of-line (like tiny-inline-diagnostic), 'above' for virtual lines above (like lsp_lines)
-  position = 'eol', -- 'eol' | 'above'
+  -- Display position: 'eol' for end-of-line, 'above' for virtual lines above, 'below' for virtual lines below
+  position = 'below', -- 'eol' | 'above' | 'below'
 
   -- For eol position
   preset = 'modern', -- modern, minimal, icons_only
@@ -85,12 +86,13 @@ local DEFAULT_CONFIG = {
   show_count = true,
   multiline = true, -- Show multiple diagnostics if present
 
-  -- NEW: Prevent overly long messages from overflowing the screen
-  eol_max_width = 80, -- Maximum characters for eol messages (false/nil to disable truncation)
+  -- For eol: Prevent overly long messages from overflowing
+  eol_max_width = 80,
 
-  -- For above position
-  show_code_snippet = true,
-  max_diagnostics = 5,
+  -- For above/below position
+  show_code_snippet = false, -- Show code snippet in virtual lines
+  max_diagnostics = nil, -- nil = show all diagnostics
+  wrap_at_column = 80, -- Wrap long diagnostic messages
 
   throttle_ms = 100,
   severity_sort = true,
@@ -107,7 +109,7 @@ local DEFAULT_CONFIG = {
 
 -- Simple presets for eol styling
 local PRESETS = {
-  modern = { left = ' ▏', right = '▕ ', separator = ' │ ' },
+  modern = { left = ' ▎', right = '▕ ', separator = ' │ ' },
   minimal = { left = '', right = '', separator = ' • ' },
   icons_only = { left = ' ', right = '', separator = ' ' },
 }
@@ -145,7 +147,34 @@ local function truncate_text(text, max_width)
   return text
 end
 
-local function format_message(diag)
+-- Wrap text to fit within a given width
+local function wrap_text(text, width)
+  if #text <= width then
+    return { text }
+  end
+
+  local lines = {}
+  local current_line = ''
+
+  for word in text:gmatch '%S+' do
+    if #current_line == 0 then
+      current_line = word
+    elseif #current_line + 1 + #word <= width then
+      current_line = current_line .. ' ' .. word
+    else
+      table.insert(lines, current_line)
+      current_line = word
+    end
+  end
+
+  if #current_line > 0 then
+    table.insert(lines, current_line)
+  end
+
+  return lines
+end
+
+local function format_message(diag, for_virt_line)
   local icon = SEVERITY_ICONS[diag.severity] or ''
   local severity = config.show_source and SEVERITY_NAMES[diag.severity] or ''
   local source = config.show_source and diag.source and (' [' .. diag.source .. ']') or ''
@@ -216,30 +245,42 @@ local function render_diagnostics(bufnr, line_0based)
       hl_mode = 'combine',
       priority = 1000,
     })
-  else -- 'above' virtual lines
+  else -- 'above' or 'below' virtual lines
     local virt_lines = {}
-    local max = math.min(#diags, config.max_diagnostics)
+    local max = config.max_diagnostics and math.min(#diags, config.max_diagnostics) or #diags
 
     for i = 1, max do
       local diag = diags[i]
-      local text, hl = format_message(diag)
-      local line = {}
-      if config.show_code_snippet then
-        local code = get_line_text(bufnr, line_0based)
-        table.insert(line, { code, 'Normal' })
-        table.insert(line, { ' ► ', 'Comment' })
+      local text, hl = format_message(diag, true)
+
+      -- Wrap the text if needed
+      local wrapped_lines = wrap_text(text, config.wrap_at_column or 80)
+
+      for line_idx, line_text in ipairs(wrapped_lines) do
+        local line_parts = {}
+
+        -- Add code snippet only on the first line of the first diagnostic
+        if config.show_code_snippet and i == 1 and line_idx == 1 then
+          local code = get_line_text(bufnr, line_0based)
+          table.insert(line_parts, { code, 'Normal' })
+          table.insert(line_parts, { ' ► ', 'Comment' })
+        elseif line_idx > 1 then
+          -- Indent continuation lines
+          table.insert(line_parts, { '   ', 'Comment' })
+        end
+
+        table.insert(line_parts, { line_text, hl })
+        table.insert(virt_lines, line_parts)
       end
-      table.insert(line, { text, hl })
-      table.insert(virt_lines, line)
     end
 
-    if #diags > max then
+    if config.max_diagnostics and #diags > max then
       table.insert(virt_lines, { { '… ' .. (#diags - max) .. ' more diagnostics', 'Comment' } })
     end
 
     pcall(api.nvim_buf_set_extmark, bufnr, ns_id, line_0based, 0, {
       virt_lines = virt_lines,
-      virt_lines_above = true,
+      virt_lines_above = config.position == 'above',
       hl_mode = 'combine',
       priority = 1000,
     })
@@ -367,7 +408,7 @@ function M.toggle()
 end
 
 function M.set_position(pos)
-  if pos == 'eol' or pos == 'above' then
+  if pos == 'eol' or pos == 'above' or pos == 'below' then
     config.position = pos
     on_cursor_moved()
   end

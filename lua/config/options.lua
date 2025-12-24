@@ -1,3 +1,6 @@
+vim.opt.hlsearch = true
+vim.opt.incsearch = true
+
 -- BACKUP AND SWAP
 vim.opt.swapfile = false
 vim.opt.undofile = true
@@ -134,18 +137,62 @@ vim.g.lazyvim_cmp = 'blink.cmp' -- Completion plugin
 vim.g.root_spec = { 'lsp', { '.git', 'lua' }, 'cwd' } -- Project root detection
 
 -- =======================================================================
---  Shell Configuration (Nushell)
+--  Shell Configuration (auto)
 -- =======================================================================
-vim.opt.shell = 'nu'
-vim.opt.shellcmdflag = '--commands' -- Changed from "-c"
-vim.opt.shellquote = ''
-vim.opt.shellxquote = ''
 
--- -- Set PowerShell 7+ as default shell
--- vim.opt.shell = 'pwsh'
--- vim.opt.shellcmdflag = '-NoLogo -NoProfile -ExecutionPolicy RemoteSigned -Command'
--- vim.opt.shellquote = ''
--- vim.opt.shellxquote = ''
--- vim.opt.shellredir = '| Out-File -Encoding UTF8 %s'
--- vim.opt.shellpipe = '| Out-File -Encoding UTF8 %s'
--- vim.opt.shelltemp = false
+local fn = vim.fn
+local opt = vim.opt
+
+-- Disable temp files globally (required for Nu, safe for pwsh)
+opt.shelltemp = false
+
+-- Disable all escaping/quoting (required for Nu)
+opt.shellquote = ''
+opt.shellxquote = ''
+opt.shellxescape = ''
+
+---------------------------------------------------------------------
+-- Prefer NuShell if available
+---------------------------------------------------------------------
+if fn.executable 'nu' == 1 then
+  opt.shell = 'nu'
+
+  -- Nu flags:
+  -- --stdin        : read input from stdin (no temp files)
+  -- --no-newline   : do not append newline to stdout
+  -- -c             : execute command
+  opt.shellcmdflag = '--stdin --no-newline -c'
+
+  -- Redirect stdout+stderr
+  opt.shellredir = 'out+err> %s'
+
+  -- Pipe used by :make and similar commands
+  -- - strips ANSI
+  -- - saves stderr for quickfix
+  opt.shellpipe = '| complete' .. ' | update stderr { ansi strip }' .. ' | tee { get stderr | save --force --raw %s }' .. ' | into record'
+
+---------------------------------------------------------------------
+-- Fallback to PowerShell 7+ if Nu is not available
+---------------------------------------------------------------------
+elseif fn.executable 'pwsh' == 1 then
+  -- opt.shell = 'pwsh'
+  --
+  -- opt.shellcmdflag = '-NoLogo -NoProfile -ExecutionPolicy RemoteSigned -Command'
+  --
+  -- opt.shellredir = '| Out-File -Encoding UTF8 %s'
+  -- opt.shellpipe = '| Out-File -Encoding UTF8 %s'
+
+  -- Setting shell command flags
+  vim.o.shellcmdflag =
+    "-NoProfile -NoLogo -NonInteractive -ExecutionPolicy RemoteSigned -Command [Console]::InputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new();$PSDefaultParameterValues['Out-File:Encoding']='utf8';$PSStyle.OutputRendering='plaintext';Remove-Alias -Force -ErrorAction SilentlyContinue tee;"
+
+  -- Setting shell redirection
+  vim.o.shellredir = '2>&1 | %%{ "$_" } | Out-File %s; exit $LastExitCode'
+
+  -- Setting shell pipe
+  vim.o.shellpipe = '2>&1 | %%{ "$_" } | tee %s; exit $LastExitCode'
+
+  -- Setting shell quote options
+  vim.o.shellquote = ''
+  vim.o.shellxquote = ''
+end

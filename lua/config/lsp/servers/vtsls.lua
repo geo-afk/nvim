@@ -32,7 +32,6 @@ local function get_mason_extension_path()
   return nil
 end
 
--- Probe dir (local project node_modules)
 local function get_probe_dir()
   return project_root and (project_root .. '/node_modules') or ''
 end

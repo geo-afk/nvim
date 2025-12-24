@@ -1,4 +1,5 @@
 return {
+
   settings = {
     typescript = {
       inlayHints = {
@@ -23,6 +24,13 @@ return {
         includeInlayFunctionLikeReturnTypeHints = true,
         includeInlayEnumMemberValueHints = true,
       },
+    },
+  },
+
+  init_options = {
+    hostInfo = 'neovim',
+    preferences = {
+      importModuleSpecifierPreference = 'non-relative',
     },
   },
 }

@@ -6,17 +6,10 @@ return {
     inline_diag.setup {
       position = 'eol',
       preset = 'modern',
-      eol_max_width = 80, -- Adjust based on your typical window width
+      show_source = true,
+      show_count = true,
       multiline = true,
-      theme = 'tokyo', -- or 'tokyo', 'nord', 'dracula', 'gruvbox'
-      use_background = true, -- Colored backgrounds
-      show_source = true, -- Show source like [eslint]
-      throttle_ms = 100,
-      -- multiline = {
-      --   enabled = true,
-      --   max_lines = 2,
-      --   separator = ' 󰇘 ', -- Diamond separator
-      -- },
+      eol_max_width = 80,
     }
 
     -- Manual commands

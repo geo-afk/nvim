@@ -92,6 +92,20 @@ local cmd = {
   default_angular_core_version,
 }
 
+local plugin_entry = {
+  name = '@angular/language-server',
+  location = '/path/to/node_modules/@angular/language-server',
+  enableForWorkspaceTypeScriptVersions = false,
+}
+
+for _, client in ipairs(vim.lsp.get_clients()) do
+  if client.name == 'vtsls' then
+    client.config.settings = vim.tbl_deep_extend('force', client.config.settings or {}, { vtsls = { tsserver = { globalPlugins = { plugin_entry } } } })
+    -- Notify the server of changed config
+    client.notify('workspace/didChangeConfiguration', { settings = client.config.settings })
+  end
+end
+
 return {
   settings = {
     angularls = {

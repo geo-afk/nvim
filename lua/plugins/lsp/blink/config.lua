@@ -1,4 +1,3 @@
--- plugin/config/blink_util.lua
 local M = {}
 
 local source_icons = {
@@ -70,13 +69,15 @@ M.kind_icons = {
   Variable = '󰀫 ',
 }
 
+local c_highlight = require 'custom.color_highlight'
+
 M.components = {
   kind_icon = {
     text = function(ctx)
       local icon = ctx.kind_icon .. (ctx.icon_gap or ' ')
 
       if ctx.item.source_name == 'LSP' then
-        local color_item = require('nvim-highlight-colors').format(ctx.item.documentation, { kind = ctx.kind })
+        local color_item = c_highlight.format(ctx.item.documentation, { kind = ctx.kind })
         if color_item and color_item.abbr ~= '' then
           icon = color_item.abbr
         end
@@ -117,10 +118,9 @@ M.components = {
             vim.api.nvim_set_hl(0, hl_name, { fg = get_contrast_fg(hex), bg = hex })
           end
           ctx.highlight = hl_name
-          icon = '󱓻' -- Solid colored block
+          icon = '󱓻'
         end
       end
-
       return ' ' .. icon .. ' '
     end,
     highlight = function(ctx)
@@ -128,9 +128,9 @@ M.components = {
 
       -- Fallback to nvim-highlight-colors if available
       if ctx.item.source_name == 'LSP' then
-        local ok, _ = pcall(require, 'nvim-highlight-colors')
+        local ok, _ = require 'custom.color_highlight'
         if ok then
-          local color_item = require('nvim-highlight-colors').format(ctx.item.documentation, { kind = ctx.kind })
+          local color_item = c_highlight.format(ctx.item.documentation, { kind = ctx.kind })
           if color_item and color_item.abbr_hl_group then
             highlight = color_item.abbr_hl_group
           end
@@ -142,7 +142,7 @@ M.components = {
   },
 
   label = {
-    -- width = { fill = true, max = 60 },
+    width = { fill = true, max = 60 },
     text = function(ctx)
       local ok, colorful = pcall(require, 'colorful-menu')
       if ok then
@@ -175,15 +175,6 @@ M.components = {
 
       return highlights
     end,
-  },
-
-  -- Source icon on the far right
-  source_icon = {
-    text = function(ctx)
-      local icon = source_icons[ctx.source_name:lower()]
-      return icon or '' -- fallback unknown source
-    end,
-    highlight = 'BlinkCmpSource', -- You can link this to Comment or define your own
   },
 }
 

@@ -29,12 +29,13 @@ return {
         semicolon = 'All',
         setType = false,
       },
+      type = {
+        weakNilCheck = true,
+      },
       telemetry = {
         enable = false,
       },
-      diagnostics = {
-        globals = { 'vim', 'scroll' },
-      },
+      diagnostics = { disable = { 'missing-fields' }, globals = { 'vim', 'scroll' } },
       doc = {
         privateName = { '^_' },
       },

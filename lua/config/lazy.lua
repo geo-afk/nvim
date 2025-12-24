@@ -41,20 +41,57 @@ require('lazy').setup {
   install = { colorscheme = { 'habamax' } },
   -- automatically check for plugin updates
   checker = { enabled = true },
+  performance = {
+    rtp = {
+      disabled_plugins = {
+        'gzip',
+        'matchit',
+        'matchparen',
+        'netrwPlugin',
+        'tarPlugin',
+        'tohtml',
+        'tutor',
+        'zipPlugin',
+      },
+    },
+  },
+  ui = {
+    border = 'rounded',
+    backdrop = 25,
+  },
 }
 
--- require('custom.theme').setup()
--- require 'custom.breadcrumb'
--- require 'custom.right_menu'
--- vim.opt.statusline = "%!v:lua.require'plugin.test2'()"
+-- colorflow.nvim
+require('custom.color_highlight').setup {
 
--- require('plugin.test').setup {
---   enabled = true,
---   mode = 'bg_n_virtual', -- Shows both background and symbol
---   virt_text = '󱓻 ',
---   border_radius = 0.25, -- Subtle rounding (0.0-0.5)
---   highlight = {
---     hex = true,
---     lspvars = true,
---   },
--- }
+  render = 'foreground', -- 'background' | 'foreground' | 'virtual'
+  mode = 'bg_n_virtual', -- 'fg' | 'bg' | 'virtual' | 'bg_n_virtual'
+  border_radius = 0.25,
+  enabled = true,
+  enable_hex = true,
+  enable_short_hex = true,
+  enable_rgb = true,
+  enable_hsl = true,
+  enable_hsl_without_function = true,
+  enable_named_colors = true,
+  enable_tailwind = false,
+  enable_ansi = false,
+  enable_var_usage = true,
+  -- enable_virtual_text = false,
+  virt_text = '󱓻 ',
+  virtual_symbol = '■',
+  virtual_symbol_prefix = '',
+  virtual_symbol_suffix = ' ',
+  virtual_symbol_position = 'inline',
+}
+
+-- local function wrap(fn, name)
+--   return function(...)
+--     local info = debug.traceback('', 2)
+--     vim.notify(name .. ' called from:\n' .. info, vim.log.levels.DEBUG)
+--     return fn(...)
+--   end
+-- end
+--
+-- vim.system = wrap(vim.system, 'vim.system')
+-- vim.fn.jobstart = wrap(vim.fn.jobstart, 'jobstart')

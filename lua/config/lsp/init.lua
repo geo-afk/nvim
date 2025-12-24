@@ -29,20 +29,9 @@ function M.setup()
         vim.lsp.inlay_hint.enable(true, { bufnr = args.buf })
       end
 
-      if not client.server_capabilities.semanticTokensProvider then
-        local semantic = client.config.capabilities.textDocument.semanticTokens
-
-        if semantic then
-          client.server_capabilities.semanticTokensProvider = {
-            full = true,
-            legend = {
-              tokenTypes = semantic.tokenTypes,
-              tokenModifiers = semantic.tokenModifiers,
-            },
-            range = true,
-          }
-        end
-      end
+      require('config.lsp.setup.ts_keymap').setup(args.buf, client)
+      require('config.lsp.setup.go').goSemanticToken(client)
+      require('config.lsp.setup.ts').ts_setup(client)
 
       -- Use the modern client.supports_method API (available in nvim 0.10+)
       local function client_supports_method(lsp_client, method, bufnr)
@@ -116,6 +105,12 @@ function M.setup_lsps()
       vim.notify('Failed to load LSP config  ' .. key .. ': ' .. tostring(config), vim.log.levels.WARN)
     end
   end
+
+  vim.lsp.config('angularls', {
+    capabilities = {
+      renameProvider = false,
+    },
+  })
 
   -- test_lsp()
 end
