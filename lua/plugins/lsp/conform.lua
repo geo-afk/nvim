@@ -42,8 +42,6 @@ return {
       -- sql = { 'sleek', 'sqlfmt' },
       css = { 'prettierd' },
       html = { 'prettierd' },
-      -- ✓ prettierd
-      htmlangular = { 'prettierd' },
       json = { 'prettierd' },
       python = { 'ruff' },
       -- python = { "isort", "black" },

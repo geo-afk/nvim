@@ -1,6 +1,3 @@
-local openNotif = require 'plugins.snacks.notifier'
-local PICKER = require 'plugins.snacks.picker'
-
 return {
   'folke/snacks.nvim',
   priority = 1000,
@@ -10,6 +7,7 @@ return {
     explorer = { enabled = true },
     indent = { enabled = true },
     input = { enabled = true },
+
     picker = {
       enabled = true,
       sources = {
@@ -27,46 +25,71 @@ return {
         marks = {
           transform = function(item)
             return item.label:find '%u' ~= nil
-          end, -- only global marks
+          end,
           win = {
             input = {
-              keys = { ['<D-d>'] = { 'delete_mark', mode = 'i' } },
+              keys = {
+                ['<D-d>'] = { 'delete_mark', mode = 'i' },
+              },
             },
           },
         },
+
         notifications = {
-          formatters = { severity = { level = false } },
+          formatters = {
+            severity = { level = false },
+          },
+
+          -- Confirm picks the notification and closes the picker
           confirm = function(picker)
-            local pickerIdx = picker:current().idx
+            if not picker then
+              return
+            end
+
+            -- Just close picker; you can extend this to do something else later
             picker:close()
-            openNotif(pickerIdx)
           end,
         },
       },
     },
+
     undo = {
       enabled = true,
     },
+
     notifier = {
       enabled = true,
       timeout = 7500,
       sort = { 'added' }, -- sort only by time
       width = { min = 12, max = 0.45 },
       height = { min = 1, max = 0.45 },
-      icons = { error = '󰅚', warn = '', info = '󰋽', debug = '󰃤', trace = '󰓗' },
+      icons = {
+        error = '󰅚',
+        warn = '',
+        info = '󰋽',
+        debug = '󰃤',
+        trace = '󰓗',
+      },
       top_down = false,
     },
+
     quickfile = { enabled = true },
     scope = { enabled = true },
     statuscolumn = { enabled = true },
     words = { enabled = true },
+
     styles = {
       notification = {
         border = vim.o.winborder,
         focusable = false,
-        wo = { winblend = 0, wrap = true },
+        wo = {
+          winblend = 0,
+          wrap = true,
+        },
       },
     },
   },
+
+  -- Key mappings for snacks.nvim
   keys = require('plugins.snacks.keys').keymappings,
 }

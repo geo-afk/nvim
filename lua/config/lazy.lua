@@ -25,7 +25,7 @@ require 'config.options'
 require 'config.keymaps'
 require 'config.autocmds'
 require 'config.neovide'
-require 'config.angular'
+require 'utils.angular'
 
 -- Setup lazy.nvim
 require('lazy').setup {
@@ -61,29 +61,17 @@ require('lazy').setup {
   },
 }
 
--- colorflow.nvim
-require('custom.color_highlight').setup {
-
-  render = 'foreground', -- 'background' | 'foreground' | 'virtual'
-  mode = 'bg_n_virtual', -- 'fg' | 'bg' | 'virtual' | 'bg_n_virtual'
-  border_radius = 0.25,
-  enabled = true,
-  enable_hex = true,
-  enable_short_hex = true,
-  enable_rgb = true,
-  enable_hsl = true,
-  enable_hsl_without_function = true,
-  enable_named_colors = true,
-  enable_tailwind = false,
-  enable_ansi = false,
-  enable_var_usage = true,
-  -- enable_virtual_text = false,
-  virt_text = '󱓻 ',
-  virtual_symbol = '■',
-  virtual_symbol_prefix = '',
-  virtual_symbol_suffix = ' ',
-  virtual_symbol_position = 'inline',
-}
+-- vim.api.nvim_create_autocmd('LspProgress', {
+--   callback = function(ev)
+--     local msg = require('utils.lsp_progress').get_progress()
+--     if msg ~= '' then
+--       vim.notify(msg, vim.log.levels.INFO)
+--     else
+--       -- Optionally clear or notify done
+--       vim.notify('LSP: Done', vim.log.levels.INFO)
+--     end
+--   end,
+-- })
 
 -- local function wrap(fn, name)
 --   return function(...)

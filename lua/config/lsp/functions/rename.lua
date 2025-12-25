@@ -14,9 +14,12 @@ end
 
 local function get_symbol_to_rename(cb)
   local cword = vim.fn.expand '<cword>'
+
+  -- Get only clients that actually support rename
   local clients = lsp.get_clients { bufnr = 0, method = 'textDocument/rename' }
+
   if #clients == 0 then
-    cb(cword)
+    vim.notify('No LSP server supports rename for this file', vim.log.levels.WARN)
     return
   end
 
@@ -26,6 +29,7 @@ local function get_symbol_to_rename(cb)
   end)
 
   local client = clients[1]
+
   if client:supports_method 'textDocument/prepareRename' then
     local params = lsp.util.make_position_params(nil, client.offset_encoding)
     client:request('textDocument/prepareRename', params, function(err, result)
@@ -50,6 +54,13 @@ local function get_symbol_to_rename(cb)
 end
 
 local function rename()
+  -- Early exit if no client supports rename
+  local capable_clients = lsp.get_clients { bufnr = 0, method = 'textDocument/rename' }
+  if #capable_clients == 0 then
+    vim.notify('No LSP server attached supports renaming', vim.log.levels.INFO)
+    return
+  end
+
   get_symbol_to_rename(function(to_rename)
     local buf = api.nvim_create_buf(false, true)
     local winopts = {
@@ -63,15 +74,14 @@ local function rename()
       title = { { ' New Name ', '@comment.danger' } },
       title_pos = 'center',
     }
-
     local win = api.nvim_open_win(buf, true, winopts)
-    vim.wo[win].winhl = 'Normal:Normal,FloatBorder:Removed,CursorLine:Removed'
-    api.nvim_set_current_win(win)
+    vim.wo[win].winhl = 'Normal:Normal,FloatBorder:FloatBorder,CursorLine:PmenuSel'
 
+    api.nvim_set_current_win(win)
     api.nvim_buf_set_lines(buf, 0, -1, true, { to_rename })
     vim.bo[buf].buftype = 'prompt'
     vim.fn.prompt_setprompt(buf, '')
-    vim.api.nvim_input 'A' -- Start at end of text
+    vim.api.nvim_input 'A' -- Move to end
 
     -- Cancel with Esc
     vim.keymap.set({ 'i', 'n' }, '<Esc>', function()
@@ -83,7 +93,7 @@ local function rename()
       api.nvim_buf_delete(buf, { force = true })
       local newName = vim.trim(text)
       if #newName > 0 and newName ~= to_rename then
-        vim.lsp.buf.rename(newName) -- Use the official API (handles multi-client, etc.)
+        vim.lsp.buf.rename(newName) -- Safe: we already checked capable clients exist
       end
     end)
   end)

@@ -1,5 +1,3 @@
--- lua/plugins/lsp/html.lua (or wherever you configure LSPs)
-
 return {
   settings = {
     html = {
@@ -22,5 +20,5 @@ return {
     embeddedLanguages = { css = true, javascript = true },
     configurationSection = { 'html', 'css', 'javascript' },
   },
-  filetypes = { 'html', 'htmlangular' }, -- explicitly set filetypes
+  filetypes = { 'html' },
 }

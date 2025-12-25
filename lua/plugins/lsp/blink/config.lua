@@ -69,7 +69,7 @@ M.kind_icons = {
   Variable = '󰀫 ',
 }
 
-local c_highlight = require 'custom.color_highlight'
+local c_highlight = require 'nvim-highlight-colors'
 
 M.components = {
   kind_icon = {
@@ -128,7 +128,7 @@ M.components = {
 
       -- Fallback to nvim-highlight-colors if available
       if ctx.item.source_name == 'LSP' then
-        local ok, _ = require 'custom.color_highlight'
+        local ok, _ = require 'nvim-highlight-colors'
         if ok then
           local color_item = c_highlight.format(ctx.item.documentation, { kind = ctx.kind })
           if color_item and color_item.abbr_hl_group then

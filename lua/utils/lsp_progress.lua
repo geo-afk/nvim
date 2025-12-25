@@ -4,8 +4,8 @@ local M = {}
 local progress_messages = {}
 
 -- Handle LSP progress notifications
-vim.api.nvim_create_autocmd("LspProgress", {
-  group = vim.api.nvim_create_augroup("UserLspProgress", { clear = true }),
+vim.api.nvim_create_autocmd('LspProgress', {
+  group = vim.api.nvim_create_augroup('UserLspProgress', { clear = true }),
   callback = function(ev)
     -- Get client by ID
     local client_id = ev.data.client_id
@@ -13,8 +13,6 @@ vim.api.nvim_create_autocmd("LspProgress", {
     if not client then
       return
     end
-
-    
 
     -- Access the correct data structure: ev.data.params
     local params = ev.data.params
@@ -34,23 +32,22 @@ vim.api.nvim_create_autocmd("LspProgress", {
     progress_messages[client.name] = progress_messages[client.name] or {}
 
     -- Handle different kinds of progress messages
-    if value.kind == "begin" then
+    if value.kind == 'begin' then
       progress_messages[client.name][token] = {
-        title = value.title or "Working",
-        message = value.message or "",
+        title = value.title or 'Working',
+        message = value.message or '',
         percentage = value.percentage or 0,
       }
-    elseif value.kind == "report" then
+    elseif value.kind == 'report' then
       -- Only update if the token exists
       if progress_messages[client.name][token] then
         progress_messages[client.name][token].message = value.message or progress_messages[client.name][token].message
-        progress_messages[client.name][token].percentage = value.percentage
-          or progress_messages[client.name][token].percentage
+        progress_messages[client.name][token].percentage = value.percentage or progress_messages[client.name][token].percentage
       end
-    elseif value.kind == "end" then
+    elseif value.kind == 'end' then
       -- Remove the progress message when done
       progress_messages[client.name][token] = nil
-      
+
       -- Clean up empty client tables
       if vim.tbl_isempty(progress_messages[client.name]) then
         progress_messages[client.name] = nil
@@ -65,46 +62,46 @@ function M.get_progress()
 
   for client_name, msgs in pairs(progress_messages) do
     for _, msg in pairs(msgs) do
-      local title = msg.title or ""
-      local message = msg.message or ""
-      local percentage = msg.percentage and string.format(" (%d%%)", msg.percentage) or ""
-      
+      local title = msg.title or ''
+      local message = msg.message or ''
+      local percentage = msg.percentage and string.format(' (%d%%)', msg.percentage) or ''
+
       -- Build the display string
-      local display = client_name .. ": " .. title
-      if message ~= "" then
-        display = display .. " - " .. message
+      local display = client_name .. ': ' .. title
+      if message ~= '' then
+        display = display .. ' - ' .. message
       end
       display = display .. percentage
-      
+
       table.insert(parts, display)
     end
   end
 
-  return #parts > 0 and table.concat(parts, " | ") or ""
+  return #parts > 0 and table.concat(parts, ' | ') or ''
 end
 
 -- Optional: Get progress for a specific client
 function M.get_client_progress(client_name)
   if not progress_messages[client_name] then
-    return ""
+    return ''
   end
 
   local parts = {}
   for _, msg in pairs(progress_messages[client_name]) do
-    local title = msg.title or ""
-    local message = msg.message or ""
-    local percentage = msg.percentage and string.format(" (%d%%)", msg.percentage) or ""
-    
+    local title = msg.title or ''
+    local message = msg.message or ''
+    local percentage = msg.percentage and string.format(' (%d%%)', msg.percentage) or ''
+
     local display = title
-    if message ~= "" then
-      display = display .. " - " .. message
+    if message ~= '' then
+      display = display .. ' - ' .. message
     end
     display = display .. percentage
-    
+
     table.insert(parts, display)
   end
 
-  return #parts > 0 and table.concat(parts, " | ") or ""
+  return #parts > 0 and table.concat(parts, ' | ') or ''
 end
 
 -- Optional: Check if any LSP is currently working

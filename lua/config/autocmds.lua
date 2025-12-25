@@ -101,21 +101,26 @@ vim.api.nvim_create_autocmd({ 'BufWritePre' }, {
   end,
 })
 
--- Force Angular component templates to use htmlangular
-vim.filetype.add {
-  pattern = {
-    ['.*%.component%.html'] = 'htmlangular', -- classic Angular template files
-    ['.*/src/app/.*%.html'] = function(path, bufnr)
-      local angular_file = vim.fn.findfile('angular.json', vim.fn.getcwd() .. ';')
+-- Detect Angular HTML files and attach Angular Tree-sitter
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = 'html',
+  callback = function(args)
+    local buf = args.buf
+    local path = vim.api.nvim_buf_get_name(buf)
 
-      if angular_file ~= '' then
-        vim.treesitter.start(nil, 'angular')
-        return 'htmlangular'
+    -- Match *.component.html OR src/app/**/*.html
+    if path:match '%.component%.html$' or path:match '/src/app/.+%.html$' then
+      -- Ensure this is actually an Angular project
+      local angular_json = vim.fn.findfile('angular.json', vim.fn.getcwd() .. ';')
+
+      if angular_json ~= '' then
+        if not vim.treesitter.get_parser(buf, 'angular', { error = false }) then
+          vim.treesitter.start(buf, 'angular')
+        end
       end
-      return 'html'
-    end,
-  },
-}
+    end
+  end,
+})
 
 -- create group once (clear = true to avoid duplicates)
 local no_auto_comment_grp = vim.api.nvim_create_augroup('NoAutoComment', { clear = true })

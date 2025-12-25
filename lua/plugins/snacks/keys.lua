@@ -1,6 +1,3 @@
-local openNotif = require 'plugins.snacks.notifier'
-local PICKER = require 'plugins.snacks.picker'
-
 local M = {}
 
 M.keymappings = {
@@ -17,11 +14,8 @@ M.keymappings = {
     function()
       Snacks.explorer()
     end,
-    -- desc = 'Toggle Snacks File Explorer',
+    desc = 'Toggle Snacks File Explorer',
   },
-  -- Goto mappings
-  { 'go', require('plugins.snacks.picker').betterFileOpen, desc = ' Open files' },
-  { 'gP', require('plugins.snacks.picker').browseProject, desc = ' Project' },
   {
     'grr',
     function()
