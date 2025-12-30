@@ -11,20 +11,16 @@ local config = {
 }
 
 -- Create centered floating window
-local function create_window()
+local function create_window(title)
   local maxh = vim.o.lines - vim.o.cmdheight - 1
   local maxw = vim.o.columns
-
   local height = math.floor(maxh * config.height_ratio)
   local width = math.floor(maxw * config.width_ratio)
-
   local row = math.floor((maxh - height) / 2)
   local col = math.floor((maxw - width) / 2)
 
   local buf = vim.api.nvim_create_buf(false, true)
-  vim.bo[buf].bufhidden = 'wipe' -- safe to set here
-
-  -- Do NOT set buftype = 'terminal' here!
+  vim.bo[buf].bufhidden = 'wipe'
 
   local win = vim.api.nvim_open_win(buf, true, {
     relative = 'editor',
@@ -33,7 +29,7 @@ local function create_window()
     row = row,
     col = col,
     border = config.border,
-    title = config.title,
+    title = title or config.title,
     title_pos = config.title_pos,
     zindex = config.zindex,
     style = 'minimal',
@@ -51,16 +47,26 @@ local function create_window()
 end
 
 -- Create terminal in floating window
-function M.create_terminal(cmd)
-  local buf, win = create_window()
+function M.create_terminal(cmd, opts)
+  opts = opts or {}
+  local title = opts.title or cmd or config.title
+
+  local buf, win = create_window(title)
 
   -- Start terminal job
   local job_id = vim.api.nvim_buf_call(buf, function()
-    return vim.fn.termopen(cmd or 'nu', {
-      on_exit = function()
-        -- Auto-close when shell exits
-        if vim.api.nvim_win_is_valid(win) then
-          vim.api.nvim_win_close(win, true)
+    return vim.fn.jobstart(cmd or { 'nu' }, {
+      term = true,
+      on_exit = function(_, exit_code, _)
+        if vim.api.nvim_buf_is_valid(buf) then
+          vim.bo[buf].modifiable = true
+
+          vim.api.nvim_buf_set_lines(buf, -1, -1, false, {
+            '',
+            string.format('[Process exited with code %d. Press q or <Esc> to close]', exit_code),
+          })
+
+          vim.bo[buf].modifiable = false
         end
       end,
     })
