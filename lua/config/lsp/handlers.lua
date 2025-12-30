@@ -4,6 +4,12 @@ local M = {}
 
 -- Get capabilities with blink.cmp integration
 function M.get_capabilities()
+  -- local t = { workspace = {
+  --   fileOperations = {
+  --     didRename = true,
+  --     willRename = true,
+  --   },
+  -- } }
   local original_capabilities = vim.lsp.protocol.make_client_capabilities()
   return vim.tbl_deep_extend('force', original_capabilities, require('blink.cmp').get_lsp_capabilities(original_capabilities))
 end

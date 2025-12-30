@@ -16,5 +16,5 @@ return {
   },
   cmd = angular_paths.cmd,
   root_markers = { 'angular.json', 'nx.json' },
-  filetypes = { 'html' },
+  filetypes = { 'html', 'htmlangular', 'typescript' },
 }

@@ -13,8 +13,8 @@ return {
         virtual_symbol = '󱓻 ',
         -- point_char = '◊',
 
-        -- virtual_symbol_prefix = " ",
-        -- virtual_symbol_suffix = "",
+        virtual_symbol_prefix = '',
+        virtual_symbol_suffix = '',
         ---Set virtual symbol position()
         ---@usage 'inline'|'eol'|'eow'
         ---inline mimics VS Code style

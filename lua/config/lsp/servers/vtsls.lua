@@ -2,6 +2,14 @@ local pkg = require 'utils.mason-pkg'
 
 return {
   root_markers = { 'angular.json', '.git', 'package.json', 'tsconfig.json', 'jsconfig.json' },
+  filetypes = {
+    'javascript',
+    'javascriptreact',
+    'javascript.jsx',
+    'typescript',
+    'typescriptreact',
+    'typescript.tsx',
+  },
   init_options = { hostInfo = 'neovim' },
   settings = {
     complete_function_calls = true,
@@ -26,6 +34,9 @@ return {
       },
     },
     typescript = {
+      preferences = {
+        importModuleSpecifier = 'relative',
+      },
       referencesCodeLens = {
         enabled = true,
         showOnAllFunctions = true,

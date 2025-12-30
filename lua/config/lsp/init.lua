@@ -107,9 +107,12 @@ function M.setup_lsps()
   end
 
   vim.lsp.config('angularls', {
-    capabilities = {
+    server_capabilities = {
       renameProvider = false,
     },
+    -- capabilities = {
+    --   renameProvider = false,
+    -- },
   })
 
   -- test_lsp()
