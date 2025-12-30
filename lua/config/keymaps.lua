@@ -62,8 +62,7 @@ vim.keymap.set('v', '<', '<gv')
 vim.keymap.set('v', '>', '>gv')
 
 local strings = require 'utils.strings'
-
-vim.keymap.set({ 'n', 'v' }, '<leader>rw', strings.replace_word_under_cursor, { desc = 'Replace `<cword>` instance in buffer' })
+vim.keymap.set({ 'n', 'v' }, '<leader>rw', strings.replace_word_under_cursor, { desc = 'Replace all `<cword>` instances in buffer' })
 
 vim.keymap.set({ 'n', 'x' }, 'j', "v:count == 0 ? 'gj' : 'j'", { desc = 'Down', expr = true, silent = true })
 vim.keymap.set({ 'n', 'x' }, '<Down>', "v:count == 0 ? 'gj' : 'j'", { desc = 'Down', expr = true, silent = true })

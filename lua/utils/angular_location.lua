@@ -1,96 +1,75 @@
-local root_dir = vim.fn.getcwd()
-local node_modules_dir = vim.fs.find('node_modules', { path = root_dir, upward = true })[1]
-local project_root = node_modules_dir and vim.fs.dirname(node_modules_dir) or nil
+local utils = require 'utils'
 
--- Get Mason's angular-language-server node_modules path
-local function get_mason_extension_path()
-  -- Use stdpath directly to get the correct Mason data directory
-  local mason_path = vim.fn.stdpath 'data' .. '/mason/packages/angular-language-server'
-  local node_modules_path = vim.fs.joinpath(mason_path, 'node_modules')
+-- ============================================================================
+-- Path Resolution
+-- ============================================================================
 
-  -- Normalize the path for Windows compatibility
-  node_modules_path = vim.fs.normalize(node_modules_path)
+--- Get Mason's angular-language-server node_modules path
+--- @return string|nil Path to node_modules, or nil if not found
+local function get_mason_angular_ls_path()
+  local node_modules_path = utils.get_mason_pkg_path('angular-language-server', '/node_modules')
 
-  -- Check if the path exists
-  if vim.uv.fs_stat(node_modules_path) then
+  if node_modules_path then
     return node_modules_path
   end
 
-  -- Try with mason-registry as fallback
-  local ok, mason_registry = pcall(require, 'mason-registry')
-  if ok then
-    local angular_ls_pkg = mason_registry.get_package 'angular-language-server'
-    if angular_ls_pkg:is_installed() then
-      local install_path = angular_ls_pkg:get_install_path()
-      local registry_path = vim.fs.joinpath(install_path, 'node_modules')
-      if vim.uv.fs_stat(registry_path) then
-        return vim.fs.normalize(registry_path)
-      end
-    end
-  end
+  -- Log error if Mason package not found
+  vim.notify('Could not find Mason angular-language-server installation', vim.log.levels.ERROR)
+  vim.notify('Expected: ' .. vim.fn.stdpath 'data' .. '/mason/packages/angular-language-server/node_modules', vim.log.levels.INFO)
 
   return nil
 end
 
--- Probe dir (local project node_modules)
-local function get_probe_dir()
-  return project_root and (project_root .. '/node_modules') or ''
+--- Get project's node_modules directory
+--- @return string Path to node_modules, or empty string if not found
+local function get_project_node_modules()
+  local node_modules = utils.find_node_modules()
+  return node_modules or ''
 end
 
--- Extract Angular core version from package.json
-local function get_angular_core_version()
-  if not project_root then
-    return ''
-  end
-  local package_json = project_root .. '/package.json'
-  if not vim.uv.fs_stat(package_json) then
-    return ''
-  end
-  local f = io.open(package_json, 'r')
-  if not f then
-    return ''
-  end
-  local contents = f:read '*a'
-  f:close()
-  local ok, json = pcall(vim.json.decode, contents)
-  if not ok or not json.dependencies then
-    return ''
-  end
-  local angular_core_version = json.dependencies['@angular/core']
-  angular_core_version = angular_core_version and angular_core_version:match '%d+%.%d+%.%d+'
-  return angular_core_version or ''
+-- ============================================================================
+-- Configuration Builder
+-- ============================================================================
+
+--- Build paths and command configuration for Angular Language Server
+--- @return table Configuration with cmd array
+local function build_angular_ls_config()
+  -- Get required paths
+  local mason_extension_path = get_mason_angular_ls_path()
+  local project_node_modules = get_project_node_modules()
+  local angular_version = utils.get_angular_version()
+
+  -- Use placeholder if Mason path not found (prevents crash)
+  mason_extension_path = mason_extension_path or '?'
+
+  -- Build probe directories for TypeScript
+  local ts_probe_dirs = vim.iter({ mason_extension_path, project_node_modules }):join ','
+
+  -- Build probe directories for Angular (includes subdirectory)
+  local ng_probe_dirs = vim
+    .iter({ mason_extension_path, project_node_modules })
+    :map(function(p)
+      return vim.fs.joinpath(p, '@angular/language-server/node_modules')
+    end)
+    :join ','
+
+  -- Return command configuration
+  return {
+    cmd = {
+      'ngserver',
+      '--stdio',
+      '--tsProbeLocations',
+      ts_probe_dirs,
+      '--ngProbeLocations',
+      ng_probe_dirs,
+      '--angularCoreVersion',
+      angular_version,
+    },
+  }
 end
 
--- Build paths using Mason's angular-language-server
-local extension_path = get_mason_extension_path()
-if not extension_path then
-  vim.notify('Could not find Mason angular-language-server installation at expected location', vim.log.levels.ERROR)
-  vim.notify('Expected: ' .. vim.fn.stdpath 'data' .. '/mason/packages/angular-language-server/node_modules', vim.log.levels.INFO)
-  extension_path = '?'
-end
+-- ============================================================================
+-- Export Configuration
+-- ============================================================================
 
-local default_probe_dir = get_probe_dir()
-local default_angular_core_version = get_angular_core_version()
-
-local ts_probe_dirs = vim.iter({ extension_path, default_probe_dir }):join ','
-local ng_probe_dirs = vim
-  .iter({ extension_path, default_probe_dir })
-  :map(function(p)
-    return vim.fs.joinpath(p, '/@angular/language-server/node_modules')
-  end)
-  :join ','
-
-local Path = {}
-
-Path.cmd = {
-  'ngserver',
-  '--stdio',
-  '--tsProbeLocations',
-  ts_probe_dirs,
-  '--ngProbeLocations',
-  ng_probe_dirs,
-  '--angularCoreVersion',
-  default_angular_core_version,
-}
-
-return Path
+return build_angular_ls_config()

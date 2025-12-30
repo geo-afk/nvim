@@ -61,18 +61,6 @@ require('lazy').setup {
   },
 }
 
--- vim.api.nvim_create_autocmd('LspProgress', {
---   callback = function(ev)
---     local msg = require('utils.lsp_progress').get_progress()
---     if msg ~= '' then
---       vim.notify(msg, vim.log.levels.INFO)
---     else
---       -- Optionally clear or notify done
---       vim.notify('LSP: Done', vim.log.levels.INFO)
---     end
---   end,
--- })
-
 -- local function wrap(fn, name)
 --   return function(...)
 --     local info = debug.traceback('', 2)
@@ -80,6 +68,6 @@ require('lazy').setup {
 --     return fn(...)
 --   end
 -- end
---
+
 -- vim.system = wrap(vim.system, 'vim.system')
 -- vim.fn.jobstart = wrap(vim.fn.jobstart, 'jobstart')
