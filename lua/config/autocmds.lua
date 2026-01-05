@@ -7,6 +7,25 @@
 -- Or remove existing autocmds by their group name (which is prefixed with `lazyvim_` for the defaults)
 -- e.g. vim.api.nvim_del_augroup_by_name("lazyvim_wrap_spell")
 
+-- Create an autocmd for both TypeScript and HTML files
+vim.api.nvim_create_autocmd('FileType', {
+  pattern = { 'typescript', 'html' }, -- both filetypes
+  callback = function()
+    if require('utils').is_angular_project() then
+      -- Buffer-local keymap
+      vim.keymap.set('n', '<leader>at', function()
+        -- Example: Toggle between .ts and .html
+        local bufname = vim.api.nvim_buf_get_name(0)
+        if bufname:match '%.ts$' then
+          vim.cmd('edit ' .. bufname:gsub('%.ts$', '.html'))
+        elseif bufname:match '%.html$' then
+          vim.cmd('edit ' .. bufname:gsub('%.html$', '.ts'))
+        end
+      end, { buffer = true, desc = 'Toggle Angular .ts <-> .html' })
+    end
+  end,
+})
+
 local function augroup(name)
   return vim.api.nvim_create_augroup('lazyvim_' .. name, { clear = true })
 end

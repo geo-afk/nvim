@@ -1,4 +1,27 @@
 local pkg = require 'utils.mason-pkg'
+local utils = require 'utils'
+
+local function get_global_plugin()
+  -- Return an empty list by default
+  if not utils.is_angular_project() then
+    return {}
+  end
+
+  local angular_ls_path = pkg.get_pkg_path('angular-language-server', '/node_modules/@angular/language-server')
+
+  -- If the language server is not installed, fail gracefully
+  if not angular_ls_path then
+    return {}
+  end
+
+  return {
+    {
+      name = '@angular/language-server',
+      location = angular_ls_path,
+      enableForWorkspaceTypeScriptVersions = false,
+    },
+  }
+end
 
 return {
   root_markers = { 'angular.json', '.git', 'package.json', 'tsconfig.json', 'jsconfig.json' },
@@ -25,13 +48,7 @@ return {
       },
     },
     tsserver = {
-      globalPlugins = {
-        {
-          name = '@angular/language-server',
-          location = pkg.get_pkg_path('angular-language-server', '/node_modules/@angular/language-server'),
-          enableForWorkspaceTypeScriptVersions = false,
-        },
-      },
+      globalPlugins = get_global_plugin(),
     },
     typescript = {
       preferences = {

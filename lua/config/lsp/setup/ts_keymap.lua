@@ -1,188 +1,203 @@
 local M = {}
 
--- Fallback notify
-local notify = vim.notify or function(msg, level)
-  vim.api.nvim_echo({ { msg } }, true, {})
+-- -------------------------------------------------------------------
+-- Notify helper
+-- -------------------------------------------------------------------
+local function notify(msg, level)
+  vim.notify(msg, level or vim.log.levels.INFO)
 end
 
+-- -------------------------------------------------------------------
 -- Safely apply a code action
-local function safe_apply_action(client, action)
+-- -------------------------------------------------------------------
+local function apply_action(client, action, bufnr)
   if not action then
     return
   end
 
   if action.edit then
-    vim.lsp.util.apply_workspace_edit(action.edit, 'utf-8')
+    vim.lsp.util.apply_workspace_edit(action.edit, client.offset_encoding or 'utf-8')
   end
 
   if action.command then
-    local cmd = action.command
-    if type(cmd) == 'table' then
-      client:exec_cmd(cmd, { bufnr = action.bufnr })
+    if type(action.command) == 'table' then
+      client:exec_cmd(action.command, { bufnr = bufnr })
     else
       client:exec_cmd({
-        command = cmd,
+        command = action.command,
         arguments = action.arguments,
-      }, { bufnr = action.bufnr })
+      }, { bufnr = bufnr })
     end
   end
 end
 
--- Run a specific code action kind
-local function run_code_action_for_kind(client, bufnr, kind)
+-- -------------------------------------------------------------------
+-- Pick preferred action if available
+-- -------------------------------------------------------------------
+local function select_best_action(actions)
+  for _, action in ipairs(actions) do
+    if action.isPreferred then
+      return action
+    end
+  end
+  return actions[1]
+end
+
+-- -------------------------------------------------------------------
+-- Run source-level TypeScript code action
+-- -------------------------------------------------------------------
+local function run_source_action(client, bufnr, kind)
   if not client or not bufnr then
-    notify('Invalid client or buffer for code action', vim.log.levels.ERROR)
+    notify('Invalid client or buffer', vim.log.levels.ERROR)
     return
   end
 
-  local params = vim.lsp.util.make_range_params(bufnr, 'utf-16')
-  ---@diagnostic disable-next-line: inject-field
-  params.context = { only = { kind }, diagnostics = {} }
+  -- Use a valid range at the cursor position
+  local params = vim.lsp.util.make_range_params()
+  params.context = {
+    only = { kind },
+    diagnostics = {},
+  }
 
   client:request('textDocument/codeAction', params, function(err, actions)
     if err then
-      notify('codeAction error: ' .. tostring(err.message or err), vim.log.levels.ERROR)
-      return
-    end
-    if not actions or vim.islist(actions) == false or #actions == 0 then
-      notify('No code actions available', vim.log.levels.INFO)
+      notify('CodeAction error: ' .. tostring(err.message or err), vim.log.levels.ERROR)
       return
     end
 
-    local action = actions[1]
-    safe_apply_action(client, action)
+    if not actions or not vim.islist(actions) or #actions == 0 then
+      notify 'No code actions available'
+      return
+    end
+
+    if #actions == 1 then
+      apply_action(client, actions[1], bufnr)
+      return
+    end
+
+    local preferred = select_best_action(actions)
+    if preferred then
+      apply_action(client, preferred, bufnr)
+      return
+    end
+
+    vim.ui.select(actions, {
+      prompt = 'Select code action:',
+      format_item = function(action)
+        return action.title
+      end,
+    }, function(choice)
+      apply_action(client, choice, bufnr)
+    end)
   end, bufnr)
 end
 
+-- -------------------------------------------------------------------
 -- Go to TypeScript source definition
+-- -------------------------------------------------------------------
 local function goto_source_definition(client, bufnr)
-  if not client or not bufnr then
-    notify('Invalid client or buffer for goToSourceDefinition', vim.log.levels.ERROR)
-    return
-  end
-
-  local params = vim.lsp.util.make_position_params(bufnr, 'utf-16')
+  local params = vim.lsp.util.make_position_params(0, client.offset_encoding)
 
   client:request('workspace/executeCommand', {
     command = 'typescript.goToSourceDefinition',
     arguments = { params.textDocument.uri, params.position },
   }, function(err, result)
     if err then
-      notify('goToSourceDefinition error: ' .. tostring(err.message or err), vim.log.levels.ERROR)
+      notify('GoToSourceDefinition error: ' .. tostring(err.message or err), vim.log.levels.ERROR)
       return
     end
 
-    if not result or vim.islist(result) == false or #result == 0 then
-      notify('No source definition found', vim.log.levels.INFO)
+    if not result or not vim.islist(result) or #result == 0 then
+      notify 'No source definition found'
       return
     end
 
     local loc = result[1]
-    if loc.targetUri or loc.targetRange then
+    if loc.targetUri then
       loc = {
         uri = loc.targetUri,
         range = loc.targetSelectionRange or loc.targetRange,
       }
     end
 
-    if loc then
-      vim.lsp.util.show_document(loc, { focus = true })
-    else
-      notify('Could not interpret goToSourceDefinition result', vim.log.levels.WARN)
-    end
+    vim.lsp.util.show_document(loc, { focus = true })
   end, bufnr)
 end
 
--- List all file references
+-- -------------------------------------------------------------------
+-- Find all TypeScript file references
+-- -------------------------------------------------------------------
 local function file_references(client, bufnr)
-  if not client or not bufnr then
-    notify('Invalid client or buffer for references', vim.log.levels.ERROR)
-    return
-  end
-
   local uri = vim.uri_from_bufnr(bufnr)
+
   client:request('workspace/executeCommand', {
     command = 'typescript.findAllFileReferences',
     arguments = { uri },
   }, function(err, result)
     if err then
-      notify('findAllFileReferences error: ' .. tostring(err.message or err), vim.log.levels.ERROR)
+      notify('FileReferences error: ' .. tostring(err.message or err), vim.log.levels.ERROR)
       return
     end
 
-    if not result or vim.islist(result) == false or #result == 0 then
-      notify('No references found', vim.log.levels.INFO)
+    if not result or not vim.islist(result) or #result == 0 then
+      notify 'No references found'
       return
     end
 
     local items = vim.lsp.util.locations_to_items(result)
-    if not items or #items == 0 then
-      notify('No references to show', vim.log.levels.INFO)
-      return
-    end
-
-    vim.fn.setqflist({}, ' ', { title = 'File References', items = items })
+    vim.fn.setqflist({}, ' ', {
+      title = 'TypeScript File References',
+      items = items,
+    })
     vim.cmd.copen()
   end, bufnr)
 end
 
--- Prompt TypeScript version selection
+-- -------------------------------------------------------------------
+-- Select TypeScript workspace version
+-- -------------------------------------------------------------------
 local function select_typescript_version(client, bufnr)
-  if not client or not bufnr then
-    notify('Invalid client or buffer for version select', vim.log.levels.ERROR)
-    return
-  end
-
   client:request('workspace/executeCommand', {
     command = 'typescript.selectTypeScriptVersion',
   }, function(err)
     if err then
-      notify('selectTypeScriptVersion error: ' .. tostring(err.message or err), vim.log.levels.ERROR)
+      notify('SelectTypeScriptVersion error: ' .. tostring(err.message or err), vim.log.levels.ERROR)
     end
   end, bufnr)
 end
 
--- Setup keymaps (to be called from your on_attach)
-
+-- -------------------------------------------------------------------
+-- Setup keymaps (call from on_attach)
+-- -------------------------------------------------------------------
 function M.setup(bufnr, client)
   if not bufnr or not client then
-    notify('Invalid buffer or client in setup()', vim.log.levels.ERROR)
     return
   end
-
   if client.name ~= 'vtsls' then
     return
   end
 
   local opts = { buffer = bufnr, silent = true }
 
-  vim.keymap.set('n', 'gX', function()
-    goto_source_definition(client, bufnr)
-  end, vim.tbl_extend('force', { desc = 'Go To Source Definition' }, opts))
+  vim.keymap.set('n', '<leader>go', function()
+    run_source_action(client, bufnr, 'source.organizeImports')
+  end, vim.tbl_extend('force', opts, { desc = 'Organize Imports' }))
 
-  vim.keymap.set('n', 'gR', function()
-    file_references(client, bufnr)
-  end, vim.tbl_extend('force', { desc = 'File References' }, opts))
+  vim.keymap.set('n', '<leader>gM', function()
+    run_source_action(client, bufnr, 'source.addMissingImports.ts')
+  end, vim.tbl_extend('force', opts, { desc = 'Add Missing Imports' }))
 
-  vim.keymap.set('n', '<leader>co', function()
-    run_code_action_for_kind(client, bufnr, 'source.organizeImports')
-  end, vim.tbl_extend('force', { desc = 'Organize Imports' }, opts))
+  vim.keymap.set('n', '<leader>gu', function()
+    run_source_action(client, bufnr, 'source.removeUnused.ts')
+  end, vim.tbl_extend('force', opts, { desc = 'Remove Unused Imports' }))
 
-  vim.keymap.set('n', '<leader>cM', function()
-    run_code_action_for_kind(client, bufnr, 'source.addMissingImports.ts')
-  end, vim.tbl_extend('force', { desc = 'Add Missing Imports' }, opts))
+  vim.keymap.set('n', '<leader>gD', function()
+    run_source_action(client, bufnr, 'source.fixAll.ts')
+  end, vim.tbl_extend('force', opts, { desc = 'Fix All Diagnostics' }))
 
-  vim.keymap.set('n', '<leader>cu', function()
-    run_code_action_for_kind(client, bufnr, 'source.removeUnused.ts')
-  end, vim.tbl_extend('force', { desc = 'Remove Unused Imports' }, opts))
-
-  vim.keymap.set('n', '<leader>cD', function()
-    run_code_action_for_kind(client, bufnr, 'source.fixAll.ts')
-  end, vim.tbl_extend('force', { desc = 'Fix All Diagnostics' }, opts))
-
-  vim.keymap.set('n', '<leader>cV', function()
+  vim.keymap.set('n', '<leader>gV', function()
     select_typescript_version(client, bufnr)
-  end, vim.tbl_extend('force', { desc = 'Select TS Workspace Version' }, opts))
+  end, vim.tbl_extend('force', opts, { desc = 'Select TypeScript Version' }))
 end
 
 return M

@@ -41,6 +41,15 @@ return {
       enable = true,
       disable = { 'ruby' }, -- Ruby has better indent support elsewhere
     },
+    incremental_selection = {
+      enable = true,
+      keymaps = {
+        init_selection = '<CR>', -- set to `false` to disable one of the mappings
+        node_incremental = '<CR>',
+        scope_incremental = false,
+        node_decremental = '<BS>',
+      },
+    },
   },
 
   -- ============================================================================
@@ -105,12 +114,12 @@ return {
     -- ------------------------------------------------------------------------
 
     -- Add SQL language support for Go files (for embedded SQL)
-    vim.api.nvim_create_autocmd('FileType', {
-      pattern = 'go',
-      callback = function()
-        vim.treesitter.language.add 'sql'
-      end,
-      desc = 'Add SQL language support for Go files',
-    })
+    -- vim.api.nvim_create_autocmd('FileType', {
+    --   pattern = 'go',
+    --   callback = function()
+    --     vim.treesitter.language.add 'sql'
+    --   end,
+    --   desc = 'Add SQL language support for Go files',
+    -- })
   end,
 }
