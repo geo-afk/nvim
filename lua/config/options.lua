@@ -1,11 +1,6 @@
-vim.opt.hlsearch = true
-vim.opt.incsearch = true
-
 -- BACKUP AND SWAP
 vim.opt.swapfile = false
 vim.opt.undofile = true
--- vim.opt.spell = true
--- Correct Neovim Statusline Syntax
 -- ============================================================
 -- setting Auto-Sessions so when session is restored on startup.
 -- ============================================================
@@ -26,6 +21,7 @@ vim.opt.guicursor = {
   -- "i-c-ci-ve:block-InsertCursor",
   'o-r:hor50',
 }
+
 
 -- =======================================================================
 --  Disable Unwanted Built-in Plugins
@@ -70,9 +66,9 @@ end)
 -- =======================================================================
 --  Search
 -- =======================================================================
-vim.o.ignorecase = true -- Case-insensitive search...
-vim.o.smartcase = true -- ...unless uppercase is used
-vim.o.inccommand = 'split' -- Live preview substitutions
+-- vim.o.ignorecase = true -- Case-insensitive search...
+-- vim.o.smartcase = true -- ...unless uppercase is used
+-- vim.o.inccommand = 'split' -- Live preview substitutions
 
 -- =======================================================================
 --  Performance

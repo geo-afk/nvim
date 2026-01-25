@@ -39,6 +39,7 @@ return {
         'golines',
       },
       sql = { 'sleek' },
+      -- sql = { 'sqls', 'sleek' },
       -- sql = { 'sleek', 'sqlfmt' },
       css = { 'prettierd' },
       html = { 'prettierd' },

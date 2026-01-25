@@ -61,7 +61,10 @@ require('lazy').setup {
   },
 }
 
--- local function wrap(fn, name)
+require('utils.popup_menu').setup()
+require('telescope.builtin').lsp_workspace_symbols { default_text = vim.fn.expand '<cword>' }
+
+-- Local function wrap(fn, name)
 --   return function(...)
 --     local info = debug.traceback('', 2)
 --     vim.notify(name .. ' called from:\n' .. info, vim.log.levels.DEBUG)

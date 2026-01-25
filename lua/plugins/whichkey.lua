@@ -10,7 +10,7 @@ return {
       { '<leader>e', icon = { icon = '⟟', hl = 'MiniIconsBrown' }, group = 'Snacks File Explorer' }, -- Folder-like / Structure
       { '<leader>/', icon = { icon = '∷', hl = 'MiniIconsYellow' }, group = 'Find In Current Buffer' }, -- Search / Filter
       { '<leader>x', icon = { icon = '!', hl = 'MiniIconsRed' }, group = 'Diagnostics/Quickfix' }, -- Warning
-      { '<leader>d', icon = { icon = '⨁', hl = 'MiniIconsRed' }, group = 'Inline Diagnostics' }, -- Error/inline marker
+      { '<leader>d', icon = { icon = '⨁', hl = 'MiniIconsRed' }, group = 'LSP: DEV-SERVER' }, -- Error/inline marker
       { '<leader>q', icon = { icon = '☰', hl = 'MiniIconsGrey' }, group = 'Quick-Fix List' }, -- List/Menu
       { '<leader>p', icon = { icon = '≡', hl = 'MiniIconsGreen' }, group = 'Plugins/UI' }, -- Settings/Gear
       { '<leader>w', icon = { icon = '⟲', hl = 'MiniIconsBlue' }, group = 'Session' }, -- Session restore/rotation

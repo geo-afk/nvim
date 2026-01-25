@@ -29,6 +29,7 @@ return {
     popupmenu = {
       enabled = true, -- Keep popupmenu enhanced
       backend = 'nui',
+      kind_icons = {},
     },
     lsp = {
       progress = {

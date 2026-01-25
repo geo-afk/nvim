@@ -1,5 +1,13 @@
 local opts = { noremap = true, silent = true }
 
+-- Linters
+vim.keymap.set('n', '<leader>l', function()
+  require('lint').try_lint()
+end, { desc = 'Lint current file' })
+
+-- Optional: show last lint result
+vim.keymap.set('n', '<leader>L', '<cmd>LintInfo<cr>', { desc = 'Show nvim-lint info' })
+
 -- Panes resizing
 vim.keymap.set('n', '+', ':vertical resize +5<CR>')
 vim.keymap.set('n', '_', ':vertical resize -5<CR>')

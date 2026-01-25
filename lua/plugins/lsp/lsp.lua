@@ -25,7 +25,7 @@ local mason_lsp = {
   'html',
   'cssls',
   'gopls',
-  -- 'ts_ls',
+  'vtsls',
   'lua_ls',
   'typos_lsp',
   'angularls',

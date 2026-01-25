@@ -26,7 +26,13 @@ return {
         'fallback',
       },
 
-      ['<c-space>'] = { 'show', 'show_documentation', 'hide_documentation' },
+      -- ['<C-r>'] = {
+      --   function(cmp)
+      --     return cmp.snippet_forward()
+      --   end,
+      -- },
+      --
+      -- ['\\'] = { 'show', 'show_documentation', 'hide_documentation' },
     },
 
     appearance = {
@@ -72,6 +78,16 @@ return {
       accept = {
         auto_brackets = {
           enabled = true,
+        },
+      },
+      list = {
+        selection = {
+          preselect = function(ctx)
+            return not require('blink.cmp').snippet_active { direction = 1 }
+          end,
+          auto_insert = function(ctx)
+            return vim.bo.filetype == 'markdown'
+          end,
         },
       },
     },

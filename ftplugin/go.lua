@@ -1,6 +1,5 @@
 local file_picker = require 'utils.file_selector'
 
-
 -- to get coverage in golang html format: "go test -coverageprofile file.out main.go main_test.go; go tool -cover -html=c.out
 
 vim.opt.tabstop = 4
@@ -97,6 +96,18 @@ local function get_test_file_pair(filepath)
   end
 end
 
+-- Helper to properly escape file paths for shell commands
+local function escape_filepath(filepath)
+  local is_windows = vim.uv.os_uname().sysname:match 'Windows' ~= nil
+  if is_windows then
+    -- For Windows, use forward slashes and quote the path
+    filepath = filepath:gsub('\\', '/')
+    return '"' .. filepath .. '"'
+  else
+    return vim.fn.shellescape(filepath)
+  end
+end
+
 -- Helper to get relative path from cwd
 local function get_relative_path(filepath)
   local cwd = vim.fn.getcwd()
@@ -106,30 +117,100 @@ local function get_relative_path(filepath)
   return filepath
 end
 
+-- Helper to find main.go in common locations
+local function find_main_go()
+  local cwd = vim.fn.getcwd()
+  local common_paths = {
+    cwd .. '/main.go',
+    cwd .. '/cmd/main.go',
+    cwd .. '/cmd/*/main.go',
+  }
+
+  for _, path in ipairs(common_paths) do
+    if path:match '%*' then
+      -- Handle glob patterns
+      local matches = vim.fn.glob(path, false, true)
+      if #matches > 0 then
+        return vim.fn.fnamemodify(matches[1], ':h')
+      end
+    else
+      if vim.fn.filereadable(path) == 1 then
+        return vim.fn.fnamemodify(path, ':h')
+      end
+    end
+  end
+
+  return nil
+end
+
 -- User commands
 vim.api.nvim_create_user_command('GoTests', function(opts)
   local file = vim.fn.expand '%:p'
   local args = opts.args ~= '' and opts.args or '-all'
-  local cmd = string.format('gotests -w %s %s', args, vim.fn.shellescape(file))
+  local cmd = string.format('gotests -w %s %s', args, escape_filepath(file))
   run_tool_and_reload(cmd)
 end, { nargs = '?', desc = 'Generate tests with gotests' })
 
 vim.api.nvim_create_user_command('GoModifyTags', function(opts)
   local file = vim.fn.expand '%:p'
-  local args = opts.args ~= '' and opts.args or '-all'
-  local cmd = string.format('gomodifytags -file %s -w %s', vim.fn.shellescape(file), args)
+  local args = opts.args ~= '' and opts.args or ''
+
+  -- Ensure -all, -line, -offset, or -struct is present
+  if not args:match '%-all' and not args:match '%-line' and not args:match '%-offset' and not args:match '%-struct' then
+    args = '-all ' .. args
+  end
+
+  local cmd = string.format('gomodifytags -file %s -w %s', escape_filepath(file), args)
   run_tool_and_reload(cmd)
 end, { nargs = '?', desc = 'Modify struct tags with gomodifytags' })
 
 vim.api.nvim_create_user_command('GoIfErr', function()
   local line = vim.api.nvim_win_get_cursor(0)[1]
   local file = vim.fn.expand '%:p'
-  local cmd = string.format('iferr -pos %d %s', line, vim.fn.shellescape(file))
+  local cmd = string.format('iferr -pos %d %s', line, escape_filepath(file))
   run_tool_and_reload(cmd)
 end, { desc = 'Generate error handling with iferr' })
 
 vim.api.nvim_create_user_command('GoRun', function()
-  create_go_terminal('go run .', ' 󰐊 Go Run ')
+  -- First try to find main.go in common locations
+  local main_dir = find_main_go()
+
+  if main_dir then
+    -- Found main.go, run from its directory
+    local rel_dir = get_relative_path(main_dir)
+    if rel_dir == '.' or rel_dir == vim.fn.getcwd() then
+      create_go_terminal('go run .', ' 󰐊 Go Run ')
+    else
+      vim.notify(string.format('Running from: %s', vim.fn.fnamemodify(main_dir, ':~:.')), vim.log.levels.INFO)
+      create_go_terminal('go run .', ' 󰐊 Go Run ', main_dir)
+    end
+  else
+    -- main.go not found, let user select the file
+    vim.notify('main.go not found in root or cmd/, please select it', vim.log.levels.INFO)
+    file_picker.select_file({
+      prompt_title = 'Select main.go to run',
+      cwd = vim.fn.getcwd(),
+    }, function(selected_file)
+      -- Handle cancellation
+      if not selected_file then
+        vim.notify('Go run cancelled', vim.log.levels.INFO)
+        return
+      end
+
+      -- Validate it's a Go file
+      if not selected_file:match '%.go$' then
+        vim.notify('Please select a .go file', vim.log.levels.WARN)
+        return
+      end
+
+      -- Get the directory containing the selected file
+      local file_dir = vim.fn.fnamemodify(selected_file, ':h')
+      local file_name = vim.fn.fnamemodify(selected_file, ':t')
+
+      vim.notify(string.format('Running: %s', file_name), vim.log.levels.INFO)
+      create_go_terminal('go run .', ' 󰐊 Go Run ', file_dir)
+    end)
+  end
 end, { desc = 'Run the current Go project' })
 
 vim.api.nvim_create_user_command('GoTestRun', function(opts)

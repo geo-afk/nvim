@@ -20,7 +20,6 @@ local function trouble_cascade()
   toggle 'cascade'
 end
 
---- @type LazyPluginSpec
 return {
   'folke/trouble.nvim',
   dependencies = { 'nvim-tree/nvim-web-devicons' },
