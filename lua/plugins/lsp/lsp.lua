@@ -28,6 +28,7 @@ local mason_lsp = {
   'vtsls',
   'lua_ls',
   'typos_lsp',
+  -- 'harper_ls',
   'angularls',
   'tailwindcss',
   'emmet_language_server',

@@ -7,7 +7,7 @@ return {
     defaults = {},
     show_help = true,
     spec = {
-      { '<leader>e', icon = { icon = '⟟', hl = 'MiniIconsBrown' }, group = 'Snacks File Explorer' }, -- Folder-like / Structure
+      { '<leader>e', icon = { icon = '⟟', hl = 'MiniIconsBrown' }, group = 'File Explorer' }, -- Folder-like / Structure
       { '<leader>/', icon = { icon = '∷', hl = 'MiniIconsYellow' }, group = 'Find In Current Buffer' }, -- Search / Filter
       { '<leader>x', icon = { icon = '!', hl = 'MiniIconsRed' }, group = 'Diagnostics/Quickfix' }, -- Warning
       { '<leader>d', icon = { icon = '⨁', hl = 'MiniIconsRed' }, group = 'LSP: DEV-SERVER' }, -- Error/inline marker
@@ -34,13 +34,6 @@ return {
         require('which-key').show { global = false }
       end,
       desc = 'Buffer Local Keymaps (which-key)',
-    },
-    {
-      '<leader>e',
-      function()
-        Snacks.explorer()
-      end,
-      desc = 'Toggle Snacks File Explorer',
     },
   },
 }

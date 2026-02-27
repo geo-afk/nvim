@@ -1,7 +1,6 @@
 return {
   {
     'geo-afk/nhc-forked',
-    disabled = true,
     event = { 'BufReadPre', 'BufNewFile' },
     config = function()
       require('nvim-highlight-colors').setup {

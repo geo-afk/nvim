@@ -1,3 +1,11 @@
+local capabilities = require('blink.cmp').get_lsp_capabilities()
+capabilities.textDocument.completion.completionItem.snippetSupport = true
+capabilities.textDocument.colorProvider = { dynamicRegistration = false }
+capabilities.textDocument.foldingRange = {
+  dynamicRegistration = false,
+  lineFoldingOnly = true,
+}
+
 return {
   settings = {
     tailwindCSS = {
@@ -32,6 +40,15 @@ return {
 
           -- Laravel @class directive e.g. @class([ ... ])
           '@class\\(([^)]*)\\)',
+
+          -- 'tw="([^"]*)',
+          -- 'tw={"([^"}]*)',
+          -- 'tw\\.\\w+`([^`]*)',
+          -- 'tw\\(.*?\\)`([^`]*)',
+          -- { 'clsx\\(([^)]*)\\)', "(?:'|\"|`)([^']*)(?:'|\"|`)" },
+          -- { 'classnames\\(([^)]*)\\)', "'([^']*)'" },
+          -- { 'cva\\(([^)]*)\\)', '["\'`]([^"\'`]*).*?["\'`]' },
+          -- { 'cn\\(([^)]*)\\)', "(?:'|\"|`)([^']*)(?:'|\"|`)" },
         },
       },
     },

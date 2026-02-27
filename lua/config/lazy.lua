@@ -74,3 +74,19 @@ require('telescope.builtin').lsp_workspace_symbols { default_text = vim.fn.expan
 
 -- vim.system = wrap(vim.system, 'vim.system')
 -- vim.fn.jobstart = wrap(vim.fn.jobstart, 'jobstart')
+
+require('custom.explorer').setup {
+  -- override any defaults you want (all optional)
+  width = 35,
+  side = 'left', -- "left" | "right"
+  show_hidden = false,
+  show_git = true,
+  follow_file = true, -- auto-reveal active buffer
+  auto_close = false,
+  keymaps = {
+    toggle = '<leader>e', -- global toggle (set "" to skip)
+    reveal = '<leader>E', -- reveal current file (set "" to skip)
+  },
+}
+
+require('custom.statusline').setup()

@@ -45,8 +45,6 @@ local default_config = {
     { separator = true },
 
     -- 🌿 GIT & VERSION CONTROL
-    { label = '🌿 LazyGit', cmd = "lua require('snacks').lazygit()", requires_module = 'snacks' },
-    { label = '🌐 Browse on Git Host', cmd = "lua require('snacks').gitbrowse()", requires_module = 'snacks' },
     { label = '🌐 Open URL in Browser', cmd = 'normal! gx' },
 
     { separator = true },

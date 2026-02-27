@@ -35,6 +35,7 @@ return {
   },
   init_options = { hostInfo = 'neovim' },
   settings = {
+
     complete_function_calls = true,
     vtsls = {
       enableMoveToFileCodeAction = true,
