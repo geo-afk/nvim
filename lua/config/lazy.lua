@@ -62,7 +62,6 @@ require('lazy').setup {
 }
 
 require('utils.popup_menu').setup()
-require('telescope.builtin').lsp_workspace_symbols { default_text = vim.fn.expand '<cword>' }
 
 -- Local function wrap(fn, name)
 --   return function(...)

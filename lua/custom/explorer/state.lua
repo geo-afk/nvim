@@ -1,43 +1,31 @@
--- explorer/state.lua
--- Shared mutable state. Every module imports this table and reads/writes it.
--- Nothing in here has behaviour — just data.
+-- custom/explorer/state.lua
 
 local api = vim.api
 
 local S = {
-  -- Window / buffer
-  buf = nil, -- explorer buffer
-  win = nil, -- explorer window
-  root = nil, -- current root path (absolute, no trailing slash)
-  prev_win = nil, -- window to return to when opening files
+  buf = nil,
+  win = nil,
+  root = nil,
+  prev_win = nil,
 
-  -- Tree
-  items = {}, -- flat list; index == 1-based line number in buffer
-  open_dirs = {}, -- set<path> → true  (expanded directories)
+  -- true while the user is typing in the search bar (line 1, insert mode)
+  search_active = false,
 
-  -- Git
-  git = {}, -- path → status char  (M/A/D/R/U/?)
+  -- S.items[i] lives at buffer line i+1 (1-based), row i (0-based)
+  items = {},
+  open_dirs = {},
 
-  -- Search / filter
-  filter = nil, -- nil = inactive, string = active filter pattern
-  filter_win = nil, -- floating input window handle
-  filter_buf = nil, -- floating input buffer handle
+  git = {},
+  filter = nil,
+  marks = {},
 
-  -- Multi-select marks
-  marks = {}, -- set<path> → true
+  ns = api.nvim_create_namespace 'explorer_tree',
+  git_ns = api.nvim_create_namespace 'explorer_git',
+  mark_ns = api.nvim_create_namespace 'explorer_marks',
+  hdr_ns = api.nvim_create_namespace 'explorer_header',
 
-  -- Highlight namespaces
-  ns = api.nvim_create_namespace 'explorer_tree', -- icons, connectors, names
-  git_ns = api.nvim_create_namespace 'explorer_git', -- git signs + name colours
-  mark_ns = api.nvim_create_namespace 'explorer_marks', -- mark badges
-
-  -- Icon provider function resolved once on open()
   icon_fn = nil,
-
-  -- Build token: incremented on every render() call; stale async builds check it
   build_tok = 0,
-
-  -- Injected by init.lua so win.lua can call close without a hard require("explorer")
   close_fn = nil,
 }
 

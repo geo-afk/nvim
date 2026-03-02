@@ -1,17 +1,5 @@
--- explorer/init.lua
--- Public API: setup(), open(), close(), toggle(), reveal()
---
--- ┌─────────────────────────────────────────────────────────────────┐
--- │  DROP-IN INSTALL                                                │
--- │  Copy the entire  lua/explorer/  folder to:                     │
--- │    ~/.config/nvim/lua/explorer/                                 │
--- │  Then in init.lua:                                              │
--- │    require("explorer").setup()                                  │
--- │                                                                 │
--- │  BUFFERLINE OFFSET (add to bufferline.setup options):           │
--- │    offsets = {{ filetype="explorer", text="Explorer",           │
--- │                 separator=true }}                               │
--- └─────────────────────────────────────────────────────────────────┘
+-- custom/explorer/init.lua
+-- Usage: require("custom.explorer").setup()
 
 local S = require 'custom.explorer.state'
 local cfg = require 'custom.explorer.config'
@@ -24,10 +12,10 @@ local icons = require 'custom.explorer.icons'
 
 local api = vim.api
 local fn = vim.fn
-
 local M = {}
 
 -- ── File watcher ──────────────────────────────────────────────────────────
+-- Debounce set to 500ms to prevent visual flicker from rapid file-system events.
 
 local _watcher, _debounce
 
@@ -46,19 +34,26 @@ local function watch_start()
   if not w then
     return
   end
-  local ok = w:start(S.root, { recursive = true }, function(err)
-    if err then
-      return
-    end
-    if _debounce then
-      _debounce:stop()
-    end
-    _debounce = vim.defer_fn(function()
-      _debounce = nil
-      render.render()
-      git.fetch()
-    end, 250)
-  end)
+  local ok = w:start(
+    S.root,
+    { recursive = true },
+    vim.schedule_wrap(function(err)
+      if err then
+        return
+      end
+      if S.search_active then
+        return
+      end -- don't interrupt while user is typing
+      if _debounce then
+        _debounce:stop()
+      end
+      _debounce = vim.defer_fn(function()
+        _debounce = nil
+        render.render()
+        git.fetch()
+      end, 500) -- 500ms — was 250ms; the higher value prevents flicker
+    end)
+  )
   if ok == 0 or ok == nil then
     _watcher = w
   else
@@ -86,8 +81,8 @@ local function watch_stop()
   end
 end
 
--- ── Reveal ────────────────────────────────────────────────────────────────
--- Opens all ancestor directories of `path` and moves the cursor to it.
+-- ── reveal ────────────────────────────────────────────────────────────────
+-- S.items[i] → line i+1.  Cursor row = i+1.
 
 function M.reveal(path)
   if not path or path == '' then
@@ -97,17 +92,20 @@ function M.reveal(path)
   if not vim.startswith(path, S.root) then
     return
   end
+  if S.search_active then
+    return
+  end -- don't disrupt active search
 
-  -- Short-circuit: already on this path
   if S.win and api.nvim_win_is_valid(S.win) then
     local row = api.nvim_win_get_cursor(S.win)[1]
-    local cur = S.items[row]
-    if cur and cur.path == path then
-      return
+    if row >= 2 then
+      local cur = S.items[row - 1]
+      if cur and cur.path == path then
+        return
+      end -- already there
     end
   end
 
-  -- Expand ancestors
   local rel = path:sub(#S.root + 2)
   local parts = vim.split(rel, '/', { plain = true })
   local acc = S.root
@@ -116,31 +114,37 @@ function M.reveal(path)
     S.open_dirs[acc] = true
   end
 
-  -- Rebuild with no filter so the file is guaranteed to be in the list
   S.build_tok = S.build_tok + 1
   local tok = S.build_tok
-  local c = cfg.get()
-  tree.build(tok, S.filter, function(items)
-    S.items = items
-    render._paint()
-    git.apply()
-    vim.schedule(function()
-      for i, it in ipairs(S.items) do
-        if it.path == path then
-          -- +1: header occupies buffer line 1; items start at line 2
-          pcall(api.nvim_win_set_cursor, S.win, { i + 1, 0 })
+  tree.build(
+    tok,
+    S.filter,
+    vim.schedule_wrap(function(items)
+      if S.build_tok ~= tok then
+        return
+      end
+      S.items = items
+      render._paint()
+      git.apply()
+      vim.schedule(function()
+        if not (S.win and api.nvim_win_is_valid(S.win)) then
           return
         end
-      end
+        for i, it in ipairs(S.items) do
+          if it.path == path then
+            pcall(api.nvim_win_set_cursor, S.win, { i + 1, 0 }) -- line i+1
+            return
+          end
+        end
+      end)
     end)
-  end)
+  )
 end
 
--- ── Open ──────────────────────────────────────────────────────────────────
+-- ── open ─────────────────────────────────────────────────────────────────
 
 function M.open(opts)
   opts = opts or {}
-  local c = cfg.get()
   local cw = api.nvim_get_current_win()
   if cw ~= S.win then
     S.prev_win = cw
@@ -148,15 +152,14 @@ function M.open(opts)
 
   S.root = tree.norm(fn.fnamemodify(opts.root or fn.getcwd(), ':p'))
 
-  -- Buffer (created once per session)
   if not (S.buf and api.nvim_buf_is_valid(S.buf)) then
     S.buf = win.make_buf()
     win.setup_keymaps(S.buf)
+    search.setup(S.buf) -- attach inline search autocmds + keymaps
   end
 
   S.icon_fn = icons.resolve()
 
-  -- Window
   if not (S.win and api.nvim_win_is_valid(S.win)) then
     S.win = win.make_win(S.buf)
   end
@@ -165,34 +168,30 @@ function M.open(opts)
   git.fetch()
   watch_start()
 
-  if c.follow_file then
-    local src = (cw == S.win) and 0 or api.nvim_win_get_buf(cw)
-    local path = api.nvim_buf_get_name(src)
-    if path and path ~= '' then
-      M.reveal(path)
-    end
+  local src = (cw == S.win) and 0 or api.nvim_win_get_buf(cw)
+  local path = fn.fnamemodify(api.nvim_buf_get_name(src), ':p')
+  if path and path ~= '' and path ~= '/' then
+    M.reveal(path)
   end
 
   api.nvim_set_current_win(S.win)
 end
 
--- ── Close ─────────────────────────────────────────────────────────────────
+-- ── close ────────────────────────────────────────────────────────────────
 
 function M.close()
   search.close()
   watch_stop()
   if S.win and api.nvim_win_is_valid(S.win) then
     local w = S.win
-    S.win = nil -- nil BEFORE close to prevent WinClosed re-entrance
+    S.win = nil
     pcall(api.nvim_win_close, w, true)
   else
     S.win = nil
   end
 end
 
--- ── Toggle ────────────────────────────────────────────────────────────────
--- One press always toggles visibility (not focus). Use reveal (<leader>E)
--- to move focus into the explorer without closing it.
+-- ── toggle ───────────────────────────────────────────────────────────────
 
 function M.toggle(opts)
   if S.win and api.nvim_win_is_valid(S.win) then
@@ -202,18 +201,14 @@ function M.toggle(opts)
   end
 end
 
--- ── Setup ─────────────────────────────────────────────────────────────────
+-- ── setup ────────────────────────────────────────────────────────────────
 
 function M.setup(opts)
   cfg.current = vim.tbl_deep_extend('force', cfg.defaults, opts or {})
   local c = cfg.current
   local km = c.keymaps
-
-  -- Store close function in state so win.lua can call it without a hard
-  -- require("explorer") that would fail if the module lives at a different path.
   S.close_fn = M.close
 
-  -- Commands
   api.nvim_create_user_command('Explorer', function(a)
     M.toggle { root = a.args ~= '' and a.args or nil }
   end, { nargs = '?', complete = 'dir', desc = 'Toggle file explorer' })
@@ -225,7 +220,6 @@ function M.setup(opts)
     M.reveal(api.nvim_buf_get_name(0))
   end, { desc = 'Reveal current file in explorer' })
 
-  -- Global keymaps
   if km.toggle and km.toggle ~= '' then
     vim.keymap.set('n', km.toggle, M.toggle, { silent = true, desc = 'Toggle explorer' })
   end
@@ -241,20 +235,24 @@ function M.setup(opts)
     end, { silent = true, desc = 'Reveal file in explorer' })
   end
 
-  -- Re-derive highlights on colorscheme change
   api.nvim_create_autocmd('ColorScheme', {
     desc = 'explorer: refresh highlights',
     callback = function()
       win.reset_hl()
       win.ensure_hl()
       S.icon_fn = icons.resolve()
+      if S.buf and api.nvim_buf_is_valid(S.buf) then
+        render._paint()
+        git.apply()
+      end
     end,
   })
 
-  -- BufEnter follow
+  -- follow_file: debounced so rapid buffer switches don't cause flicker
   if c.follow_file then
+    local _follow_timer = nil
     api.nvim_create_autocmd('BufEnter', {
-      desc = 'explorer: reveal active buffer',
+      desc = 'explorer: follow active buffer',
       callback = function()
         if not (S.win and api.nvim_win_is_valid(S.win)) then
           return
@@ -265,15 +263,24 @@ function M.setup(opts)
         if vim.bo.buftype ~= '' then
           return
         end
-        local path = api.nvim_buf_get_name(0)
-        if path ~= '' then
-          M.reveal(path)
+        if S.search_active then
+          return
         end
+        local path = api.nvim_buf_get_name(0)
+        if path == '' then
+          return
+        end
+        if _follow_timer then
+          _follow_timer:stop()
+        end
+        _follow_timer = vim.defer_fn(function()
+          _follow_timer = nil
+          M.reveal(path)
+        end, 150) -- 150ms debounce — prevents flicker on quick buffer switches
       end,
     })
   end
 
-  -- WinClosed: clean up, quit if explorer is last window
   api.nvim_create_autocmd('WinClosed', {
     desc = 'explorer: cleanup on close',
     callback = function(ev)
@@ -283,22 +290,20 @@ function M.setup(opts)
         watch_stop()
         search.close()
       end
-      -- Quit Neovim if the only remaining non-float window is the explorer
       vim.schedule(function()
-        local normal = vim.tbl_filter(function(w)
+        local wins = vim.tbl_filter(function(w)
           return api.nvim_win_is_valid(w) and api.nvim_win_get_config(w).relative == ''
         end, api.nvim_list_wins())
-        if #normal == 1 and S.win and api.nvim_win_is_valid(S.win) and normal[1] == S.win then
+        if #wins == 1 and S.win and api.nvim_win_is_valid(S.win) and wins[1] == S.win then
           vim.cmd 'quit'
         end
       end)
     end,
   })
 
-  -- Enforce buffer options
   api.nvim_create_autocmd('FileType', {
     pattern = 'explorer',
-    desc = 'explorer: enforce nolist etc.',
+    desc = 'explorer: enforce buffer options',
     callback = function(ev)
       vim.bo[ev.buf].buflisted = false
     end,

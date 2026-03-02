@@ -1,6 +1,7 @@
--- explorer/actions.lua
--- All user-facing actions. Each function is self-contained and safe to
--- call from keymaps or external scripts.
+-- custom/explorer/actions.lua
+-- Buffer layout: line 1 = search bar, lines 2+ = items.
+-- S.items[i] → line i+1 (1-based).
+-- current_item() → S.items[cursor_row - 1]
 
 local S = require 'custom.explorer.state'
 local cfg = require 'custom.explorer.config'
@@ -8,40 +9,32 @@ local tree = require 'custom.explorer.tree'
 local render = require 'custom.explorer.render'
 local git = require 'custom.explorer.git'
 local marks = require 'custom.explorer.marks'
-local search = require 'custom.explorer.search'
 
 local api = vim.api
 local fn = vim.fn
 
 local A = {}
 
--- ── Cursor helpers ────────────────────────────────────────────────────────
-
 function A.current_item()
   if not (S.win and api.nvim_win_is_valid(S.win)) then
     return nil
   end
   local row = api.nvim_win_get_cursor(S.win)[1] -- 1-based
-  -- Line 1 = search area, Line 2 = padding; items start at line 3 → index row-2
-  if row < 3 then
+  if row < 2 then
     return nil
   end
-  return S.items[row - 2]
+  return S.items[row - 1]
 end
 
--- Find and jump cursor to item with the given path
 function A.jump_to(path)
   for i, it in ipairs(S.items) do
     if it.path == path then
-      -- +2: search=line1, padding=line2, item[1]=line3, …
-      pcall(api.nvim_win_set_cursor, S.win, { i + 2, 0 })
+      pcall(api.nvim_win_set_cursor, S.win, { i + 1, 0 }) -- line i+1
       return true
     end
   end
   return false
 end
-
--- ── Target window for file opening ───────────────────────────────────────
 
 local function target_win()
   local function usable(w)
@@ -66,13 +59,10 @@ local function open_in(path, cmd)
   if tw then
     api.nvim_set_current_win(tw)
   else
-    local side = cfg.get().side == 'right' and 'aboveleft' or 'belowright'
-    vim.cmd(side .. ' vsplit')
+    vim.cmd((cfg.get().side == 'right' and 'aboveleft' or 'belowright') .. ' vsplit')
   end
   vim.cmd(cmd .. ' ' .. fn.fnameescape(path))
 end
-
--- ── Tree navigation ───────────────────────────────────────────────────────
 
 function A.open_or_toggle()
   local item = A.current_item()
@@ -118,9 +108,10 @@ function A.go_up()
   end
   local old = S.root
   S.root = up
-  S.open_dirs[old] = true -- keep old root expanded
+  S.open_dirs[old] = true
   render.render()
   git.fetch()
+  require('custom.explorer.win').update_winbar()
   vim.schedule(function()
     A.jump_to(old)
   end)
@@ -131,14 +122,12 @@ function A.collapse_all()
   render.render()
 end
 
--- Expand all dirs to depth `max_depth` (default 1 = top-level only)
 function A.expand_all(max_depth)
   max_depth = max_depth or 1
   local function expand(path, depth)
     if depth > max_depth then
       return
     end
-    -- Scan synchronously (one level at a time — safe for small trees)
     local uv = vim.uv or vim.loop
     local handle = uv.fs_scandir(path)
     if not handle then
@@ -180,8 +169,6 @@ function A.tab_open()
   end
 end
 
--- ── File operations ───────────────────────────────────────────────────────
-
 function A.add()
   local item = A.current_item()
   local dir = item and (item.is_dir and item.path or tree.parent(item.path)) or S.root
@@ -203,15 +190,27 @@ function A.add()
   end)
 end
 
--- delete() operates on marks if any, otherwise current item
 function A.delete()
   local item = A.current_item()
-  local paths = marks.selection(item)
+  local mc = marks.count()
+
+  -- marks.selection() skips directories as a fallback, so when no marks are
+  -- set we build the path list ourselves — this lets folders be deleted too.
+  local paths
+  if mc > 0 then
+    paths = vim.tbl_keys(require('custom.explorer.state').marks)
+  elseif item then
+    paths = { item.path }
+  else
+    return
+  end
   if #paths == 0 then
     return
   end
-  local mc = marks.count()
-  local prompt = mc > 0 and ('Delete ' .. mc .. ' marked files? (y/N): ') or ('Delete ' .. fn.fnamemodify(paths[1], ':t') .. '? (y/N): ')
+
+  local label = mc > 0 and (mc .. ' marked item' .. (mc == 1 and '' or 's')) or fn.fnamemodify(paths[1], ':t') .. (item and item.is_dir and '/' or '')
+  local prompt = 'Delete ' .. label .. '? (y/N): '
+
   vim.ui.input({ prompt = prompt }, function(ans)
     if not (ans and ans:lower() == 'y') then
       return
@@ -219,7 +218,11 @@ function A.delete()
     for _, p in ipairs(paths) do
       local stat = (vim.uv or vim.loop).fs_stat(p)
       if stat then
-        fn.delete(p, stat.type == 'directory' and 'rf' or '')
+        local flags = stat.type == 'directory' and 'rf' or ''
+        local ok = fn.delete(p, flags)
+        if ok ~= 0 then
+          vim.notify('[explorer] failed to delete: ' .. p, vim.log.levels.ERROR)
+        end
       end
     end
     marks.clear()
@@ -239,20 +242,22 @@ function A.rename()
     dest = tree.norm(dest)
     fn.mkdir(tree.parent(dest), 'p')
     fn.rename(item.path, dest)
-    -- Notify LSP clients (zero-dep)
     for _, client in ipairs(vim.lsp.get_clients()) do
       local caps = ((client.server_capabilities.workspace or {}).fileOperations or {})
       if caps.didRename then
-        client.notify('workspace/didRenameFiles', {
-          files = { { oldUri = vim.uri_from_fname(item.path), newUri = vim.uri_from_fname(dest) } },
-        })
+        client.notify(
+          'workspace/didRenameFiles',
+          { files = { {
+            oldUri = vim.uri_from_fname(item.path),
+            newUri = vim.uri_from_fname(dest),
+          } } }
+        )
       end
     end
     A.refresh()
   end)
 end
 
--- copy() operates on marks if any, otherwise current item
 function A.copy()
   local item = A.current_item()
   local paths = marks.selection(item)
@@ -279,7 +284,6 @@ function A.copy()
       end)
     end)
   else
-    -- Multi-copy: ask for target directory
     vim.ui.input({ prompt = 'Copy ' .. #paths .. ' files to dir: ' }, function(dest)
       if not dest or dest == '' then
         return
@@ -290,7 +294,7 @@ function A.copy()
       for _, p in ipairs(paths) do
         cmds[#cmds + 1] = { 'cp', '-r', p, dest }
       end
-      local function run_next(i)
+      local function run(i)
         if i > #cmds then
           marks.clear()
           A.refresh()
@@ -298,16 +302,14 @@ function A.copy()
         end
         vim.system(cmds[i], {}, function()
           vim.schedule(function()
-            run_next(i + 1)
+            run(i + 1)
           end)
         end)
       end
-      run_next(1)
+      run(1)
     end)
   end
 end
-
--- ── Mark / multi-select ───────────────────────────────────────────────────
 
 function A.toggle_mark()
   local item = A.current_item()
@@ -315,20 +317,18 @@ function A.toggle_mark()
     return
   end
   marks.toggle(item)
-  -- Move cursor down automatically (ergonomic for batch marking)
-  -- Advance cursor down one item (ergonomic for batch marking)
   local row = api.nvim_win_get_cursor(S.win)[1]
-  local max_row = #S.items + 2 -- items start at line 3, so last item = #items + 2
-  pcall(api.nvim_win_set_cursor, S.win, { math.min(row + 1, max_row), 0 })
+  local max = #S.items + 1 -- last item is at line #items+1
+  if max >= 2 then
+    pcall(api.nvim_win_set_cursor, S.win, { math.min(row + 1, max), 0 })
+  end
 end
 
 function A.clear_filter()
   require('custom.explorer.search').clear()
 end
 
--- ── Git actions ───────────────────────────────────────────────────────────
-
-local function git_op(item, args_fn, done_msg)
+local function git_op(item, args_fn, msg)
   local paths = marks.selection(item)
   if #paths == 0 then
     return
@@ -338,54 +338,48 @@ local function git_op(item, args_fn, done_msg)
       if out.code ~= 0 then
         vim.notify('[explorer] git error:\n' .. (out.stderr or ''), vim.log.levels.ERROR)
       else
-        if done_msg then
-          vim.notify('[explorer] ' .. done_msg, vim.log.levels.INFO)
+        if msg then
+          vim.notify('[explorer] ' .. msg, vim.log.levels.INFO)
         end
         marks.clear()
-        git.fetch() -- re-fetch status; apply() will repaint extmarks
+        git.fetch()
       end
     end)
   end)
 end
 
 function A.git_stage()
-  local item = A.current_item()
-  git_op(item, function(paths)
-    return vim.list_extend({ 'add', '--' }, paths)
+  git_op(A.current_item(), function(p)
+    return vim.list_extend({ 'add', '--' }, p)
   end, 'staged')
 end
-
 function A.git_restore()
   local item = A.current_item()
-  vim.ui.input({ prompt = 'git restore ' .. ((item and item.name) or '') .. ': restore staged? (y/N): ' }, function(ans)
+  vim.ui.input({ prompt = 'git restore: restore staged? (y/N): ' }, function(ans)
     local staged = ans and ans:lower() == 'y'
-    git_op(item, function(paths)
-      local args = { 'restore' }
+    git_op(item, function(p)
+      local a = { 'restore' }
       if staged then
-        args[#args + 1] = '--staged'
+        a[#a + 1] = '--staged'
       end
-      return vim.list_extend(args, { '--' }, paths)
+      return vim.list_extend(a, { '--' }, p)
     end, 'restored')
   end)
 end
-
--- ── Info popup ────────────────────────────────────────────────────────────
 
 function A.file_info()
   local item = A.current_item()
   if not item then
     return
   end
-
   local uv = vim.uv or vim.loop
   local stat = uv.fs_stat(item.path)
   local ls = uv.fs_lstat(item.path)
   if not stat then
-    vim.notify('[explorer] stat failed for ' .. item.path, vim.log.levels.WARN)
+    vim.notify('[explorer] stat failed: ' .. item.path, vim.log.levels.WARN)
     return
   end
 
-  -- Format file size
   local function fmt_size(n)
     if n < 1024 then
       return n .. ' B'
@@ -397,13 +391,9 @@ function A.file_info()
       return string.format('%.1f GiB', n / 1024 ^ 3)
     end
   end
-
-  -- Format timestamp
-  local function fmt_time(sec)
-    return sec and os.date('%Y-%m-%d  %H:%M:%S', sec) or '—'
+  local function fmt_time(s)
+    return s and os.date('%Y-%m-%d  %H:%M:%S', s) or '—'
   end
-
-  -- Permissions (Unix octal → rwxrwxrwx)
   local function fmt_perm(mode)
     if not mode then
       return '—'
@@ -416,75 +406,53 @@ function A.file_info()
     return string.format('%o  (%s)', bit.band(mode, 0x1ff), s)
   end
 
-  local lines = {
-    '  ' .. fn.fnamemodify(item.path, ':~'),
-    '  ' .. string.rep('─', 42),
-  }
-  local function row(label, val)
-    lines[#lines + 1] = ('  %-14s  %s'):format(label, tostring(val))
+  local lines = { '  ' .. fn.fnamemodify(item.path, ':~'), '  ' .. string.rep('─', 42) }
+  local function row(l, v)
+    lines[#lines + 1] = ('  %-14s  %s'):format(l, tostring(v))
   end
-
   row('Type', stat.type .. (ls and ls.type == 'link' and '  (symlink)' or ''))
   row('Size', item.is_dir and '—' or fmt_size(stat.size))
   row('Modified', fmt_time(stat.mtime and stat.mtime.sec))
   row('Created', fmt_time(stat.birthtime and stat.birthtime.sec))
   row('Accessed', fmt_time(stat.atime and stat.atime.sec))
-  if vim.fn.has 'win32' == 0 then
+  if fn.has 'win32' == 0 then
     row('Permissions', fmt_perm(stat.mode))
     row('Owner UID', stat.uid)
     row('Group GID', stat.gid)
     row('Hard links', stat.nlink)
   end
-  -- Symlink target
   if ls and ls.type == 'link' then
-    local target = uv.fs_readlink(item.path)
-    row('→ target', target or '?')
+    row('→ target', uv.fs_readlink(item.path) or '?')
   end
-  -- Git status
   local ch = S.git[item.path]
   if ch then
-    local labels = {
-      M = 'Modified',
-      A = 'Added (staged)',
-      D = 'Deleted',
-      R = 'Renamed',
-      ['?'] = 'Untracked',
-      U = 'Conflict',
-      I = 'Ignored',
-    }
-    row('Git status', labels[ch] or ch)
+    local lbl = { M = 'Modified', A = 'Added (staged)', D = 'Deleted', R = 'Renamed', ['?'] = 'Untracked', U = 'Conflict', I = 'Ignored' }
+    row('Git status', lbl[ch] or ch)
   end
-
   lines[#lines + 1] = ''
   lines[#lines + 1] = '  q / <Esc> / <CR> to close'
 
   local buf = api.nvim_create_buf(false, true)
   api.nvim_buf_set_lines(buf, 0, -1, false, lines)
   vim.bo[buf].modifiable = false
-
-  -- Make the title just the filename
-  local title = ' ' .. fn.fnamemodify(item.path, ':t') .. ' '
   local w = math.max(50, math.min(70, vim.o.columns - 10))
   local h = #lines
-  local info_win = api.nvim_open_win(buf, true, {
+  local iw = api.nvim_open_win(buf, true, {
     relative = 'editor',
     style = 'minimal',
     border = 'rounded',
-    title = title,
+    title = ' ' .. fn.fnamemodify(item.path, ':t') .. ' ',
     title_pos = 'center',
     width = w,
     height = h,
     row = math.floor((vim.o.lines - h) / 2),
     col = math.floor((vim.o.columns - w) / 2),
   })
-
-  -- Highlight the header
   local ns = api.nvim_create_namespace 'explorer_info'
   api.nvim_buf_add_highlight(buf, ns, 'Title', 0, 0, -1)
   api.nvim_buf_add_highlight(buf, ns, 'NonText', 1, 0, -1)
-
   local cls = function()
-    pcall(api.nvim_win_close, info_win, true)
+    pcall(api.nvim_win_close, iw, true)
   end
   for _, k in ipairs { 'q', '<Esc>', '<CR>' } do
     vim.keymap.set('n', k, cls, { buffer = buf, silent = true })
@@ -492,11 +460,8 @@ function A.file_info()
   api.nvim_create_autocmd('BufLeave', { buffer = buf, once = true, callback = cls })
 end
 
--- ── Misc ──────────────────────────────────────────────────────────────────
-
 function A.toggle_hidden()
-  local c = cfg.get()
-  c.show_hidden = not c.show_hidden
+  cfg.get().show_hidden = not cfg.get().show_hidden
   render.render()
 end
 
@@ -557,9 +522,10 @@ function A.show_help()
     { k(km.copy), 'copy    (respects marks)' },
     { '', '' },
     { '─── Search & marks ─────────────────────────────', '' },
-    { k(km.search), 'open live filter / search' },
-    { 'Esc (in search)', 'clear filter and close search bar' },
-    { k(km.mark), 'toggle mark on file (multi-select)' },
+    { k(km.search), 'type to filter files live' },
+    { '<CR> in search', 'confirm filter, keep active' },
+    { '<Esc> in search', 'clear filter' },
+    { k(km.mark), 'toggle mark on file' },
     { '', '' },
     { '─── Git ────────────────────────────────────────', '' },
     { k(km.git_stage), 'git add (stage)' },
@@ -573,42 +539,33 @@ function A.show_help()
     { k(km.quit), 'close explorer' },
     { k(km.help), 'this help' },
   }
-
   local lines = {}
   for _, r in ipairs(rows) do
-    if r[2] == '' then
-      lines[#lines + 1] = '  ' .. r[1]
-    else
-      lines[#lines + 1] = ('  %-16s  %s'):format(r[1], r[2])
-    end
+    lines[#lines + 1] = r[2] == '' and '  ' .. r[1] or ('  %-16s  %s'):format(r[1], r[2])
   end
   lines[#lines + 1] = ''
   lines[#lines + 1] = '  q / ? / <Esc> to close'
-
   local buf = api.nvim_create_buf(false, true)
   api.nvim_buf_set_lines(buf, 0, -1, false, lines)
   vim.bo[buf].modifiable = false
-  local w, h = 58, #lines
+  local w, h = 60, #lines
   local hw = api.nvim_open_win(buf, true, {
     relative = 'editor',
     style = 'minimal',
     border = 'rounded',
-    title = ' Explorer Help ',
+    title = ' 󰍉 Explorer Help ',
     title_pos = 'center',
     width = w,
     height = h,
     row = math.floor((vim.o.lines - h) / 2),
     col = math.floor((vim.o.columns - w) / 2),
   })
-
-  -- Dim section headers
   local ns = api.nvim_create_namespace 'explorer_help'
   for i, r in ipairs(rows) do
     if r[2] == '' and r[1] ~= '' then
       api.nvim_buf_add_highlight(buf, ns, 'Comment', i - 1, 0, -1)
     end
   end
-
   local cls = function()
     pcall(api.nvim_win_close, hw, true)
   end

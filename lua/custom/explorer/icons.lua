@@ -1,10 +1,8 @@
--- explorer/icons.lua
+-- custom/explorer/icons.lua
 
 local cfg = require 'custom.explorer.config'
 
 local M = {}
-
--- ── Built-in extension → Nerd Font v3 glyph ───────────────────────────────
 
 local EXT = {
   lua = '󰢱',
@@ -113,11 +111,9 @@ M.DIR_CLOSED = '󰉋'
 M.SYMLINK = '󰉒'
 M.FILE_DEF = '󰈙'
 
--- ── Provider implementations ─────────────────────────────────────────────
-
 local function builtin(path, is_dir)
   if is_dir then
-    return M.DIR_CLOSED, 'Directory'
+    return M.DIR_CLOSED, 'ExplorerDirectory'
   end
   local uv = vim.uv or vim.loop
   local ls = uv.fs_lstat(path)
@@ -148,7 +144,7 @@ end
 
 local function devicons(path, is_dir)
   if is_dir then
-    return M.DIR_CLOSED, 'Directory'
+    return M.DIR_CLOSED, 'ExplorerDirectory'
   end
   local dv = package.loaded['nvim-web-devicons']
   if dv then
@@ -159,8 +155,6 @@ local function devicons(path, is_dir)
   end
   return builtin(path, is_dir)
 end
-
--- ── Public resolver ───────────────────────────────────────────────────────
 
 function M.resolve()
   local style = cfg.get().icons.style
@@ -173,7 +167,6 @@ function M.resolve()
   if style == 'devicons' then
     return devicons
   end
-  -- "auto" or "builtin"
   if _G.MiniIcons then
     return mini
   end

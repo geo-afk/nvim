@@ -1,15 +1,13 @@
--- explorer/tree.lua
--- Serial depth-first async tree builder.
--- Children always appear directly below their parent (guaranteed DFS order).
+-- custom/explorer/tree.lua
+-- Serial depth-first async tree builder with live-filter support.
 
 local S = require 'custom.explorer.state'
 local cfg = require 'custom.explorer.config'
 
 local M = {}
-
 local uv = vim.uv or vim.loop
 
--- ── Path helpers ─────────────────────────────────────────────────────────
+-- ── Path helpers ──────────────────────────────────────────────────────────
 
 M.norm = function(p)
   return (p:gsub('//+', '/'):gsub('/$', ''))
@@ -21,13 +19,9 @@ M.parent = function(p)
   return p:match '^(.*)/[^/]+$' or '/'
 end
 
--- ── Directory scanning ────────────────────────────────────────────────────
--- Uses uv.fs_scandir() (non-blocking single syscall), iterates synchronously
--- inside the callback (fast, no event-loop blocking per entry).
+-- ── Directory scan ────────────────────────────────────────────────────────
 
 local function scan(path, show_hidden, cb)
-  -- vim.schedule_wrap ensures the callback runs in Neovim's main loop, not in
-  -- libuv's fast-event context where nvim_* API calls are forbidden.
   uv.fs_scandir(
     path,
     vim.schedule_wrap(function(err, handle)
@@ -64,26 +58,23 @@ local function scan(path, show_hidden, cb)
 end
 
 -- ── Filter helper ─────────────────────────────────────────────────────────
--- Returns true if any item in a flat list matches the filter.
--- Used by walk() to decide whether to include an item or its children.
 
 local function matches(name, filter)
   if not filter or filter == '' then
     return true
   end
-  -- Case-insensitive substring match (fast, good enough for file trees)
   return name:lower():find(filter:lower(), 1, true) ~= nil
 end
 
--- ── Serial DFS walk ───────────────────────────────────────────────────────
--- Each directory waits for its scan to complete before recursing into
--- open sub-directories, ensuring correct DFS order in `result`.
+-- ── DFS walk ─────────────────────────────────────────────────────────────
+-- Normal mode: only recurse into open dirs.
+-- Filter mode: recurse into ALL dirs; only show dirs with matching descendants.
 
 local function walk(path, depth, parents_last, tok, result, filter, on_done)
   vim.schedule(function()
     if S.build_tok ~= tok then
       return
-    end -- stale build, abandon
+    end
 
     scan(path, cfg.get().show_hidden, function(entries)
       if S.build_tok ~= tok then
@@ -103,33 +94,72 @@ local function walk(path, depth, parents_last, tok, result, filter, on_done)
         local e = entries[i]
         local is_last = (i == n)
         local is_open = S.open_dirs[e.path] == true
+        local filtering = filter and filter ~= ''
 
-        -- Filtering: include this item if its name matches,
-        -- or if it's a dir that might contain matches (we'll discover via recursion).
-        -- For simplicity we always include dirs when filtered (prune in render if empty).
-        local visible = (not filter or filter == '') or matches(e.name, filter) or e.type == 'directory'
-
-        if visible then
-          result[#result + 1] = {
-            path = e.path,
-            name = e.name,
-            depth = depth,
-            is_dir = (e.type == 'directory'),
-            is_open = is_open,
-            is_last = is_last,
-            parents_last = parents_last,
-          }
-        end
-
-        if e.type == 'directory' and is_open then
-          local pl = vim.list_extend({}, parents_last)
-          pl[#pl + 1] = is_last
-          walk(e.path, depth + 1, pl, tok, result, filter, function()
-            process(i + 1)
-          end)
+        if e.type == 'directory' then
+          if filtering then
+            -- Collect children first; only show dir if it yields matches
+            local sub = {}
+            local pl = vim.list_extend({}, parents_last)
+            pl[#pl + 1] = is_last
+            local dir_entry = {
+              path = e.path,
+              name = e.name,
+              depth = depth,
+              is_dir = true,
+              is_open = true,
+              is_last = is_last,
+              parents_last = parents_last,
+            }
+            walk(e.path, depth + 1, pl, tok, sub, filter, function()
+              if S.build_tok ~= tok then
+                return
+              end
+              if #sub > 0 or matches(e.name, filter) then
+                result[#result + 1] = dir_entry
+                for _, child in ipairs(sub) do
+                  result[#result + 1] = child
+                end
+              end
+              process(i + 1)
+            end)
+            return
+          else
+            -- Normal: include dir, recurse only if open
+            result[#result + 1] = {
+              path = e.path,
+              name = e.name,
+              depth = depth,
+              is_dir = true,
+              is_open = is_open,
+              is_last = is_last,
+              parents_last = parents_last,
+            }
+            if is_open then
+              local pl = vim.list_extend({}, parents_last)
+              pl[#pl + 1] = is_last
+              walk(e.path, depth + 1, pl, tok, result, filter, function()
+                process(i + 1)
+              end)
+              return
+            end
+          end
         else
-          process(i + 1)
+          -- File: show if no filter or name matches
+          if not filtering or matches(e.name, filter) then
+            result[#result + 1] = {
+              path = e.path,
+              name = e.name,
+              depth = depth,
+              is_dir = false,
+              is_open = false,
+              is_last = is_last,
+              parents_last = parents_last,
+            }
+          end
         end
+
+        process(i + 1)
       end
 
       process(1)
@@ -137,10 +167,7 @@ local function walk(path, depth, parents_last, tok, result, filter, on_done)
   end)
 end
 
--- ── Public: build_tree ─────────────────────────────────────────────────────
--- build_tree(token, filter, done)
--- Rebuilds S.items asynchronously. If S.build_tok changes before completion,
--- the build is silently abandoned.
+-- ── Public ────────────────────────────────────────────────────────────────
 
 function M.build(tok, filter, done)
   local result = {}

@@ -210,7 +210,7 @@ function M.render(winid, bufnr)
   end
   if not compact then
     if d.h > 0 then
-      parts[#parts + 1] = hl 'StatusLineDiagHint' .. '󰌵' .. d.h .. hl 'StatusLine'
+      parts[#parts + 1] = hl 'StatusLineDiagHint' .. '󰌵 ' .. d.h .. hl 'StatusLine'
     end
     if d.i > 0 then
       parts[#parts + 1] = hl 'StatusLineDiagInfo' .. ' ' .. d.i .. hl 'StatusLine'

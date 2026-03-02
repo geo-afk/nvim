@@ -1,5 +1,8 @@
--- explorer/win.lua
--- Window/buffer creation, highlight groups, buffer keymaps.
+-- custom/explorer/win.lua
+-- Window creation, highlight groups, keymaps.
+-- NO dynamic winbar expression — that caused constant redraws/blinking.
+-- The search bar lives in a floating window (see search.lua), not the winbar
+-- or a buffer line.  Line 1 of the tree buffer is a read-only status strip.
 
 local S = require 'custom.explorer.state'
 local cfg = require 'custom.explorer.config'
@@ -10,58 +13,112 @@ local api = vim.api
 
 local M = {}
 
--------------------------------------------------------------------------------
--- Highlight groups
--------------------------------------------------------------------------------
+-- ── Sakura fallback palette ───────────────────────────────────────────────
+local PAL = {
+  sakura = 0xffb3c6,
+  lilac = 0xc3aed6,
+  sky = 0x8bc6fc,
+  mint = 0xa8e6cf,
+  peach = 0xffcb8e,
+  rose = 0xff6b9d,
+  mist = 0x7a8899,
+  deep = 0x1e2030,
+}
+
+-- ── Helpers ───────────────────────────────────────────────────────────────
+
+local function get(name)
+  local ok, h = pcall(api.nvim_get_hl, 0, { name = name, link = false })
+  return ok and h or {}
+end
+
+local function def(name, opts)
+  pcall(api.nvim_set_hl, 0, name, opts)
+end
+
+local function fg_of(...)
+  for _, n in ipairs { ... } do
+    local h = get(n)
+    if h.fg then
+      return h.fg
+    end
+  end
+end
+
+local function bg_of(...)
+  for _, n in ipairs { ... } do
+    local h = get(n)
+    if h.bg then
+      return h.bg
+    end
+  end
+end
+
+-- Blend two hex colours at ratio a (0 = all bg, 1 = all fg)
+local function blend(fg, bg, a)
+  local function lerp(f, b)
+    return math.floor(f * a + b * (1 - a) + 0.5)
+  end
+  local function ch(c, shift)
+    return math.floor(c / shift) % 0x100
+  end
+  return lerp(ch(fg, 0x10000), ch(bg, 0x10000)) * 0x10000 + lerp(ch(fg, 0x100), ch(bg, 0x100)) * 0x100 + lerp(ch(fg, 1), ch(bg, 1))
+end
+
+-- ── Highlights ────────────────────────────────────────────────────────────
+
 function M.ensure_hl()
-  -- Guard: if already defined, skip (reset by M.reset_hl on ColorScheme)
   local ok, ex = pcall(api.nvim_get_hl, 0, { name = 'ExplorerNormal' })
   if ok and ex and next(ex) then
     return
-  end
-
-  local function get(n)
-    local h = api.nvim_get_hl(0, { name = n, link = false })
-    return h or {}
-  end
-  local function def(n, o)
-    pcall(api.nvim_set_hl, 0, n, o)
   end
 
   local normal = get 'Normal'
   local float_ = get 'NormalFloat'
   local cursor = get 'CursorLine'
   local comment = get 'Comment'
-  local pmenu = get 'Pmenu'
 
-  local sidebar_bg = float_.bg or normal.bg
-  local bar_bg = pmenu.bg or float_.bg or normal.bg
-  local dim_fg = comment.fg or 0x565f89
+  local sidebar_bg = float_.bg or bg_of('NormalFloat', 'Normal') or PAL.deep
+  local dim_fg = comment.fg or PAL.mist
+  local accent = fg_of('Function', 'Special', 'Statement', '@function') or PAL.sakura
+  local dir_fg = fg_of('Directory', '@constructor') or PAL.lilac
+  local string_fg = fg_of('String', '@string') or PAL.mint
 
-  local function accent_fg()
-    for _, n in ipairs { 'Function', 'Special', 'Statement' } do
-      local h = get(n)
-      if h.fg then
-        return h.fg
-      end
-    end
-    return 0x7aa2f7
-  end
-  local accent = accent_fg()
-
-  -- ── Sidebar ───────────────────────────────────────────────────────────────
+  -- ── Core sidebar ──────────────────────────────────────────────────────
   def('ExplorerNormal', { bg = sidebar_bg, fg = normal.fg })
   def('ExplorerCursorLine', { bg = cursor.bg or 'NONE', bold = true })
+  def('ExplorerDirectory', { fg = dir_fg, bold = true })
+  def('ExplorerConnector', { fg = dim_fg })
 
-  -- ── Search bar ────────────────────────────────────────────────────────────
-  def('ExplorerSearchBar', { bg = bar_bg, fg = normal.fg })
-  def('ExplorerSearchIcon', { bg = bar_bg, fg = accent, bold = true })
-  def('ExplorerSearchPlaceholder', { bg = bar_bg, fg = dim_fg, italic = true })
+  -- ── Inline search bar (row 0) ─────────────────────────────────────────
+  --
+  --   Idle    [bg]  󰍉  filter files…        dim icon, italic placeholder
+  --           ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌   dim dashed separator
+  --
+  --   Active  [bg]  󰍉  |cursor              accent icon + solid separator
+  --
+  --   Filter  [bg]  󰍉  lua                  accent icon, bold text, dim sep
 
-  -- ── Separator line (between search bar and tree) ──────────────────────────
-  def('ExplorerSeparator', { fg = dim_fg, bg = sidebar_bg })
+  -- Background: identical to sidebar so the bar blends in seamlessly
+  def('ExplorerSearchBg', { bg = sidebar_bg, fg = normal.fg })
 
-  -- ── Git + marks ───────────────────────────────────────────────────────────
+  -- Icon: dim when idle, accent when active or filter set
+  local icon_dim = blend(accent, dim_fg, 0.30)
+  def('ExplorerSearchIcon', { fg = icon_dim })
+  def('ExplorerSearchIconActive', { fg = accent, bold = true })
+
+  -- Separator line: dim dashed when idle, accent solid when active
+  def('ExplorerSearchBorder', { fg = blend(dim_fg, sidebar_bg, 0.60) })
+  def('ExplorerSearchBorderActive', { fg = accent })
+
+  -- Placeholder and active-filter text
+  def('ExplorerSearchPlaceholder', { fg = dim_fg, italic = true })
+  def('ExplorerSearchActiveText', { fg = string_fg, bold = true })
+
+  -- ── Winbar ────────────────────────────────────────────────────────────
+  def('ExplorerWinbar', { bg = sidebar_bg, fg = dim_fg, bold = false })
+
+  -- ── Git + marks ───────────────────────────────────────────────────────
   git.setup_hl()
   marks.setup_hl()
 end
@@ -70,10 +127,19 @@ function M.reset_hl()
   local names = {
     'ExplorerNormal',
     'ExplorerCursorLine',
-    'ExplorerSearchBar',
+    'ExplorerDirectory',
+    'ExplorerConnector',
+    -- Search box (inline, row 0)
+    'ExplorerSearchBg',
+    'ExplorerSearchBorder',
+    'ExplorerSearchBorderActive',
     'ExplorerSearchIcon',
+    'ExplorerSearchIconActive',
     'ExplorerSearchPlaceholder',
-    'ExplorerSeparator',
+    'ExplorerSearchActiveText',
+    -- Winbar
+    'ExplorerWinbar',
+    -- Git
     'ExplorerGitAdded',
     'ExplorerGitModified',
     'ExplorerGitDeleted',
@@ -88,6 +154,7 @@ function M.reset_hl()
     'ExplorerGitUntrackedLine',
     'ExplorerGitConflictLine',
     'ExplorerGitIgnoredLine',
+    -- Marks
     'ExplorerMark',
   }
   for _, name in ipairs(names) do
@@ -95,9 +162,8 @@ function M.reset_hl()
   end
 end
 
--------------------------------------------------------------------------------
--- Buffer
--------------------------------------------------------------------------------
+-- ── Buffer ────────────────────────────────────────────────────────────────
+
 function M.make_buf()
   local buf = api.nvim_create_buf(false, true)
   pcall(api.nvim_buf_set_name, buf, 'explorer://')
@@ -105,15 +171,20 @@ function M.make_buf()
   bo.buftype = 'nofile'
   bo.bufhidden = 'hide'
   bo.buflisted = false
-  bo.filetype = 'explorer' -- used by bufferline offsets
+  bo.filetype = 'explorer'
   bo.modifiable = false
   bo.swapfile = false
+  -- Kill all completion sources on the tree buffer too
+  bo.omnifunc = ''
+  bo.completefunc = ''
+  vim.b[buf].cmp_enabled = false
+  vim.b[buf].completion_enabled = false
+  vim.b[buf].completion = false
   return buf
 end
 
--------------------------------------------------------------------------------
--- Window
--------------------------------------------------------------------------------
+-- ── Window ────────────────────────────────────────────────────────────────
+
 function M.make_win(buf)
   M.ensure_hl()
   local c = cfg.get()
@@ -132,10 +203,13 @@ function M.make_win(buf)
   wo.list = false
   wo.cursorline = true
   wo.fillchars = 'eob: '
-  -- No winbar: the search float replaces it entirely.
-  -- Explicitly blank it so other plugins don't inject one.
+
+  -- Static winbar: just the folder icon + root name.
+  -- NO %{%v:lua...%} expression — that re-evaluates on every cursor move
+  -- and was the original cause of blinking/flicker.
   pcall(function()
-    wo.winbar = ''
+    local root = vim.fn.fnamemodify(S.root or vim.fn.getcwd(), ':t')
+    wo.winbar = '%#ExplorerWinbar#  󰉋  ' .. root .. ' '
   end)
   pcall(function()
     wo.statuscolumn = ''
@@ -143,15 +217,31 @@ function M.make_win(buf)
   pcall(function()
     wo.foldcolumn = '0'
   end)
-  wo.winhl = 'Normal:ExplorerNormal,CursorLine:ExplorerCursorLine'
+
+  wo.winhl = table.concat({
+    'Normal:ExplorerNormal',
+    'CursorLine:ExplorerCursorLine',
+    'WinBar:ExplorerWinbar',
+    'WinBarNC:ExplorerWinbar',
+  }, ',')
 
   S.icon_fn = icons.resolve()
   return win
 end
 
--------------------------------------------------------------------------------
--- Keymaps (set once on the tree buffer)
--------------------------------------------------------------------------------
+-- ── Update winbar root (called after root changes) ────────────────────────
+function M.update_winbar()
+  if not (S.win and api.nvim_win_is_valid(S.win)) then
+    return
+  end
+  local root = vim.fn.fnamemodify(S.root or vim.fn.getcwd(), ':t')
+  pcall(function()
+    vim.wo[S.win].winbar = '%#ExplorerWinbar#  󰉋  ' .. root .. ' '
+  end)
+end
+
+-- ── Keymaps ───────────────────────────────────────────────────────────────
+
 function M.setup_keymaps(buf)
   local km = cfg.get().keymaps
   local A = require 'custom.explorer.actions'
@@ -190,13 +280,9 @@ function M.setup_keymaps(buf)
   map(km.git_stage, A.git_stage)
   map(km.git_restore, A.git_restore)
   map(km.help, A.show_help)
-
-  -- "/" activates the search bar
   map(km.search, function()
     require('custom.explorer.search').activate()
   end)
-
-  -- "q" closes via the injected close_fn (avoids hard require("explorer"))
   map(km.quit, function()
     if S.close_fn then
       S.close_fn()

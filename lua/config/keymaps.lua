@@ -82,4 +82,11 @@ vim.keymap.set({ 'i', 'n', 's' }, '<esc>', function()
   return '<esc>'
 end, { expr = true, desc = 'Escape and Clear hlsearch' })
 
-vim.keymap.set('n', '<leader>qq', '<cmd>qa<cr>', { desc = 'Quit All' })
+local viewer = require 'custom.diagnostics_viewer'
+
+-- Toggle diagnostics list
+vim.keymap.set('n', '<leader>xe', viewer.toggle, { desc = 'Toggle Diagnostics List' })
+
+-- Optionally re-open list manually
+vim.keymap.set('n', '<leader>xo', viewer.open, { desc = 'Open Diagnostics List' })
+vim.keymap.set('n', '<leader>xc', viewer.close, { desc = 'Close Diagnostics List' })

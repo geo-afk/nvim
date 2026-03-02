@@ -1,270 +1,279 @@
--- explorer/search.lua
+-- custom/explorer/search.lua
 --
--- Permanent always-visible search bar — a 1-line floating window anchored
--- at the very top of the explorer sidebar.
+-- The search bar IS buffer line 1 — always visible, no floating windows.
 --
--- Visual anatomy (what the user sees):
+-- Line 0 in the buffer always contains:  ICON_PREFIX .. (filter_text or '')
+-- The icon is painted as an extmark OVERLAY on top of ICON_PREFIX, so it
+-- is always anchored to the left and the cursor can never move into it.
 --
---   ┌────────────────────────────────┐  ← search float (height=1)
---   │  󰔎  Search...                 │     inactive: dim placeholder
---   │  󰔎  foo█                      │     active:   icon + typed text
---   ├────────────────────────────────┤  ← separator (buffer line 2)
---   │  ├  󰢱  init.lua               │  ← tree items (buffer line 3+)
---   └────────────────────────────────┘
---
--- State machine:
---   tree normal  ──  /  ──►  search insert (activate)
---   search insert ─── <CR>  ──►  keep filter, return to tree
---   search insert ─── <Esc> ──►  clear filter, return to tree
---   search insert ─── InsertLeave (any) ──►  return to tree  (auto)
+-- Keymaps (insert mode, only while search_active):
+--   <CR>   confirm and exit insert (keeps filter)
+--   <Esc>  clear filter and exit insert
+--   <C-u>  wipe filter text, stay in insert
+--   <BS>   blocked when cursor is at or before the icon boundary
+--   completion keys -> all <Nop> to prevent popup bleed
 
 local S = require 'custom.explorer.state'
 local render = require 'custom.explorer.render'
+local tree = require 'custom.explorer.tree'
 local api = vim.api
 
+-- Mirror the constant from render so we don't hard-code 6 in two places.
+local ICON_PREFIX = render.ICON_PREFIX
+
 local M = {}
+local _rebuild_scheduled = false
 
-local NS = api.nvim_create_namespace 'explorer_search'
-local ICON_STR = '  󰔎  ' -- left pad + magnifier + right gap
-local HOLDER = 'Search...'
-
--------------------------------------------------------------------------------
--- Highlight setup
--------------------------------------------------------------------------------
-function M.setup_hl()
-  local function get(n)
-    local ok, h = pcall(api.nvim_get_hl, 0, { name = n, link = false })
-    return ok and h or {}
+-- Strip the fixed icon prefix from a raw line-0 string to get the filter text.
+local function strip_prefix(raw)
+  if raw:sub(1, #ICON_PREFIX) == ICON_PREFIX then
+    return raw:sub(#ICON_PREFIX + 1)
   end
-  local function def(n, o)
-    pcall(api.nvim_set_hl, 0, n, o)
-  end
-
-  local normal = get 'Normal'
-  local float_ = get 'NormalFloat'
-  local comment = get 'Comment'
-  local pmenu = get 'Pmenu'
-
-  local bar_bg = pmenu.bg or float_.bg or normal.bg
-  local accent = get('Function').fg or get('Special').fg or get('Statement').fg or 0x7aa2f7
-  local dim_fg = comment.fg or 0x565f89
-
-  def('ExplorerSearchBar', { bg = bar_bg, fg = normal.fg })
-  def('ExplorerSearchIcon', { bg = bar_bg, fg = accent, bold = true })
-  def('ExplorerSearchPlaceholder', { bg = bar_bg, fg = dim_fg, italic = true })
-  def('ExplorerSeparator', { fg = dim_fg, bg = get('ExplorerNormal').bg })
+  return raw
 end
 
--------------------------------------------------------------------------------
--- repaint_bar: refresh virt-text decorations (icon + optional placeholder)
--------------------------------------------------------------------------------
-local function repaint_bar()
-  local ibuf = S.search_buf
-  if not (ibuf and api.nvim_buf_is_valid(ibuf)) then
+local function rebuild_items()
+  if _rebuild_scheduled then
     return
   end
-  api.nvim_buf_clear_namespace(ibuf, NS, 0, -1)
+  _rebuild_scheduled = true
+  S.build_tok = S.build_tok + 1
+  local tok = S.build_tok
+  vim.schedule(function()
+    _rebuild_scheduled = false
+    if not (S.buf and api.nvim_buf_is_valid(S.buf)) then
+      return
+    end
+    tree.build(
+      tok,
+      S.filter,
+      vim.schedule_wrap(function(items)
+        if S.build_tok ~= tok then
+          return
+        end
+        S.items = items
+        render._paint_items_only()
+      end)
+    )
+  end)
+end
 
-  -- Icon: "inline" inserts before real text without consuming buffer bytes.
-  -- (Requires nvim ≥ 0.10; the user already uses vim.uv which implies 0.10+)
-  pcall(api.nvim_buf_set_extmark, ibuf, NS, 0, 0, {
-    virt_text = { { ICON_STR, 'ExplorerSearchIcon' } },
-    virt_text_pos = 'inline',
-    priority = 200,
-  })
+local function kill_completion(buf)
+  vim.b[buf].completion = false
+  vim.b[buf].blink_cmp_enabled = false
+  vim.b[buf].cmp_enabled = false
+  vim.b[buf].coq_settings = { completion = { enabled = false } }
+  vim.b[buf].completion_enabled = false
+  pcall(function()
+    vim.bo[buf].omnifunc = ''
+  end)
+  pcall(function()
+    vim.bo[buf].completefunc = ''
+  end)
+end
 
-  -- Placeholder: only when the line is empty
-  local line = api.nvim_buf_get_lines(ibuf, 0, 1, false)[1] or ''
-  if line == '' then
-    pcall(api.nvim_buf_set_extmark, ibuf, NS, 0, 0, {
-      virt_text = { { HOLDER, 'ExplorerSearchPlaceholder' } },
-      virt_text_pos = 'eol',
-      priority = 10,
-    })
+local function restore_completion(buf)
+  vim.b[buf].completion = nil
+  vim.b[buf].blink_cmp_enabled = nil
+  vim.b[buf].cmp_enabled = nil
+  vim.b[buf].coq_settings = nil
+  vim.b[buf].completion_enabled = nil
+  local ok, blink = pcall(require, 'blink.cmp')
+  if ok and type(blink.enable) == 'function' then
+    pcall(blink.enable, buf)
   end
 end
 
--------------------------------------------------------------------------------
--- ensure_bar: create the permanent floating bar (idempotent)
--- Called from init.open() whenever the explorer window is created.
--------------------------------------------------------------------------------
-function M.ensure_bar()
+function M.activate()
+  if not (S.buf and api.nvim_buf_is_valid(S.buf)) then
+    return
+  end
   if not (S.win and api.nvim_win_is_valid(S.win)) then
     return
   end
 
-  -- Already alive — just repaint decorations
-  if S.search_win and api.nvim_win_is_valid(S.search_win) then
-    repaint_bar()
+  if S.search_active then
+    local col = #ICON_PREFIX + #(S.filter or '')
+    api.nvim_win_set_cursor(S.win, { 1, col })
+    vim.cmd 'startinsert!'
     return
   end
 
-  -- 1. Create a writable scratch buffer (holds search text only, not the icon)
-  local ibuf = api.nvim_create_buf(false, true)
-  vim.bo[ibuf].buftype = 'nofile'
-  vim.bo[ibuf].buflisted = false
-  vim.bo[ibuf].filetype = 'explorer_search'
-  vim.bo[ibuf].modifiable = true
-  vim.bo[ibuf].swapfile = false
+  S.search_active = true
+  kill_completion(S.buf)
 
-  -- Restore any surviving filter from a previous open
-  if S.filter and S.filter ~= '' then
-    api.nvim_buf_set_lines(ibuf, 0, -1, false, { S.filter })
+  local filter_text = S.filter or ''
+  local line_text = ICON_PREFIX .. filter_text
+
+  api.nvim_buf_set_option(S.buf, 'modifiable', true)
+  api.nvim_buf_set_lines(S.buf, 0, 1, false, { line_text })
+
+  render.paint_header()
+
+  api.nvim_win_set_cursor(S.win, { 1, #line_text })
+  vim.cmd 'startinsert!'
+end
+
+local function deactivate(clear_filter)
+  if not S.search_active then
+    return
+  end
+  S.search_active = false
+
+  local raw = (S.buf and api.nvim_buf_is_valid(S.buf)) and (api.nvim_buf_get_lines(S.buf, 0, 1, false)[1] or '') or ''
+  local text = strip_prefix(raw)
+
+  S.filter = (not clear_filter and text ~= '') and text or nil
+
+  restore_completion(S.buf)
+
+  if S.buf and api.nvim_buf_is_valid(S.buf) then
+    api.nvim_buf_set_option(S.buf, 'modifiable', false)
   end
 
-  -- 2. Float: flush with top-left of the explorer, no border, no padding
-  local win_w = api.nvim_win_get_width(S.win)
-  local swin = api.nvim_open_win(ibuf, false, {
-    relative = 'win',
-    win = S.win,
-    row = 0,
-    col = 0,
-    width = win_w,
-    height = 1,
-    style = 'minimal',
-    focusable = true,
-    zindex = 50,
-  })
+  render.render()
 
-  vim.wo[swin].winhl = 'Normal:ExplorerSearchBar,CursorLine:ExplorerSearchBar,NormalFloat:ExplorerSearchBar'
-  pcall(function()
-    vim.wo[swin].winbar = ''
+  vim.schedule(function()
+    if not (S.win and api.nvim_win_is_valid(S.win)) then
+      return
+    end
+    if #S.items == 0 then
+      return
+    end
+    if api.nvim_win_get_cursor(S.win)[1] < 2 then
+      api.nvim_win_set_cursor(S.win, { 2, 0 })
+    end
   end)
-  pcall(function()
-    vim.wo[swin].statuscolumn = ''
-  end)
-  pcall(function()
-    vim.wo[swin].cursorline = false
-  end)
+end
 
-  S.search_win = swin
-  S.search_buf = ibuf
+function M.setup(buf)
+  local bopts = { buffer = buf, silent = true, noremap = true }
 
-  -- 3. Live filter: fires on every keystroke
-  api.nvim_create_autocmd({ 'TextChangedI', 'TextChanged' }, {
-    buffer = ibuf,
+  api.nvim_create_autocmd('CursorMoved', {
+    buffer = buf,
     callback = function()
-      local t = api.nvim_buf_get_lines(ibuf, 0, 1, false)[1] or ''
-      S.filter = t ~= '' and t or nil
-      repaint_bar()
-      render.render()
+      if S.search_active then
+        return
+      end
+      if not (S.win and api.nvim_win_is_valid(S.win)) then
+        return
+      end
+      if api.nvim_win_get_cursor(S.win)[1] == 1 then
+        pcall(api.nvim_win_set_cursor, S.win, { math.max(2, #S.items > 0 and 2 or 1), 0 })
+      end
     end,
   })
 
-  -- 4. Auto-return to tree when insert mode ends, whatever the cause.
-  --    vim.schedule delays one tick so keymap handlers (<CR>, <Esc>) run first.
-  api.nvim_create_autocmd('InsertLeave', {
-    buffer = ibuf,
-    callback = vim.schedule_wrap(function()
-      -- Only redirect if we're still sitting in the search float
-      if api.nvim_get_current_win() == swin and S.win and api.nvim_win_is_valid(S.win) then
-        api.nvim_set_current_win(S.win)
+  api.nvim_create_autocmd('TextChangedI', {
+    buffer = buf,
+    callback = function()
+      if not S.search_active then
+        return
       end
+      if api.nvim_win_get_cursor(S.win)[1] ~= 1 then
+        return
+      end
+      local raw = api.nvim_buf_get_lines(buf, 0, 1, false)[1] or ''
+      local t = strip_prefix(raw)
+      S.filter = t ~= '' and t or nil
+      rebuild_items()
+    end,
+  })
+
+  api.nvim_create_autocmd('InsertLeave', {
+    buffer = buf,
+    callback = vim.schedule_wrap(function()
+      if not S.search_active then
+        return
+      end
+      deactivate(S._search_clear_on_leave)
+      S._search_clear_on_leave = false
     end),
   })
 
-  -- 5. Keymaps
-  local bopts = { buffer = ibuf, silent = true, noremap = true }
+  for _, k in ipairs {
+    '<C-n>',
+    '<C-p>',
+    '<C-x><C-o>',
+    '<C-x><C-n>',
+    '<C-x><C-p>',
+    '<C-x><C-f>',
+    '<C-x><C-l>',
+    '<C-x><C-s>',
+    '<C-x><C-k>',
+    '<Tab>',
+    '<S-Tab>',
+    '<C-y>',
+    '<C-e>',
+  } do
+    vim.keymap.set('i', k, '<Nop>', bopts)
+  end
 
-  vim.keymap.set({ 'i', 'n' }, '<CR>', function()
-    -- Confirm: keep filter, leave insert → InsertLeave handles focus return
-    local t = api.nvim_buf_get_lines(ibuf, 0, 1, false)[1] or ''
-    S.filter = t ~= '' and t or nil
+  vim.keymap.set('i', '<CR>', function()
+    if not S.search_active then
+      return
+    end
+    S._search_clear_on_leave = false
     vim.cmd 'stopinsert'
   end, bopts)
 
-  vim.keymap.set({ 'i', 'n' }, '<Esc>', function()
-    -- Cancel: clear filter, leave insert → InsertLeave handles focus return
-    S.filter = nil
-    api.nvim_buf_set_lines(ibuf, 0, -1, false, { '' })
-    repaint_bar()
-    render.render()
+  vim.keymap.set('i', '<Esc>', function()
+    if not S.search_active then
+      return
+    end
+    S._search_clear_on_leave = true
     vim.cmd 'stopinsert'
   end, bopts)
 
   vim.keymap.set('i', '<C-u>', function()
-    -- Clear text but stay in insert mode
-    api.nvim_buf_set_lines(ibuf, 0, -1, false, { '' })
+    if not S.search_active then
+      return
+    end
+    api.nvim_buf_set_lines(buf, 0, 1, false, { ICON_PREFIX })
     S.filter = nil
-    repaint_bar()
-    render.render()
+    api.nvim_win_set_cursor(S.win, { 1, #ICON_PREFIX })
+    render.paint_header()
+    rebuild_items()
   end, bopts)
 
-  -- 6. State cleanup if float is closed externally (e.g. :bdelete)
-  api.nvim_create_autocmd('WinClosed', {
-    pattern = tostring(swin),
-    once = true,
-    callback = function()
-      if S.search_win == swin then
-        S.search_win = nil
-        S.search_buf = nil
-      end
-    end,
-  })
+  -- <BS>: block deletion into the icon prefix zone.
+  -- nvim_win_get_cursor col is 0-based; filter starts at byte #ICON_PREFIX.
+  vim.keymap.set('i', '<BS>', function()
+    if not S.search_active then
+      return '<BS>'
+    end
+    local col = api.nvim_win_get_cursor(S.win)[2]
+    if col <= #ICON_PREFIX then
+      return ''
+    end
+    return '<BS>'
+  end, { buffer = buf, silent = true, noremap = true, expr = true })
 
-  repaint_bar()
+  -- <Home>/<C-a>: jump to start of filter text, not col 0
+  local function to_filter_start()
+    if not S.search_active then
+      return
+    end
+    api.nvim_win_set_cursor(S.win, { 1, #ICON_PREFIX })
+  end
+  vim.keymap.set('i', '<Home>', to_filter_start, bopts)
+  vim.keymap.set('i', '<C-a>', to_filter_start, bopts)
 end
 
--------------------------------------------------------------------------------
--- activate: focus the bar and enter insert mode (called by "/" keymap)
--------------------------------------------------------------------------------
-function M.activate()
-  M.ensure_bar()
-  local swin = S.search_win
-  if not (swin and api.nvim_win_is_valid(swin)) then
-    return
-  end
-  api.nvim_set_current_win(swin)
-  local text = ''
-  if S.search_buf and api.nvim_buf_is_valid(S.search_buf) then
-    text = api.nvim_buf_get_lines(S.search_buf, 0, 1, false)[1] or ''
-  end
-  -- Put cursor after existing text (visual end = after icon + text)
-  pcall(api.nvim_win_set_cursor, swin, { 1, #text })
-  vim.cmd 'startinsert!'
-end
-
--------------------------------------------------------------------------------
--- resize: called when the explorer window is resized
--------------------------------------------------------------------------------
-function M.resize()
-  local swin = S.search_win
-  local ewin = S.win
-  if not (swin and api.nvim_win_is_valid(swin)) then
-    return
-  end
-  if not (ewin and api.nvim_win_is_valid(ewin)) then
-    return
-  end
-  pcall(api.nvim_win_set_config, swin, {
-    relative = 'win',
-    win = ewin,
-    width = api.nvim_win_get_width(ewin),
-    row = 0,
-    col = 0,
-  })
-end
-
--------------------------------------------------------------------------------
--- close / clear
--------------------------------------------------------------------------------
 function M.close()
-  if S.search_win and api.nvim_win_is_valid(S.search_win) then
-    pcall(api.nvim_win_close, S.search_win, true)
+  if S.search_active then
+    S.search_active = false
+    if S.buf and api.nvim_buf_is_valid(S.buf) then
+      pcall(api.nvim_buf_set_option, S.buf, 'modifiable', false)
+    end
   end
-  S.search_win = nil
-  S.search_buf = nil
 end
 
 function M.clear()
   S.filter = nil
-  if S.search_buf and api.nvim_buf_is_valid(S.search_buf) then
-    api.nvim_buf_set_lines(S.search_buf, 0, -1, false, { '' })
-    -- Trigger repaint via the TextChanged autocmd path
-    local ok_ns = api.nvim_create_namespace 'explorer_search'
-    api.nvim_buf_clear_namespace(S.search_buf, ok_ns, 0, -1)
-    -- Directly call repaint since TextChanged won't fire for programmatic edits
-    repaint_bar()
+  S.search_active = false
+  if S.buf and api.nvim_buf_is_valid(S.buf) then
+    pcall(api.nvim_buf_set_option, S.buf, 'modifiable', false)
   end
   render.render()
 end
