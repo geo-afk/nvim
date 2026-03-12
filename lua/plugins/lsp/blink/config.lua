@@ -69,21 +69,26 @@ M.kind_icons = {
   Variable = '󰀫 ',
 }
 
-local c_highlight = require 'nvim-highlight-colors'
+-- Safely load nvim-highlight-colors if available
+local c_highlight = (function()
+  local ok, mod = pcall(require, 'nvim-highlight-colors')
+  return ok and mod or nil
+end)()
 
 M.components = {
   kind_icon = {
     text = function(ctx)
       local icon = ctx.kind_icon .. (ctx.icon_gap or ' ')
 
-      if ctx.item.source_name == 'LSP' then
-        local color_item = c_highlight.format(ctx.item.documentation, { kind = ctx.kind })
-        if color_item and color_item.abbr ~= '' then
+      -- Safely use nvim-highlight-colors if available
+      if ctx.item.source_name == 'LSP' and c_highlight then
+        local ok, color_item = pcall(c_highlight.format, ctx.item.documentation, { kind = ctx.kind })
+        if ok and color_item and color_item.abbr ~= '' then
           icon = color_item.abbr
         end
       end
 
-      -- Override with devicons for paths
+      -- Override with devicons for paths - safely loaded
       if ctx.source_name == 'Path' then
         local ok, devicons = pcall(require, 'nvim-web-devicons')
         if ok then
@@ -102,7 +107,7 @@ M.components = {
         local doc = ctx.item.documentation
         if type(doc) == 'string' then
           hex = doc:match '^#(%x%x%x%x%x%x)$'
-        elseif type(doc) == 'table' and doc.kind == 'markdown' then
+        elseif type(doc) == 'table' and doc.kind == 'markdown' and doc.value then
           hex = doc.value:match '^#(%x%x%x%x%x%x)$'
         end
 
@@ -115,7 +120,7 @@ M.components = {
           hex = '#' .. hex:upper()
           local hl_name = 'BlinkCmpColor' .. hex:sub(2)
           if vim.fn.hlexists(hl_name) == 0 then
-            vim.api.nvim_set_hl(0, hl_name, { fg = get_contrast_fg(hex), bg = hex })
+            pcall(vim.api.nvim_set_hl, 0, hl_name, { fg = get_contrast_fg(hex), bg = hex })
           end
           ctx.highlight = hl_name
           icon = '󱓻'
@@ -126,14 +131,11 @@ M.components = {
     highlight = function(ctx)
       local highlight = 'BlinkCmpKind' .. ctx.kind
 
-      -- Fallback to nvim-highlight-colors if available
-      if ctx.item.source_name == 'LSP' then
-        local ok, _ = require 'nvim-highlight-colors'
-        if ok then
-          local color_item = c_highlight.format(ctx.item.documentation, { kind = ctx.kind })
-          if color_item and color_item.abbr_hl_group then
-            highlight = color_item.abbr_hl_group
-          end
+      -- Fallback to nvim-highlight-colors if available - safely accessed
+      if ctx.item.source_name == 'LSP' and c_highlight then
+        local ok, color_item = pcall(c_highlight.format, ctx.item.documentation, { kind = ctx.kind })
+        if ok and color_item and color_item.abbr_hl_group then
+          highlight = color_item.abbr_hl_group
         end
       end
 
@@ -144,10 +146,11 @@ M.components = {
   label = {
     width = { fill = true, max = 60 },
     text = function(ctx)
+      -- Safely use colorful-menu if available
       local ok, colorful = pcall(require, 'colorful-menu')
       if ok then
-        local highlights_info = colorful.blink_highlights(ctx)
-        if highlights_info then
+        local ok2, highlights_info = pcall(colorful.blink_highlights, ctx)
+        if ok2 and highlights_info and highlights_info.label then
           return highlights_info.label
         end
       end
@@ -156,10 +159,11 @@ M.components = {
     highlight = function(ctx)
       local highlights = {}
 
+      -- Safely use colorful-menu if available
       local ok, colorful = pcall(require, 'colorful-menu')
       if ok then
-        local highlights_info = colorful.blink_highlights(ctx)
-        if highlights_info then
+        local ok2, highlights_info = pcall(colorful.blink_highlights, ctx)
+        if ok2 and highlights_info and highlights_info.highlights then
           highlights = highlights_info.highlights
         end
       end

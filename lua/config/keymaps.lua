@@ -1,8 +1,17 @@
 local opts = { noremap = true, silent = true }
 
 -- Linters
-vim.keymap.set('n', '<leader>l', function()
-  require('lint').try_lint()
+vim.keymap.set('n', '<leader>ll', function()
+  local ok, lint = pcall(require, 'lint')
+  if not ok then
+    vim.notify('[lint] nvim-lint not available', vim.log.levels.ERROR)
+    return
+  end
+
+  local success, err = pcall(lint.try_lint)
+  if not success then
+    vim.notify('[lint] Lint failed: ' .. tostring(err), vim.log.levels.ERROR)
+  end
 end, { desc = 'Lint current file' })
 
 -- Optional: show last lint result
@@ -69,8 +78,18 @@ vim.keymap.set('v', '<A-k>', ":<C-u>execute \"'<,'>move '<-\" . (v:count1 + 1)<c
 vim.keymap.set('v', '<', '<gv')
 vim.keymap.set('v', '>', '>gv')
 
-local strings = require 'utils.strings'
-vim.keymap.set({ 'n', 'v' }, '<leader>rw', strings.replace_word_under_cursor, { desc = 'Replace all `<cword>` instances in buffer' })
+vim.keymap.set({ 'n', 'v' }, '<leader>rw', function()
+  local ok, strings = pcall(require, 'utils.strings')
+  if not ok then
+    vim.notify('[strings] utils.strings module not found', vim.log.levels.ERROR)
+    return
+  end
+
+  local success, err = pcall(strings.replace_word_under_cursor)
+  if not success then
+    vim.notify('[strings] replace_word_under_cursor failed: ' .. tostring(err), vim.log.levels.ERROR)
+  end
+end, { desc = 'Replace all `<cword>` instances in buffer' })
 
 vim.keymap.set({ 'n', 'x' }, 'j', "v:count == 0 ? 'gj' : 'j'", { desc = 'Down', expr = true, silent = true })
 vim.keymap.set({ 'n', 'x' }, '<Down>', "v:count == 0 ? 'gj' : 'j'", { desc = 'Down', expr = true, silent = true })
@@ -82,11 +101,24 @@ vim.keymap.set({ 'i', 'n', 's' }, '<esc>', function()
   return '<esc>'
 end, { expr = true, desc = 'Escape and Clear hlsearch' })
 
-local viewer = require 'custom.diagnostics_viewer'
-
--- Toggle diagnostics list
-vim.keymap.set('n', '<leader>xe', viewer.toggle, { desc = 'Toggle Diagnostics List' })
-
--- Optionally re-open list manually
-vim.keymap.set('n', '<leader>xo', viewer.open, { desc = 'Open Diagnostics List' })
-vim.keymap.set('n', '<leader>xc', viewer.close, { desc = 'Close Diagnostics List' })
+-- local function safe_call(module, fn, label)
+--   return function()
+--     local ok, mod = pcall(require, module)
+--     if not ok then
+--       vim.notify('[' .. label .. '] module not found', vim.log.levels.ERROR)
+--       return
+--     end
+--
+--     local success, err = pcall(mod[fn])
+--     if not success then
+--       vim.notify(
+--         '[' .. label .. '] ' .. fn .. ' failed: ' .. tostring(err),
+--         vim.log.levels.ERROR
+--       )
+--     end
+--   end
+-- end
+--
+-- vim.keymap.set('n', '<leader>xe', safe_call('custom.diagnostics_viewer', 'toggle', 'diagnostics'), { desc = 'Toggle Diagnostics List' })
+-- vim.keymap.set('n', '<leader>xo', safe_call('custom.diagnostics_viewer', 'open',   'diagnostics'), { desc = 'Open Diagnostics List' })
+-- vim.keymap.set('n', '<leader>xc', safe_call('custom.diagnostics_viewer', 'close',  'diagnostics'), { desc = 'Close Diagnostics List' })

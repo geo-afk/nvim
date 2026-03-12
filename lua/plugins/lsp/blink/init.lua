@@ -5,10 +5,6 @@ return {
   event = 'VimEnter',
   version = '1.*',
 
-  dependencies = {
-    'l3mon4d3/luasnip',
-  },
-
   --- @module 'blink.cmp'
   opts = {
     keymap = {
@@ -34,7 +30,6 @@ return {
       --
       -- ['\\'] = { 'show', 'show_documentation', 'hide_documentation' },
     },
-
     appearance = {
       nerd_font_variant = 'mono',
       kind_icons = constant.kind_icons,

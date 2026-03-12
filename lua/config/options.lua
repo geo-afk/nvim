@@ -4,7 +4,7 @@ vim.opt.undofile = true
 -- ============================================================
 -- setting Auto-Sessions so when session is restored on startup.
 -- ============================================================
-vim.o.sessionoptions = 'blank,buffers,curdir,folds,help,tabpages,winsize,winpos,terminal,localoptions'
+vim.o.sessionoptions = 'blank,buffers,curdir,help,tabpages,winsize,winpos,terminal,localoptions'
 
 -- =======================================================================
 --  Compatibility / Neovim Version Checks
@@ -21,7 +21,6 @@ vim.opt.guicursor = {
   -- "i-c-ci-ve:block-InsertCursor",
   'o-r:hor50',
 }
-
 
 -- =======================================================================
 --  Disable Unwanted Built-in Plugins

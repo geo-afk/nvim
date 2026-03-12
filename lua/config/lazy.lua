@@ -61,7 +61,7 @@ require('lazy').setup {
   },
 }
 
-require('utils.popup_menu').setup()
+-- require('utils.popup_menu').setup()
 
 -- Local function wrap(fn, name)
 --   return function(...)
@@ -70,7 +70,7 @@ require('utils.popup_menu').setup()
 --     return fn(...)
 --   end
 -- end
-
+--
 -- vim.system = wrap(vim.system, 'vim.system')
 -- vim.fn.jobstart = wrap(vim.fn.jobstart, 'jobstart')
 
@@ -84,8 +84,9 @@ require('custom.explorer').setup {
   auto_close = false,
   keymaps = {
     toggle = '<leader>e', -- global toggle (set "" to skip)
-    reveal = '<leader>E', -- reveal current file (set "" to skip)
+    -- reveal = '<leader>E', -- reveal current file (set "" to skip)
   },
 }
-
+--
 require('custom.statusline').setup()
+require('custom.lsp_keymapper').setup()

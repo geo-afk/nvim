@@ -61,53 +61,52 @@ end
 -- Filetype icon map (Nerd Fonts v3)
 -- ---------------------------------------------------------------------------
 local ft_icons = {
-  lua = '󰢱 ', -- already good
-  python = '󰌠 ', -- already good (or ' ' / '󰌍 ')
-  javascript = '󰌞 ', -- already good
-  typescript = '󰛦 ', -- already good
-  rust = '󱘗 ', -- already good (or ' ')
-  go = '󰟓 ', -- already good (or ' ')
-  c = ' ', -- classic C
-  cpp = ' ', -- classic C++
-  java = '󰬷 ', -- already good (or ' ')
-  html = '󰌝 ', -- already good
-  css = '󰌜 ', -- already good
-  scss = '󰌜 ', -- already good (same as css)
-  json = '󰘦 ', -- already good (or ' ')
-  yaml = '󰘦 ', -- already good
-  toml = '󰘦 ', -- already good
-  markdown = '󰍔 ', -- already good (or ' ')
-  vim = ' ', -- or ' ' / ' '
-  sh = ' ', -- generic shell
-  bash = ' ', -- bash (or ' ')
-  zsh = ' ', -- zsh (often same as bash)
-  fish = '󰈺 ', -- fish shell
-  dockerfile = '󰡨 ', -- already good
-  makefile = ' ', -- or ' '
-  sql = '󰆼 ', -- already good (or ' ')
-  tex = ' ', -- LaTeX
-  help = '󰞋 ', -- already good
-  nix = '󰍛 ', -- Nix (flake / snowflake vibe)
-  svelte = ' ', -- common Svelte
-  vue = '󰡄 ', -- already good (or ' ')
-  tsx = '󰛦 ', -- already good (same as ts)
-  jsx = '󰌞 ', -- already good (same as js)
-  graphql = ' ', -- GraphQL
-  php = '󰌟 ', -- already good
-  ruby = '󰴭 ', -- or ' '
-  elixir = ' ', -- Phoenix / Elixir
-  haskell = '󰲒 ', -- already good
-  scala = ' ', -- Scala
-  kotlin = '󱈙 ', -- already good
-  swift = '󰛥 ', -- already good
-  r = '󰟔 ', -- already good
-  cs = '󰌛 ', -- C# (already good)
-  zig = ' ', -- Zig
-  dart = ' ', -- Dart / Flutter
-  git = '󰊢 ', -- already good
-  gitconfig = '󰊢 ', -- already good (same as git)
+  lua = '󰢱 ',
+  python = '󰌠 ',
+  javascript = '󰌞 ',
+  typescript = '󰛦 ',
+  rust = '󱘗 ',
+  go = '󰟓 ',
+  c = ' ',
+  cpp = ' ',
+  java = '󰬷 ',
+  html = '󰌝 ',
+  css = '󰌜 ',
+  scss = '󰌜 ',
+  json = '󰘦 ',
+  yaml = '󰘦 ',
+  toml = '󰘦 ',
+  markdown = '󰍔 ',
+  vim = ' ',
+  sh = ' ',
+  bash = ' ',
+  zsh = ' ',
+  fish = ' ',
+  dockerfile = '󰡨 ',
+  makefile = ' ',
+  sql = '󰆼 ',
+  tex = ' ',
+  help = '󰞋 ',
+  nix = ' ',
+  svelte = ' ',
+  vue = '󰡄 ',
+  tsx = '󰛦 ',
+  jsx = '󰌞 ',
+  graphql = ' ',
+  php = '󰌟 ',
+  ruby = ' ',
+  elixir = ' ',
+  haskell = '󰲒 ',
+  scala = ' ',
+  kotlin = '󱈙 ',
+  swift = '󰛥 ',
+  r = '󰟔 ',
+  cs = '󰌛 ',
+  zig = ' ',
+  dart = ' ',
+  git = '󰊢 ',
+  gitconfig = '󰊢 ',
 }
-
 local DEFAULT_ICON = '󰈚 '
 
 local function fmt_size(bytes)
@@ -122,22 +121,77 @@ local function fmt_size(bytes)
   return i == 1 and string.format('%dB', s) or string.format('%.1f%s', s, units[i])
 end
 
+-- ---------------------------------------------------------------------------
+-- Path formatting
+-- ---------------------------------------------------------------------------
+-- Default display: parent/.../filename   (always for paths with 3+ segments)
+-- Only shows the full path when the path is 1-2 segments already short.
+--
+-- Tiers (applied in order):
+--   3+ segments → parent/.../filename   e.g. lua/.../file.lua     ← DEFAULT
+--   2  segments → parent/filename       e.g. plugins/telescope.lua
+--   1  segment  → filename              e.g. init.lua
+--   Overflow fallbacks (if even the default is too long for the window):
+--     → .../filename
+--     → filename (hard-truncated)
+-- ---------------------------------------------------------------------------
+local SEP = '/'
+
 local function smart_path(name, max_w)
   if name == '' then
     return '[No Name]'
   end
+
+  -- Relative to cwd, home collapsed to ~
   local rel = vim.fn.fnamemodify(name, ':~:.')
-  if #rel <= max_w then
-    return rel
-  end
-  local parts = vim.split(rel, '/', { plain = true })
-  for i = 2, #parts do
-    local c = '…/' .. table.concat(parts, '/', i)
-    if #c <= max_w then
-      return c
+
+  -- On Windows fnamemodify returns backslashes; normalize to "/" so the split
+  -- below works correctly on every platform.
+  rel = rel:gsub('\\', '/')
+
+  local parts = vim.split(rel, SEP, { plain = true })
+  local n = #parts
+  local fname = parts[n]
+
+  -- 1 segment: bare filename, no directory at all
+  if n == 1 then
+    if #fname <= max_w then
+      return fname
     end
+    return fname:sub(1, max_w - 3) .. '...'
   end
-  return '…/' .. parts[#parts]
+
+  -- 2 segments: short enough to show in full — parent/filename
+  if n == 2 then
+    if #rel <= max_w then
+      return rel
+    end
+    -- still too long: drop to filename only
+    if #fname <= max_w then
+      return fname
+    end
+    return fname:sub(1, max_w - 3) .. '...'
+  end
+
+  -- 3+ segments: DEFAULT = parent/.../filename
+  local parent = parts[1]
+  local tier2 = parent .. SEP .. '...' .. SEP .. fname
+
+  if #tier2 <= max_w then
+    return tier2
+  end
+
+  -- parent itself is very long: fall back to .../filename
+  local tier3 = '...' .. SEP .. fname
+  if #tier3 <= max_w then
+    return tier3
+  end
+
+  -- Filename alone
+  if #fname <= max_w then
+    return fname
+  end
+  return fname:sub(1, max_w - 3) .. '...'
 end
 
 -- ---------------------------------------------------------------------------
@@ -154,7 +208,9 @@ local function build(winid, bufnr, active)
 
   local icon_str = hl 'StatusLineFileIcon' .. icon .. hl 'StatusLine'
 
-  local path_max = very_compact and 15 or compact and 25 or math.floor(win_width * 0.30)
+  -- Path budget: cap at 35 chars in full mode so parent/.../filename always
+  -- activates for deep paths.  Compact tiers get tighter budgets.
+  local path_max = very_compact and 18 or compact and 28 or 35
   local path_str = hl 'StatusLineFilePath' .. smart_path(name, path_max) .. hl 'StatusLine'
 
   local mod_str = vim.bo[bufnr].modified and (hl 'StatusLineModified' .. ' ●' .. hl 'StatusLine') or ''

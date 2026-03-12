@@ -42,35 +42,6 @@ return {
           -- see https://github.com/xzbdmw/colorful-menu.nvim/issues/42
           extra_info_hl = '@comment',
         },
-        ['rust-analyzer'] = {
-          -- Such as (as Iterator), (use std::io).
-          extra_info_hl = '@comment',
-          -- Similar to the same setting of gopls.
-          align_type_to_right = true,
-          -- See https://github.com/xzbdmw/colorful-menu.nvim/pull/36
-          preserve_type_when_truncate = true,
-        },
-        clangd = {
-          -- Such as "From <stdio.h>".
-          extra_info_hl = '@comment',
-          -- Similar to the same setting of gopls.
-          align_type_to_right = true,
-          -- the hl group of leading dot of "•std::filesystem::permissions(..)"
-          import_dot_hl = '@comment',
-          -- See https://github.com/xzbdmw/colorful-menu.nvim/pull/36
-          preserve_type_when_truncate = true,
-        },
-        zls = {
-          -- Similar to the same setting of gopls.
-          align_type_to_right = true,
-        },
-        roslyn = {
-          extra_info_hl = '@comment',
-        },
-        dartls = {
-          extra_info_hl = '@comment',
-        },
-        -- The same applies to pyright/pylance
         basedpyright = {
           -- It is usually import path such as "os"
           extra_info_hl = '@comment',

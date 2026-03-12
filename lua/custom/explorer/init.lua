@@ -43,7 +43,7 @@ local function watch_start()
       end
       if S.search_active then
         return
-      end -- don't interrupt while user is typing
+      end
       if _debounce then
         _debounce:stop()
       end
@@ -51,7 +51,7 @@ local function watch_start()
         _debounce = nil
         render.render()
         git.fetch()
-      end, 500) -- 500ms — was 250ms; the higher value prevents flicker
+      end, 500)
     end)
   )
   if ok == 0 or ok == nil then
@@ -82,7 +82,23 @@ local function watch_stop()
 end
 
 -- ── reveal ────────────────────────────────────────────────────────────────
--- S.items[i] → line i+1.  Cursor row = i+1.
+--
+-- Move the explorer cursor to the line corresponding to `path`.
+--
+-- Design:
+--   1. If the file is already visible in S.items (parents open, no filter
+--      hiding it), just move the cursor directly — no rebuild needed.
+--      This is the common case for follow_file (BufEnter) and is O(n) only.
+--
+--   2. If the file is NOT in S.items (parent dirs collapsed, or first open),
+--      expand all ancestor dirs, register the path as S._reveal_target, and
+--      call render.render().  The build callback in render.lua will call
+--      render._reveal_cursor() once the tree is repopulated.
+--
+--   render.render() is debounced with a _scheduled flag, so even if a file-
+--   watcher and a reveal both fire within the same event loop tick, they
+--   collapse into one tree build.  The reveal target is consumed after that
+--   single build completes.
 
 function M.reveal(path)
   if not path or path == '' then
@@ -94,18 +110,29 @@ function M.reveal(path)
   end
   if S.search_active then
     return
-  end -- don't disrupt active search
+  end
 
+  -- ── Fast path: file is already in the rendered tree ───────────────────
+  -- Scan S.items first.  If found, just reposition the cursor and center
+  -- the viewport — no I/O, no rebuild.
   if S.win and api.nvim_win_is_valid(S.win) then
-    local row = api.nvim_win_get_cursor(S.win)[1]
-    if row >= 2 then
-      local cur = S.items[row - 1]
-      if cur and cur.path == path then
+    for i, it in ipairs(S.items) do
+      if it.path == path then
+        local cur_row = api.nvim_win_get_cursor(S.win)[1]
+        if cur_row == i + 1 then
+          return
+        end -- already there, nothing to do
+        pcall(api.nvim_win_set_cursor, S.win, { i + 1, 0 })
+        pcall(api.nvim_win_call, S.win, function()
+          vim.cmd 'normal! zz'
+        end)
         return
-      end -- already there
+      end
     end
   end
 
+  -- ── Slow path: tree needs to be rebuilt ───────────────────────────────
+  -- Expand every ancestor directory so the file becomes visible after build.
   local rel = path:sub(#S.root + 2)
   local parts = vim.split(rel, '/', { plain = true })
   local acc = S.root
@@ -114,31 +141,10 @@ function M.reveal(path)
     S.open_dirs[acc] = true
   end
 
-  S.build_tok = S.build_tok + 1
-  local tok = S.build_tok
-  tree.build(
-    tok,
-    S.filter,
-    vim.schedule_wrap(function(items)
-      if S.build_tok ~= tok then
-        return
-      end
-      S.items = items
-      render._paint()
-      git.apply()
-      vim.schedule(function()
-        if not (S.win and api.nvim_win_is_valid(S.win)) then
-          return
-        end
-        for i, it in ipairs(S.items) do
-          if it.path == path then
-            pcall(api.nvim_win_set_cursor, S.win, { i + 1, 0 }) -- line i+1
-            return
-          end
-        end
-      end)
-    end)
-  )
+  -- Register the target.  render.render() will pick this up in its build
+  -- callback (render._reveal_cursor) after S.items is repopulated.
+  S._reveal_target = path
+  render.render()
 end
 
 -- ── open ─────────────────────────────────────────────────────────────────
@@ -155,7 +161,7 @@ function M.open(opts)
   if not (S.buf and api.nvim_buf_is_valid(S.buf)) then
     S.buf = win.make_buf()
     win.setup_keymaps(S.buf)
-    search.setup(S.buf) -- attach inline search autocmds + keymaps
+    search.setup(S.buf)
   end
 
   S.icon_fn = icons.resolve()
@@ -164,10 +170,17 @@ function M.open(opts)
     S.win = win.make_win(S.buf)
   end
 
+  -- Always schedule a render so the tree is populated.
   render.render()
   git.fetch()
   watch_start()
 
+  -- Identify the file from the previously focused window and reveal it.
+  -- M.reveal() will either:
+  --   a) Position the cursor immediately if the file is already in S.items, or
+  --   b) Register S._reveal_target and call render.render() (which is
+  --      debounced — the already-pending build above will pick up the target,
+  --      so no second build is started).
   local src = (cw == S.win) and 0 or api.nvim_win_get_buf(cw)
   local path = fn.fnamemodify(api.nvim_buf_get_name(src), ':p')
   if path and path ~= '' and path ~= '/' then
@@ -248,7 +261,20 @@ function M.setup(opts)
     end,
   })
 
-  -- follow_file: debounced so rapid buffer switches don't cause flicker
+  -- ── follow_file ────────────────────────────────────────────────────────
+  --
+  -- Tracks the active buffer and moves the explorer cursor to match.
+  --
+  -- Debounce: 150ms.  Rapid buffer switches collapse to the last one, so
+  -- quickly navigating through a quickfix list doesn't stutter the explorer.
+  --
+  -- Fast/slow path: M.reveal() first scans S.items in O(n).  If the file is
+  -- already visible it just moves the cursor — no rebuild.  Only if a parent
+  -- directory needs expanding does it trigger a tree rebuild.
+  --
+  -- Guard: skip if the event fires because focus moved INTO the explorer
+  -- itself (prevents the explorer buffer's BufEnter from triggering a reveal).
+
   if c.follow_file then
     local _follow_timer = nil
     api.nvim_create_autocmd('BufEnter', {
@@ -270,13 +296,19 @@ function M.setup(opts)
         if path == '' then
           return
         end
+
+        -- Cancel any pending follow for a previous buffer
         if _follow_timer then
           _follow_timer:stop()
+          _follow_timer = nil
         end
+
+        -- Short debounce so rapid buffer switches (quickfix nav, etc.)
+        -- don't each trigger a separate tree scan/rebuild.
         _follow_timer = vim.defer_fn(function()
           _follow_timer = nil
           M.reveal(path)
-        end, 150) -- 150ms debounce — prevents flicker on quick buffer switches
+        end, 150)
       end,
     })
   end

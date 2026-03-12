@@ -14,25 +14,14 @@ return {
       javascript = { 'biome' },
       lua = { 'typos' },
       python = { 'ruff' },
-      -- go = { "staticcheck" },
-      -- ["*"] = { "typos" },
-      -- ["_"] = { "fallback_linter" },
+      go = { 'staticcheck' },
+      -- ["*"]    = { 'typos' },          -- global typo/spell checking (uncomment if desired)
+      -- ["_"]    = { 'some_fallback' },  -- fallback for unknown filetypes
     }
 
     ------------------------------------------------------------------------
     -- Custom linter argument overrides
     ------------------------------------------------------------------------
-    if lint.linters.eslint_d then
-      lint.linters.eslint_d.args = {
-        '--no-warn-ignored',
-        '--format',
-        'json',
-        '--stdin',
-        '--stdin-filename',
-        vim.fn.expand '%:p',
-      }
-    end
-
     if lint.linters.sqruff then
       lint.linters.sqruff.args = {
         '--format',
@@ -45,56 +34,50 @@ return {
       }
     end
 
+    -- (eslint_d block removed as unused; re-add if you enable it in linters_by_ft)
+
     ------------------------------------------------------------------------
-    -- Debounce helper (prevents excessive lint runs)
+    -- Debounce helper
     ------------------------------------------------------------------------
     local function debounce(ms, fn)
       local timer = vim.uv.new_timer()
-
-      -- Timer allocation failed → graceful fallback
       if not timer then
         return function(...)
-          local args = { ... }
-          vim.schedule(function()
-            fn(unpack(args))
-          end)
-        end
+          fn(...)
+        end -- fallback: no debounce
       end
 
       return function(...)
         local args = { ... }
-
         timer:stop()
-        timer:start(ms, 0, function()
-          vim.schedule(function()
+        timer:start(
+          ms,
+          0,
+          vim.schedule_wrap(function()
             fn(unpack(args))
           end)
-        end)
+        )
       end
     end
 
     ------------------------------------------------------------------------
-    -- Lint runner with safety checks
+    -- Lint runner with safety
     ------------------------------------------------------------------------
     local function run_lint()
-      -- Avoid linting non-file buffers
       if not vim.bo.modifiable or vim.bo.buftype ~= '' then
         return
       end
 
-      -- Resolve linters using nvim-lint's internal logic
       local names = lint._resolve_linter_by_ft(vim.bo.filetype)
-      names = vim.list_extend({}, names)
+      names = vim.list_extend({}, names or {})
 
-      -- Fallback linters
+      -- Fallback + global
       if #names == 0 then
         vim.list_extend(names, lint.linters_by_ft['_'] or {})
       end
-
-      -- Global linters
       vim.list_extend(names, lint.linters_by_ft['*'] or {})
 
-      -- Filter invalid linters
+      -- Filter valid linters only
       names = vim.tbl_filter(function(name)
         if not lint.linters[name] then
           vim.notify('nvim-lint: linter not found: ' .. name, vim.log.levels.WARN)
@@ -104,7 +87,10 @@ return {
       end, names)
 
       if #names > 0 then
-        lint.try_lint(names)
+        local ok = pcall(lint.try_lint, names)
+        if not ok then
+          vim.notify('nvim-lint: try_lint failed', vim.log.levels.ERROR)
+        end
       end
     end
 
@@ -113,9 +99,14 @@ return {
     ------------------------------------------------------------------------
     local augroup = vim.api.nvim_create_augroup('NvimLint', { clear = true })
 
-    vim.api.nvim_create_autocmd({ 'BufEnter', 'BufWritePost', 'InsertLeave' }, {
-      group = augroup,
-      callback = debounce(100, run_lint),
-    })
+    vim.api.nvim_create_autocmd(
+      { 'BufEnter', 'BufWritePost', 'InsertLeave' },
+      -- Optional: add 'TextChanged' for live lint-as-you-type (with debounce!)
+      -- { 'BufEnter', 'TextChanged', 'TextChangedI', 'BufWritePost', 'InsertLeave' },
+      {
+        group = augroup,
+        callback = debounce(200, run_lint), -- 200 ms is a good balance
+      }
+    )
   end,
 }

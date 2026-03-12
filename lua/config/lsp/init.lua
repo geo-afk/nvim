@@ -30,7 +30,7 @@ function M.setup()
       end
 
       require('config.lsp.setup.ts_keymap').setup(args.buf, client)
-      require('config.lsp.setup.go').goSemanticToken(client)
+      -- require('config.lsp.setup.go').goSemanticToken(client)
       require('config.lsp.setup.ts').ts_setup(client)
 
       -- Use the modern client.supports_method API (available in nvim 0.10+)

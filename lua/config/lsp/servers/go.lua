@@ -1,10 +1,20 @@
 return {
   settings = {
     gopls = {
-
       gofumpt = true,
+      symbolStyle = 'Dynamic',
+      buildFlags = { '-tags=integration,unit,test,pact,release,mock' },
+      vulncheck = 'Imports',
+      standaloneTags = { 'ignore', 'mage' },
+      usePlaceholders = true,
+      completeUnimported = true,
+      directoryFlags = { '-.git', '-.vscode', '-.idea', '-.vscode-test', '-node_modules' },
+      completeFunctionCalls = true,
+      linksInHover = true,
+      staticcheck = true,
+
       codelenses = {
-        gc_details = false,
+        gc_details = true,
         generate = true,
         regenerate_cgo = true,
         run_govulncheck = true,
@@ -22,17 +32,17 @@ return {
         parameterNames = true,
         rangeVariableTypes = true,
       },
-      staticcheck = true,
       analyses = {
         nilness = true,
         unusedparams = true,
         unusedwrite = true,
         useany = true,
       },
-      usePlaceholders = true,
-      completeUnimported = true,
-      directoryFilters = { '-.git', '-.vscode', '-.idea', '-.vscode-test', '-node_modules' },
-      semanticTokens = true,
+      -- vendor mode has problem with GD in external deps so -mod=mod is required
+      ui = {
+        semanticTokens = true,
+      },
+      -- semanticTokens = true,
     },
   },
 }
