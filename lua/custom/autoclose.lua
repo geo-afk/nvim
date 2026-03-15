@@ -1,5 +1,6 @@
 -- borrowed from nvim/.config/nvim/lua/xaaha/core/autoclose.lua
--- will modify it to my liking once I have more time
+-- modified with fixes and improvements
+
 local autoclose = {}
 
 local config = {
@@ -23,9 +24,9 @@ local config = {
     ['<C-H>'] = {},
     ['<C-W>'] = {},
     ['<CR>'] = { disable_command_mode = true },
-
     ['<S-CR>'] = { disable_command_mode = true },
   },
+
   options = {
     disabled_filetypes = { 'text' },
     disable_when_touch = false,
@@ -34,50 +35,82 @@ local config = {
     auto_indent = true,
     disable_command_mode = false,
   },
+
   disabled = false,
 }
 
+local pair_set = {}
+local _setup_done = false
+
+--------------------------------------------------
+-- Helpers
+--------------------------------------------------
+
 local function insert_get_pair()
-  -- add "_" to let close function work in the first col
   local line = '_' .. vim.api.nvim_get_current_line()
   local col = vim.api.nvim_win_get_cursor(0)[2] + 1
-
   return line:sub(col, col + 1)
 end
 
 local function command_get_pair()
-  -- add "_" to let close function work in the first col
   local line = '_' .. vim.fn.getcmdline()
   local col = vim.fn.getcmdpos()
-
   return line:sub(col, col + 1)
 end
 
 local function is_pair(pair)
-  if pair == '  ' then
+  return pair_set[pair] == true
+end
+
+--------------------------------------------------
+-- Tree-sitter awareness
+--------------------------------------------------
+
+local function in_string_or_comment()
+  local ok, parser = pcall(vim.treesitter.get_parser, 0)
+  if not ok then
     return false
   end
 
-  for _, info in pairs(config.keys) do
-    if pair == info.pair then
-      return true
-    end
+  local row, col = unpack(vim.api.nvim_win_get_cursor(0))
+
+  local ok_tree, tree = pcall(function()
+    return parser:parse()[1]
+  end)
+
+  if not ok_tree or not tree then
+    return false
   end
-  return false
+
+  local root = tree:root()
+  local node = root:named_descendant_for_range(row - 1, col, row - 1, col)
+
+  if not node then
+    return false
+  end
+
+  local t = node:type()
+  return t:find("string") ~= nil or t:find("comment") ~= nil
 end
+
+--------------------------------------------------
+-- Filetype checks
+--------------------------------------------------
 
 local function is_disabled(info)
   if config.disabled then
     return true
   end
-  local current_filetype = vim.api.nvim_buf_get_option(0, 'filetype')
+
+  local current_filetype = vim.bo.filetype
+
   for _, filetype in pairs(config.options.disabled_filetypes) do
     if filetype == current_filetype then
       return true
     end
   end
 
-  if info['enabled_filetypes'] ~= nil then
+  if info.enabled_filetypes ~= nil then
     for _, filetype in pairs(info.enabled_filetypes) do
       if filetype == current_filetype then
         return false
@@ -86,16 +119,20 @@ local function is_disabled(info)
     return true
   end
 
-  -- Let's check if the disabled_filetypes key is in the info table
-  if info['disabled_filetypes'] ~= nil then
+  if info.disabled_filetypes ~= nil then
     for _, filetype in pairs(info.disabled_filetypes) do
       if filetype == current_filetype then
         return true
       end
     end
   end
+
   return false
 end
+
+--------------------------------------------------
+-- Core handler
+--------------------------------------------------
 
 local function handler(key, info, mode)
   if is_disabled(info) then
@@ -104,36 +141,75 @@ local function handler(key, info, mode)
 
   local pair = mode == 'insert' and insert_get_pair() or command_get_pair()
 
-  if (key == '<BS>' or key == '<C-H>' or key == '<C-W>') and is_pair(pair) then
+  -- Backspace handling
+  if (key == '<BS>' or key == '<C-H>') and is_pair(pair) then
     return '<BS><Del>'
-  elseif mode == 'insert' and (key == '<CR>' or key == '<S-CR>') and is_pair(pair) then
+  end
+
+  -- Word delete should behave normally
+  if key == '<C-W>' then
+    return '<C-W>'
+  end
+
+  -- Enter between pairs
+  if mode == 'insert' and (key == '<CR>' or key == '<S-CR>') and is_pair(pair) then
     return '<CR><ESC>O' .. (config.options.auto_indent and '' or '<C-D>')
-  elseif info.escape and pair:sub(2, 2) == key then
+  end
+
+  -- Escape through existing closer
+  if info.escape and pair:sub(2, 2) == key then
     return mode == 'insert' and '<C-G>U<Right>' or '<Right>'
-  elseif info.close then
-    -- disable pairing for apostrophe if the cursor touches alphanumeric character
-    if key == "'" then
-      local left = pair:sub(1, 1)
-      if left:match '[%w_]' then
-        return key
-      end
-    end
-    if config.options.disable_when_touch and (pair .. '_'):sub(2, 2):match(config.options.touch_regex) then
+  end
+
+  -- Pair insertion
+  if info.close then
+
+    -- Skip pairing inside strings/comments
+    if in_string_or_comment() then
       return key
     end
 
-    -- don't pair spaces
-    if key == ' ' and (not config.options.pair_spaces or (config.options.pair_spaces and not is_pair(pair)) or pair:sub(1, 1) == pair:sub(2, 2)) then
+    -- Improved apostrophe rule
+    if key == "'" then
+      local left = pair:sub(1, 1)
+      local right = pair:sub(2, 2)
+
+      if left:match('[%w_]') or right:match('[%w_]') then
+        return key
+      end
+    end
+
+    if config.options.disable_when_touch
+      and (pair .. '_'):sub(2, 2):match(config.options.touch_regex)
+    then
+      return key
+    end
+
+    -- Space pairing control
+    if key == ' ' and (
+      not config.options.pair_spaces
+      or (config.options.pair_spaces and not is_pair(pair))
+      or pair:sub(1,1) == pair:sub(2,2)
+    ) then
       return key
     end
 
     return info.pair .. (mode == 'insert' and '<C-G>U<Left>' or '<Left>')
-  else
-    return key
   end
+
+  return key
 end
 
+--------------------------------------------------
+-- Setup
+--------------------------------------------------
+
 function autoclose.setup(user_config)
+  if _setup_done then
+    return
+  end
+  _setup_done = true
+
   user_config = user_config or {}
 
   if user_config.keys ~= nil then
@@ -143,8 +219,15 @@ function autoclose.setup(user_config)
   end
 
   if user_config.options ~= nil then
-    for key, info in pairs(user_config.options) do
-      config.options[key] = info
+    for key, value in pairs(user_config.options) do
+      config.options[key] = value
+    end
+  end
+
+  -- Build pair lookup table
+  for _, info in pairs(config.keys) do
+    if info.pair and info.pair ~= '  ' then
+      pair_set[info.pair] = true
     end
   end
 
@@ -161,13 +244,25 @@ function autoclose.setup(user_config)
   end
 end
 
+--------------------------------------------------
+-- Toggle
+--------------------------------------------------
+
 function autoclose.toggle()
   config.disabled = not config.disabled
 end
 
-vim.api.nvim_create_autocmd({ 'InsertEnter' }, {
+--------------------------------------------------
+-- Lazy setup
+--------------------------------------------------
+
+vim.api.nvim_create_autocmd('InsertEnter', {
   once = true,
   callback = function()
-    autoclose.setup {}
+    if not _setup_done then
+      autoclose.setup {}
+    end
   end,
 })
+
+return autoclose

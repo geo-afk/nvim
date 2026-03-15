@@ -48,7 +48,7 @@ M.defaults = {
 
   keymaps = {
     toggle  = '<leader>e',
-    reveal  = '<leader>E',
+    -- reveal  = '<leader>E',
 
     open        = { '<CR>', 'l' },
     close_dir   = 'h',

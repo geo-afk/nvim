@@ -7,6 +7,11 @@ return {
         -- See the configuration section for more details
         -- Load luvit types when the `vim.uv` word is found
         { path = '${3rd}/luv/library', words = { 'vim%.uv' } },
+        { path = "nvim-treesitter", mods = { "nvim-treesitter" } },
+        { path = "mason.nvim", mods = { "mason", "mason-core", "mason-registry", "mason-vendor" } },
+        { path = "lazydev.nvim", mods = { "" } },
+        { path = "LuaSnip", mods = { "luasnip" } },
+        { path = "friendly-snippets", mods = { "snippets" } }, -- has vimscript
         -- {
         --   path = 'lazy.nvim',
         --   files = vim.tbl_map(function(file)

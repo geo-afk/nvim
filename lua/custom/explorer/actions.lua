@@ -176,17 +176,31 @@ function A.add()
     if not name or name == '' then
       return
     end
+    -- Check for trailing slash BEFORE tree.norm strips it — that's what
+    -- signals "the user wants a directory".
+    local is_dir = vim.endswith(name, '/')
     name = tree.norm(name)
-    if vim.endswith(name, '/') then
-      fn.mkdir(name, 'p')
+    if name == '' then
+      return
+    end
+    if is_dir then
+      if fn.mkdir(name, 'p') == 0 then
+        vim.notify('[explorer] failed to create directory: ' .. name, vim.log.levels.ERROR)
+        return
+      end
     else
       fn.mkdir(tree.parent(name), 'p')
       local f = io.open(name, 'w')
-      if f then
-        f:close()
+      if not f then
+        vim.notify('[explorer] failed to create file: ' .. name, vim.log.levels.ERROR)
+        return
       end
+      f:close()
     end
     A.refresh()
+    vim.schedule(function()
+      require('custom.explorer').reveal(name)
+    end)
   end)
 end
 
@@ -241,7 +255,10 @@ function A.rename()
     end
     dest = tree.norm(dest)
     fn.mkdir(tree.parent(dest), 'p')
-    fn.rename(item.path, dest)
+    if fn.rename(item.path, dest) ~= 0 then
+      vim.notify('[explorer] rename failed: ' .. item.path .. ' → ' .. dest, vim.log.levels.ERROR)
+      return
+    end
     for _, client in ipairs(vim.lsp.get_clients()) do
       local caps = ((client.server_capabilities.workspace or {}).fileOperations or {})
       if caps.didRename then
@@ -255,6 +272,9 @@ function A.rename()
       end
     end
     A.refresh()
+    vim.schedule(function()
+      require('custom.explorer').reveal(dest)
+    end)
   end)
 end
 
@@ -362,7 +382,10 @@ function A.git_restore()
       if staged then
         a[#a + 1] = '--staged'
       end
-      return vim.list_extend(a, { '--' }, p)
+      a[#a + 1] = '--'
+      -- vim.list_extend(dst, src) — only two meaningful args here;
+      -- the old call passed `p` (a table) as the integer start-index.
+      return vim.list_extend(a, p)
     end, 'restored')
   end)
 end
@@ -461,7 +484,10 @@ function A.file_info()
 end
 
 function A.toggle_hidden()
-  cfg.get().show_hidden = not cfg.get().show_hidden
+  -- cfg.get() may return a shallow copy when tree is unresolved, so we must
+  -- write back to the authoritative source to make the change stick.
+  local c = cfg.current or cfg.defaults
+  c.show_hidden = not c.show_hidden
   render.render()
 end
 

@@ -1,19 +1,22 @@
 local uv = vim.loop
 
-local typos_config = vim.fn.stdpath 'config' .. '/typos.toml'
+local typos_config = vim.fn.stdpath("config") .. "/typos.toml"
 
 local has_config = uv.fs_stat(typos_config) ~= nil
 
 local init_options = {
-  diagnosticSeverity = 'Info',
+  diagnosticSeverity = "Info",
 }
 
 if has_config then
   init_options.config = typos_config
 else
-  vim.notify('[typos-lsp] typos.toml not found at: ' .. typos_config, vim.log.levels.WARN)
+  vim.notify("[typos-lsp] typos.toml not found at: " .. typos_config, vim.log.levels.WARN)
 end
 
 return {
+  cmd = { "typos-lsp" },
+  filetypes = { "go", "lua", "javascript", "typescript", "python", "rust", "markdown", "text" },
+  root_markers = { ".git" },
   init_options = init_options,
 }

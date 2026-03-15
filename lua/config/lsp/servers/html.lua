@@ -1,8 +1,11 @@
 return {
+  cmd          = { 'vscode-html-language-server', '--stdio' },
+  filetypes    = { 'html' },
+  root_markers = { 'package.json', '.git' },
   settings = {
     html = {
       validate = {
-        styles = false, -- Disable CSS validation in HTML
+        styles = false,
       },
       format = {
         templating = true,
@@ -20,5 +23,4 @@ return {
     embeddedLanguages = { css = true, javascript = true },
     configurationSection = { 'html', 'css', 'javascript' },
   },
-  filetypes = { 'html' },
 }

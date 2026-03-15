@@ -10,7 +10,12 @@ local uv = vim.uv or vim.loop
 -- ── Path helpers ──────────────────────────────────────────────────────────
 
 M.norm = function(p)
-  return (p:gsub('//+', '/'):gsub('/$', ''))
+  p = p:gsub('\\', '/') -- normalise backslashes (Windows / WSL paths)
+  p = p:gsub('//+', '/') -- collapse consecutive forward-slashes
+  if p == '/' then
+    return p
+  end -- preserve filesystem root
+  return (p:gsub('/$', '')) -- strip trailing slash
 end
 M.join = function(a, b)
   return M.norm(a .. '/' .. b)

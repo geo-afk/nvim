@@ -44,6 +44,8 @@ return {
       paths = vim.g.snipmate_snippets_path or '',
     })
 
+
+
     -- Lua snippets
     pcall(require('luasnip.loaders.from_lua').lazy_load, {
       paths = vim.g.lua_snippets_path or '',

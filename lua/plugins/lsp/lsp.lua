@@ -1,119 +1,141 @@
+-- LSP servers (lspconfig names)
 local lsp_servers = {
-  'sqls',
-  'html',
-  'cssls',
-  'gopls',
-  'vtsls',
-  'lua_ls',
-  'typos_lsp',
-  'angularls',
-  'tailwindcss',
-  'emmet_language_server',
+  "sqls",
+  "html",
+  "cssls",
+  "gopls",
+  "vtsls",
+  "lua_ls",
+  "typos_lsp",
+  "angularls",
+  "tailwindcss",
+  "emmet_language_server",
 }
 
+-- Formatters / linters / utilities
 local mason_tools = {
-  'gofumpt',
-  'goimports',
-  'golines',
-  'gotests',
-  'staticcheck',
-  'biome',
-  'prettierd',
-  'stylua',
-  'iferr',
-  'gomodifytags',
-  -- Add 'sqruff' if needed
+  "gofumpt",
+  "goimports",
+  "golines",
+  "gotests",
+  "staticcheck",
+  "biome",
+  "prettierd",
+  "stylua",
+  "iferr",
+  "gomodifytags",
 }
+
+-- Map LSP names → Mason package names
+local lsp_to_mason = {
+  lua_ls = "lua-language-server",
+  angularls = "angular-language-server",
+  emmet_language_server = "emmet-language-server",
+  vtsls = "vtsls",
+  gopls = "gopls",
+  html = "html-lsp",
+  cssls = "css-lsp",
+  sqls = "sqls",
+  tailwindcss = "tailwindcss-language-server",
+  typos_lsp = "typos-lsp",
+}
+
+-- Convert LSP list → mason package names
+local function get_lsp_packages()
+  local packages = {}
+
+  for _, lsp in ipairs(lsp_servers) do
+    local mason_name = lsp_to_mason[lsp] or lsp
+    table.insert(packages, mason_name)
+  end
+
+  return packages
+end
 
 return {
+  -------------------------------------------------
+  -- Mason package manager
+  -------------------------------------------------
   {
-    'mason-org/mason.nvim',
-    cmd = 'Mason',
-    build = ':MasonUpdate',
+    "mason-org/mason.nvim",
+    lazy = false,
+    build = ":MasonUpdate",
+
+    keys = {
+      { "<leader>cm", "<cmd>Mason<cr>", desc = "Mason UI" },
+    },
+
     opts = {
       ui = {
         icons = {
-          package_installed = '✓',
-          package_pending = '➜',
-          package_uninstalled = '✗',
+          package_installed = "✓",
+          package_pending = "➜",
+          package_uninstalled = "✗",
         },
       },
     },
+
     config = function(_, opts)
-      require('mason').setup(opts)
-      local mr = require 'mason-registry'
-      -- Refresh without callback (fixed for v2.2.1+)
-      mr.refresh()
-      -- Defer the install loop to avoid blocking
-      vim.defer_fn(function()
-        for _, tool in ipairs(mason_tools) do
-          local pkg = mr.get_package(tool)
-          if pkg and not pkg:is_installed() then
-            pkg:install()
+      require("mason").setup(opts)
+
+      local registry = require("mason-registry")
+
+      -- Merge all packages
+      local ensure_installed = {}
+
+      vim.list_extend(ensure_installed, get_lsp_packages())
+      vim.list_extend(ensure_installed, mason_tools)
+
+      -- extra tools
+      -- vim.list_extend(ensure_installed, {
+      --   "delve",
+      --   "golangci-lint",
+      -- })
+
+      registry.refresh(function()
+        for _, pkg_name in ipairs(ensure_installed) do
+          local ok, pkg = pcall(registry.get_package, pkg_name)
+
+          if ok then
+            if not pkg:is_installed() then
+              pkg:install():once(
+                "install:success",
+                vim.schedule_wrap(function()
+                  vim.notify("[Mason] Installed: " .. pkg_name, vim.log.levels.INFO)
+                end)
+              )
+            end
+          else
+            vim.notify("[Mason] Package not found: " .. pkg_name, vim.log.levels.WARN)
           end
         end
-      end, 100)
+      end)
     end,
   },
+
+  -------------------------------------------------
+  -- Native LSP config
+  -------------------------------------------------
   {
-    'mason-org/mason-lspconfig.nvim',
-    dependencies = { 'mason-org/mason.nvim' },
-    opts = {
-      ensure_installed = lsp_servers,
-      automatic_installation = true,
-    },
-  },
-  {
-    'neovim/nvim-lspconfig',
-    event = { 'BufReadPre', 'BufNewFile' },
+    dir = vim.fn.stdpath("config"),
+    name = "lsp-config",
+    lazy = false,
     dependencies = {
-      'mason-org/mason-lspconfig.nvim',
+      "mason-org/mason.nvim",
+      "saghen/blink.cmp",
     },
-    opts = {
-      servers = {
-        gopls = {
-          settings = {
-            gopls = {
-              gofumpt = true,
-              codelenses = {
-                gc_details = false,
-                generate = true,
-                regenerate_cgo = true,
-                run_govulncheck = true,
-                test = true,
-                tidy = true,
-                upgrade_dependency = true,
-                vendor = true,
-              },
-              hints = {
-                assignVariableTypes = true,
-                compositeLiteralFields = true,
-                compositeLiteralTypes = true,
-                constantValues = true,
-                functionTypeParameters = true,
-                parameterNames = true,
-                rangeVariableTypes = true,
-              },
-              analyses = {
-                nilness = true,
-                unusedparams = true,
-                unusedwrite = true,
-                useany = true,
-              },
-              usePlaceholders = true,
-              completeUnimported = true,
-              staticcheck = true,
-              directoryFilters = { '-.git', '-.vscode', '-.idea', '-.vscode-test', '-node_modules' },
-              semanticTokens = true,
-            },
-          },
-        },
-      },
-    },
+
     config = function()
-      local lsp_config = require 'config.lsp'
+      local lsp_config = require("config.lsp")
+
+      -- enable servers from the list
+      for _, server in ipairs(lsp_servers) do
+        vim.lsp.enable(server)
+      end
+
       lsp_config.setup_lsps()
       lsp_config.setup()
+
       vim.lsp.inlay_hint.enable(true)
     end,
   },

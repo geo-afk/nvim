@@ -1,0 +1,133 @@
+# .golangci.yml — Place this in your Go project root
+# golangci-lint reads this automatically when run from the project directory.
+# Docs: https://golangci-lint.run/usage/configuration/
+
+run:
+  # Timeout for a single run. Increase for large projects.
+  timeout: 5m
+
+  # Analyse test files too
+  tests: true
+
+  # Skip these paths entirely
+  skip-dirs:
+    - vendor
+    - .git
+
+  # Skip generated files
+  skip-files:
+    - ".*\\.pb\\.go$"
+    - ".*\\.gen\\.go$"
+    - "mock_.*\\.go$"
+
+linters:
+  # Disable all defaults, then opt-in to exactly what you want.
+  # This prevents new linters added in golangci-lint updates from
+  # suddenly breaking your CI.
+  disable-all: true
+  enable:
+    # ── Correctness ────────────────────────────────────────────────────────
+    - errcheck        # unchecked errors (very common Go bug)
+    - gosimple        # simplification suggestions
+    - govet           # go vet checks (printf, copylocks, etc.)
+    - ineffassign     # assignments to never-read variables
+    - staticcheck     # 150+ static analysis checks (SA, S, QF rules)
+    - unused          # unused code detection
+
+    # ── Style / maintainability ────────────────────────────────────────────
+    - gofumpt         # stricter gofmt (ensure CI matches editor)
+    - goimports       # import organization check
+    - gocritic        # various code style issues
+    - revive          # opinionated, configurable linter
+
+    # ── Security ──────────────────────────────────────────────────────────
+    - gosec           # security issues (SQL injection, hardcoded creds, etc.)
+
+    # ── Error handling ────────────────────────────────────────────────────
+    - wrapcheck       # require errors to be wrapped with context
+    - errorlint       # common mistakes with errors.Is/As/new
+
+    # ── Bugs ──────────────────────────────────────────────────────────────
+    - bodyclose       # HTTP response body must be closed
+    - noctx           # HTTP requests should use context
+    - sqlcloserows    # sql.Rows must be closed
+    - exhaustive      # switch statements over enums must be exhaustive
+
+    # ── Performance ───────────────────────────────────────────────────────
+    - prealloc        # suggest slice pre-allocation
+    - nilerr          # returning nil when err != nil
+
+linters-settings:
+  govet:
+    enable-all: true
+    disable:
+      - fieldalignment  # too noisy, opt-in per struct with //nolint
+
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+    disabled-checks:
+      - commentedOutCode  # too noisy during development
+      - whyNoLint
+
+  revive:
+    rules:
+      - name: exported
+        severity: warning
+        arguments:
+          - "checkPrivateReceivers"
+          - "sayRepetitionInsteadOfStutters"
+      - name: unused-parameter
+        severity: warning
+      - name: error-return
+        severity: error
+
+  gosec:
+    excludes:
+      - G115  # integer overflow conversion (too noisy in practice)
+
+  errcheck:
+    check-type-assertions: true
+    check-blank: true
+
+  gofumpt:
+    extra-rules: true
+
+  wrapcheck:
+    ignorePackageGlobs:
+      - "encoding/*"
+      - "github.com/pkg/errors"
+
+  exhaustive:
+    default-signifies-exhaustive: true
+
+issues:
+  # Don't limit the number of issues per linter
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
+  exclude-rules:
+    # Relax some rules for test files
+    - path: "_test\\.go"
+      linters:
+        - errcheck    # don't require error checks in tests
+        - wrapcheck   # don't require wrapping in tests
+        - gosec       # less strict security in tests
+        - gocritic
+
+    # Allow init() functions to be complex
+    - source: "func init()"
+      linters:
+        - gocyclo
+
+    # Relax for main packages
+    - path: "cmd/"
+      linters:
+        - wrapcheck
+
+  # Fix some false positives
+  exclude:
+    - "Error return value of .((os\\.)?std(out|err)\\..*|.*Close|.*Flush|os\\.Remove(All)?|.*print(f|ln)?|os\\.(Un)?Setenv). is not checked"
+    - "exported (type|method|function) .* should have comment"

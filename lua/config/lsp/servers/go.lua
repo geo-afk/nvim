@@ -1,4 +1,7 @@
 return {
+  cmd          = { 'gopls' },
+  filetypes    = { 'go', 'gomod', 'gowork', 'gotmpl' },
+  root_markers = { 'go.work', 'go.mod', '.git' },
   settings = {
     gopls = {
       gofumpt = true,
@@ -12,7 +15,6 @@ return {
       completeFunctionCalls = true,
       linksInHover = true,
       staticcheck = true,
-
       codelenses = {
         gc_details = true,
         generate = true,
@@ -38,11 +40,9 @@ return {
         unusedwrite = true,
         useany = true,
       },
-      -- vendor mode has problem with GD in external deps so -mod=mod is required
       ui = {
         semanticTokens = true,
       },
-      -- semanticTokens = true,
     },
   },
 }

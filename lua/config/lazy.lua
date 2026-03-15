@@ -1,13 +1,13 @@
 -- Bootstrap lazy.nvim
-local lazypath = vim.fn.stdpath 'data' .. '/lazy/lazy.nvim'
+local lazypath = vim.fn.stdpath("data") .. "/lazy/lazy.nvim"
 if not (vim.uv or vim.loop).fs_stat(lazypath) then
-  local lazyrepo = 'https://github.com/folke/lazy.nvim.git'
-  local out = vim.fn.system { 'git', 'clone', '--filter=blob:none', '--branch=stable', lazyrepo, lazypath }
+  local lazyrepo = "https://github.com/folke/lazy.nvim.git"
+  local out = vim.fn.system({ "git", "clone", "--filter=blob:none", "--branch=stable", lazyrepo, lazypath })
   if vim.v.shell_error ~= 0 then
     vim.api.nvim_echo({
-      { 'Failed to clone lazy.nvim:\n', 'ErrorMsg' },
-      { out, 'WarningMsg' },
-      { '\nPress any key to exit...' },
+      { "Failed to clone lazy.nvim:\n", "ErrorMsg" },
+      { out, "WarningMsg" },
+      { "\nPress any key to exit..." },
     }, true, {})
     vim.fn.getchar()
     os.exit(1)
@@ -18,75 +18,75 @@ vim.opt.rtp:prepend(lazypath)
 -- Make sure to setup `mapleader` and `maplocalleader` before
 -- loading lazy.nvim so that mappings are correct.
 -- This is also a good place to setup other settings (vim.opt)
-vim.g.mapleader = ' '
-vim.g.maplocalleader = '\\'
+vim.g.mapleader = " "
+vim.g.maplocalleader = "\\"
+
 
 require 'config.options'
 require 'config.keymaps'
 require 'config.autocmds'
 require 'config.neovide'
-require 'utils.angular'
+-- require 'utils.angular'
 
 -- Setup lazy.nvim
-require('lazy').setup {
+require("lazy").setup({
   spec = {
     -- import your plugins
-    { import = 'plugins' },
-    { import = 'plugins.ui' },
-    { import = 'plugins.lsp' },
-    { import = 'plugins.tools' },
+    { import = "plugins" },
+    { import = "plugins.lsp" },
+   -- { import = "plugins.lsp.blink" },
+    { import = "plugins.ui" },
+    { import = "plugins.tools" },
   },
   -- Configure any other settings here. See the documentation for more details.
   -- colorscheme that will be used when installing plugins.
-  install = { colorscheme = { 'tokyonight' } },
+  install = { colorscheme = { "habamax" } },
   -- automatically check for plugin updates
-  checker = { enabled = true },
+  checker = { enabled = true, notify = false },
+  change_detection = {
+    notify = false,
+  },
+
+  -- Performance: disable built-in Neovim plugins we don't use
+  -- This shaves a few ms off startup time
   performance = {
     rtp = {
       disabled_plugins = {
-        'gzip',
-        'matchit',
-        'matchparen',
-        'netrwPlugin',
-        'tarPlugin',
-        'tohtml',
-        'tutor',
-        'zipPlugin',
+        "gzip",
+        "matchit",
+        "matchparen",
+        "netrwPlugin",
+        "tarPlugin",
+        "tohtml",
+        "tutor",
+        "zipPlugin",
       },
     },
   },
-  ui = {
-    border = 'rounded',
-    backdrop = 25,
+
+ ui = {
+    border = "rounded",
+    icons = {
+      cmd    = "⌘",
+      config = "🛠",
+      event  = "📅",
+      ft     = "📂",
+      init   = "⚙",
+      keys   = "🗝",
+      plugin = "🔌",
+      runtime = "💻",
+      source = "📄",
+      start  = "🚀",
+      task   = "📌",
+    },
   },
-}
+})
 
--- require('utils.popup_menu').setup()
 
--- Local function wrap(fn, name)
---   return function(...)
---     local info = debug.traceback('', 2)
---     vim.notify(name .. ' called from:\n' .. info, vim.log.levels.DEBUG)
---     return fn(...)
---   end
--- end
---
--- vim.system = wrap(vim.system, 'vim.system')
--- vim.fn.jobstart = wrap(vim.fn.jobstart, 'jobstart')
 
-require('custom.explorer').setup {
-  -- override any defaults you want (all optional)
-  width = 35,
-  side = 'left', -- "left" | "right"
-  show_hidden = false,
-  show_git = true,
-  follow_file = true, -- auto-reveal active buffer
-  auto_close = false,
-  keymaps = {
-    toggle = '<leader>e', -- global toggle (set "" to skip)
-    -- reveal = '<leader>E', -- reveal current file (set "" to skip)
-  },
-}
---
+require('custom.explorer').setup()
 require('custom.statusline').setup()
+require('custom.tabline').setup()
 require('custom.lsp_keymapper').setup()
+-- require('custom.notifier').setup()
+require('custom.autoclose').setup()
