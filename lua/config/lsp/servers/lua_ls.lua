@@ -1,34 +1,36 @@
+---@type vim.lsp.Config
 return {
-  cmd          = { 'lua-language-server' },
-  filetypes    = { 'lua' },
-  root_markers = { '.luarc.json', '.luarc.jsonc', ".stylua.toml", "stylua.toml", '.git' },
+  cmd = { "lua-language-server" },
+  filetypes = { "lua" },
+  root_markers = { ".luarc.json", ".luarc.jsonc", ".stylua.toml", "stylua.toml", ".git" },
+  ---@type lspconfig.settings.lua_ls
   settings = {
     Lua = {
       runtime = {
-        version = 'LuaJIT',
+        version = "LuaJIT",
       },
       completion = {
         autoRequire = true,
-        callSnippet = 'Both',
+        callSnippet = "Both",
         displayContext = 5,
         enable = true,
-        keywordSnippet = 'Both',
-        portfix = '.',
-        showWord = 'Enable',
+        keywordSnippet = "Both",
+        portfix = ".",
+        showWord = "Enable",
       },
       workspace = {
         library = {
-          vim.fn.expand '$VIMRUNTIME/lua',
-          vim.fn.stdpath 'config' .. '/lua',
+          vim.fn.expand("$VIMRUNTIME/lua"),
+          vim.fn.stdpath("config") .. "/lua",
         },
       },
       hint = {
         enable = true,
-        arrayIndex = 'Auto',
+        arrayIndex = "Auto",
         await = true,
-        paramName = 'All',
+        paramName = "All",
         paramType = true,
-        semicolon = 'All',
+        semicolon = "All",
         setType = false,
       },
       type = {
@@ -37,9 +39,9 @@ return {
       telemetry = {
         enable = false,
       },
-      diagnostics = { disable = { 'missing-fields' }, globals = { 'vim', 'scroll' } },
+      diagnostics = { disable = { "missing-fields" }, globals = { "vim", "scroll" } },
       doc = {
-        privateName = { '^_' },
+        privateName = { "^_" },
       },
     },
   },
