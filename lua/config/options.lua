@@ -4,22 +4,22 @@ vim.opt.undofile = true
 -- ============================================================
 -- setting Auto-Sessions so when session is restored on startup.
 -- ============================================================
-vim.o.sessionoptions = 'blank,buffers,curdir,help,tabpages,winsize,winpos,terminal,localoptions'
+vim.o.sessionoptions = "blank,buffers,curdir,help,tabpages,winsize,winpos,terminal,localoptions"
 
 -- =======================================================================
 --  Compatibility / Neovim Version Checks
 -- =======================================================================
-if vim.fn.has 'nvim-0.11' == 1 then
+if vim.fn.has("nvim-0.11") == 1 then
   -- When closing a window, automatically jump to the last used one
-  vim.opt.tabclose:append { 'uselast' }
+  vim.opt.tabclose:append({ "uselast" })
 end
 
 vim.opt.guicursor = {
-  'n-sm:block',
-  'v:hor50',
-  'i-c-ci-cr-ve:ver10-InsertCursor',
+  "n-sm:block",
+  "v:hor50",
+  "i-c-ci-cr-ve:ver10-InsertCursor",
   -- "i-c-ci-ve:block-InsertCursor",
-  'o-r:hor50',
+  "o-r:hor50",
 }
 
 -- =======================================================================
@@ -33,8 +33,8 @@ vim.g.loaded_netrwPlugin = 1
 -- =======================================================================
 vim.o.number = true -- Show line numbers
 -- vim.o.winborder = "rounded"
-vim.opt.winborder = 'rounded'
-vim.o.mouse = 'a' -- Enable mouse support
+vim.opt.winborder = "rounded"
+vim.o.mouse = "a" -- Enable mouse support
 vim.o.showmode = false -- Don’t show mode in command line (already shown in statusline)
 vim.o.laststatus = 3 -- Global statusline (instead of per window)
 vim.o.cmdheight = 0 -- Hide command line unless needed
@@ -46,7 +46,7 @@ vim.g.have_nerd_font = true -- Enable Nerd Font icons if available
 -- =======================================================================
 --  Editing Behavior
 -- =======================================================================
-vim.bo.commentstring = '-- %s' -- Default comment style  Lua-like files
+vim.bo.commentstring = "-- %s" -- Default comment style  Lua-like files
 vim.o.tabstop = 2 -- Tab width = 2 spaces
 vim.o.shiftwidth = 2 -- Indent width = 2 spaces
 vim.o.expandtab = true -- Use spaces instead of tabs
@@ -59,7 +59,7 @@ vim.o.wrap = false
 --  Clipboard
 -- =======================================================================
 vim.schedule(function()
-  vim.o.clipboard = 'unnamedplus' -- Use system clipboard
+  vim.o.clipboard = "unnamedplus" -- Use system clipboard
 end)
 
 -- =======================================================================
@@ -89,35 +89,35 @@ vim.o.undofile = true -- Save undo history to file
 -- =======================================================================
 --  Signs & Columns
 -- =======================================================================
-vim.o.signcolumn = 'yes' -- Always show sign column (for diagnostics, git, etc.)
+vim.o.signcolumn = "yes" -- Always show sign column (for diagnostics, git, etc.)
 
 -- =======================================================================
 --  Lists & Invisible Characters
 -- =======================================================================
 vim.opt.list = true
 vim.opt.listchars = {
-  tab = '» ',
-  trail = '·',
-  nbsp = '␣',
-  extends = '›',
-  precedes = '‹',
-  conceal = '',
+  tab = "» ",
+  trail = "·",
+  nbsp = "␣",
+  extends = "›",
+  precedes = "‹",
+  conceal = "",
 }
-vim.opt.showbreak = '↪ ' -- Show wrapped lines with symbol
+vim.opt.showbreak = "↪ " -- Show wrapped lines with symbol
 vim.opt.fillchars = {
-  fold = ' ',
-  foldopen = '',
-  foldclose = '',
-  foldsep = ' ',
-  diff = '╱',
-  eob = ' ',
-  horiz = '━',
-  horizup = '┻',
-  horizdown = '┳',
-  vert = '┃',
-  vertleft = '┫',
-  vertright = '┣',
-  verthoriz = '╋',
+  fold = " ",
+  foldopen = "",
+  foldclose = "",
+  foldsep = " ",
+  diff = "╱",
+  eob = " ",
+  horiz = "━",
+  horizup = "┻",
+  horizdown = "┳",
+  vert = "┃",
+  vertleft = "┫",
+  vertright = "┣",
+  verthoriz = "╋",
 }
 
 -- =======================================================================
@@ -128,8 +128,8 @@ vim.o.confirm = true -- Ask to save when quitting with unsaved changes
 -- =======================================================================
 --  Plugin/Framework Specific Globals
 -- =======================================================================
-vim.g.lazyvim_cmp = 'blink.cmp' -- Completion plugin
-vim.g.root_spec = { 'lsp', { '.git', 'lua' }, 'cwd' } -- Project root detection
+vim.g.lazyvim_cmp = "blink.cmp" -- Completion plugin
+vim.g.root_spec = { "lsp", { ".git", "lua" }, "cwd" } -- Project root detection
 
 -- =======================================================================
 --  Shell Configuration (auto)
@@ -142,34 +142,37 @@ local opt = vim.opt
 opt.shelltemp = false
 
 -- Disable all escaping/quoting (required for Nu)
-opt.shellquote = ''
-opt.shellxquote = ''
-opt.shellxescape = ''
+opt.shellquote = ""
+opt.shellxquote = ""
+opt.shellxescape = ""
 
 ---------------------------------------------------------------------
 -- Prefer NuShell if available
 ---------------------------------------------------------------------
-if fn.executable 'nu' == 1 then
-  opt.shell = 'nu'
+if fn.executable("nu") == 1 then
+  opt.shell = "nu"
 
   -- Nu flags:
   -- --stdin        : read input from stdin (no temp files)
   -- --no-newline   : do not append newline to stdout
   -- -c             : execute command
-  opt.shellcmdflag = '--stdin --no-newline -c'
+  opt.shellcmdflag = "--stdin --no-newline -c"
 
   -- Redirect stdout+stderr
-  opt.shellredir = 'out+err> %s'
+  opt.shellredir = "out+err> %s"
 
   -- Pipe used by :make and similar commands
   -- - strips ANSI
   -- - saves stderr for quickfix
-  opt.shellpipe = '| complete' .. ' | update stderr { ansi strip }' .. ' | tee { get stderr | save --force --raw %s }' .. ' | into record'
+  opt.shellpipe = "| complete"
+    .. " | update stderr { ansi strip }"
+    .. " | tee { get stderr | save --force --raw %s }"
+    .. " | into record"
 
 ---------------------------------------------------------------------
 -- Fallback to PowerShell 7+ if Nu is not available
 ---------------------------------------------------------------------
-elseif fn.executable 'pwsh' == 1 then
+elseif fn.executable("pwsh") == 1 then
   -- opt.shell = 'pwsh'
   --
   -- opt.shellcmdflag = '-NoLogo -NoProfile -ExecutionPolicy RemoteSigned -Command'
@@ -188,6 +191,6 @@ elseif fn.executable 'pwsh' == 1 then
   vim.o.shellpipe = '2>&1 | %%{ "$_" } | tee %s; exit $LastExitCode'
 
   -- Setting shell quote options
-  vim.o.shellquote = ''
-  vim.o.shellxquote = ''
+  vim.o.shellquote = ""
+  vim.o.shellxquote = ""
 end
