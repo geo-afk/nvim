@@ -60,7 +60,9 @@ return {
     "mason-org/mason.nvim",
     lazy = false,
     build = ":MasonUpdate",
-
+    dependencies = {
+      "neovim/nvim-lspconfig",
+    },
     keys = {
       { "<leader>cm", "<cmd>Mason<cr>", desc = "Mason UI" },
     },
@@ -129,9 +131,9 @@ return {
       local lsp_config = require("config.lsp")
 
       -- enable servers from the list
-      for _, server in ipairs(lsp_servers) do
-        vim.lsp.enable(server)
-      end
+      -- for _, server in ipairs(lsp_servers) do
+      --   vim.lsp.enable(server)
+      -- end
 
       lsp_config.setup_lsps()
       lsp_config.setup()
