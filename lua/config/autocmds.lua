@@ -8,40 +8,40 @@
 -- e.g. vim.api.nvim_del_augroup_by_name("lazyvim_wrap_spell")
 
 -- Create an autocmd for both TypeScript and HTML files
-vim.api.nvim_create_autocmd('FileType', {
-  pattern = { 'typescript', 'html' }, -- both filetypes
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = { "typescript", "html" }, -- both filetypes
   callback = function()
-    if require('utils').is_angular_project() then
+    if require("utils").is_angular_project() then
       -- Buffer-local keymap
-      vim.keymap.set('n', '<leader>at', function()
+      vim.keymap.set("n", "<leader>at", function()
         -- Example: Toggle between .ts and .html
         local bufname = vim.api.nvim_buf_get_name(0)
-        if bufname:match '%.ts$' then
-          vim.cmd('edit ' .. bufname:gsub('%.ts$', '.html'))
-        elseif bufname:match '%.html$' then
-          vim.cmd('edit ' .. bufname:gsub('%.html$', '.ts'))
+        if bufname:match("%.ts$") then
+          vim.cmd("edit " .. bufname:gsub("%.ts$", ".html"))
+        elseif bufname:match("%.html$") then
+          vim.cmd("edit " .. bufname:gsub("%.html$", ".ts"))
         end
-      end, { buffer = true, desc = 'Toggle Angular .ts <-> .html' })
+      end, { buffer = true, desc = "Toggle Angular .ts <-> .html" })
     end
   end,
 })
 
 local function augroup(name)
-  return vim.api.nvim_create_augroup('lazyvim_' .. name, { clear = true })
+  return vim.api.nvim_create_augroup("lazyvim_" .. name, { clear = true })
 end
 
-vim.api.nvim_create_autocmd('InsertLeave', { command = 'set relativenumber', pattern = '*' })
-vim.api.nvim_create_autocmd('InsertEnter', { command = 'set norelativenumber', pattern = '*' })
+vim.api.nvim_create_autocmd("InsertLeave", { command = "set relativenumber", pattern = "*" })
+vim.api.nvim_create_autocmd("InsertEnter", { command = "set norelativenumber", pattern = "*" })
 
 -- Enable spell checking  certain file types
 vim.api.nvim_create_autocmd(
-  { 'BufRead', 'BufNewFile' },
+  { "BufRead", "BufNewFile" },
   -- { pattern = { "*.txt", "*.md", "*.tex" }, command = [[setlocal spell<cr> setlocal spelllang=en,de<cr>]] }
   {
-    pattern = { '*.txt', '*.md', '*.tex' },
+    pattern = { "*.txt", "*.md", "*.tex" },
     callback = function()
       vim.opt.spell = true
-      vim.opt.spelllang = 'en'
+      vim.opt.spelllang = "en"
     end,
   }
 )
@@ -49,14 +49,14 @@ vim.api.nvim_create_autocmd(
 --------------------------------------------------------------------------------
 -- AUTO-SAVE
 --------------------------------------------------------------------------------
-vim.api.nvim_create_autocmd({ 'InsertLeave', 'TextChanged', 'BufLeave', 'FocusLost' }, {
-  desc = 'User: Auto-save',
+vim.api.nvim_create_autocmd({ "InsertLeave", "TextChanged", "BufLeave", "FocusLost" }, {
+  desc = "User: Auto-save",
   callback = function(ctx)
-    local saveInstantly = ctx.event == 'FocusLost' or ctx.event == 'BufLeave'
+    local saveInstantly = ctx.event == "FocusLost" or ctx.event == "BufLeave"
     local bufnr = ctx.buf
     local bo, b = vim.bo[bufnr], vim.b[bufnr]
     local bufname = ctx.file
-    if bo.buftype ~= '' or bo.ft == 'gitcommit' or bo.readonly then
+    if bo.buftype ~= "" or bo.ft == "gitcommit" or bo.readonly then
       return
     end
     if b.saveQueued and not saveInstantly then
@@ -72,7 +72,7 @@ vim.api.nvim_create_autocmd({ 'InsertLeave', 'TextChanged', 'BufLeave', 'FocusLo
       vim.api.nvim_buf_call(bufnr, function()
         -- saving with explicit name prevents issues when changing `cwd`
         -- `:update!` suppresses "The file has been changed since reading it!!!"
-        local vimCmd = ('silent! noautocmd lockmarks update! %q'):format(bufname)
+        local vimCmd = ("silent! noautocmd lockmarks update! %q"):format(bufname)
         vim.cmd(vimCmd)
       end)
       b.saveQueued = false
@@ -80,18 +80,18 @@ vim.api.nvim_create_autocmd({ 'InsertLeave', 'TextChanged', 'BufLeave', 'FocusLo
   end,
 })
 
-vim.api.nvim_create_autocmd('TextYankPost', {
-  desc = 'Highlight when yanking (copying) text',
-  group = vim.api.nvim_create_augroup('kickstart-highlight-yank', { clear = true }),
+vim.api.nvim_create_autocmd("TextYankPost", {
+  desc = "Highlight when yanking (copying) text",
+  group = vim.api.nvim_create_augroup("kickstart-highlight-yank", { clear = true }),
   callback = function()
     vim.hl.on_yank()
   end,
 })
 
-vim.api.nvim_create_user_command('LspNames', function()
+vim.api.nvim_create_user_command("LspNames", function()
   local clients = vim.lsp.get_clients()
   if #clients == 0 then
-    print 'No active LSP clients'
+    print("No active LSP clients")
   else
     for _, client in pairs(clients) do
       print(client.name)
@@ -99,9 +99,9 @@ vim.api.nvim_create_user_command('LspNames', function()
   end
 end, {})
 
-vim.api.nvim_create_autocmd('FileType', {
-  group = augroup 'wrap_spell',
-  pattern = { 'text', 'plaintex', 'typst', 'gitcommit', 'markdown' },
+vim.api.nvim_create_autocmd("FileType", {
+  group = augroup("wrap_spell"),
+  pattern = { "text", "plaintex", "typst", "gitcommit", "markdown" },
   callback = function()
     vim.opt_local.wrap = true
     vim.opt_local.spell = true
@@ -109,76 +109,76 @@ vim.api.nvim_create_autocmd('FileType', {
 })
 
 -- Auto create dir when saving a file, in case some intermediate directory does not exist
-vim.api.nvim_create_autocmd({ 'BufWritePre' }, {
-  group = augroup 'auto_create_dir',
+vim.api.nvim_create_autocmd({ "BufWritePre" }, {
+  group = augroup("auto_create_dir"),
   callback = function(event)
-    if event.match:match '^%w%w+:[\\/][\\/]' then
+    if event.match:match("^%w%w+:[\\/][\\/]") then
       return
     end
     local file = vim.uv.fs_realpath(event.match) or event.match
-    vim.fn.mkdir(vim.fn.fnamemodify(file, ':p:h'), 'p')
+    vim.fn.mkdir(vim.fn.fnamemodify(file, ":p:h"), "p")
   end,
 })
 
 -- create group once (clear = true to avoid duplicates)
-local no_auto_comment_grp = vim.api.nvim_create_augroup('NoAutoComment', { clear = true })
+local no_auto_comment_grp = vim.api.nvim_create_augroup("NoAutoComment", { clear = true })
 
-vim.api.nvim_create_autocmd('FileType', {
+vim.api.nvim_create_autocmd("FileType", {
   group = no_auto_comment_grp,
-  pattern = '*', -- all filetypes
+  pattern = "*", -- all filetypes
   callback = function()
     -- Remove individually
-    vim.opt_local.formatoptions:remove 'r'
-    vim.opt_local.formatoptions:remove 'o'
-    vim.opt_local.formatoptions:remove 'c' -- if you also want to stop auto-wrap of comments
+    vim.opt_local.formatoptions:remove("r")
+    vim.opt_local.formatoptions:remove("o")
+    vim.opt_local.formatoptions:remove("c") -- if you also want to stop auto-wrap of comments
   end,
 })
 
 -- close some filetypes with <q>
-vim.api.nvim_create_autocmd('FileType', {
-  group = vim.api.nvim_create_augroup('close_with_q', { clear = true }),
+vim.api.nvim_create_autocmd("FileType", {
+  group = vim.api.nvim_create_augroup("close_with_q", { clear = true }),
   pattern = {
-    'PlenaryTestPopup',
-    'help',
-    'lspinfo',
-    'man',
-    'notify',
-    'qf',
-    'spectre_panel',
-    'startuptime',
-    'tsplayground',
-    'neotest-output',
-    'checkhealth',
-    'neotest-summary',
-    'neotest-output-panel',
-    'checkhealth',
-    'dbout',
-    'gitsigns-blame',
-    'neotest-output',
-    'neotest-summary',
+    "PlenaryTestPopup",
+    "help",
+    "lspinfo",
+    "man",
+    "notify",
+    "qf",
+    "spectre_panel",
+    "startuptime",
+    "tsplayground",
+    "neotest-output",
+    "checkhealth",
+    "neotest-summary",
+    "neotest-output-panel",
+    "checkhealth",
+    "dbout",
+    "gitsigns-blame",
+    "neotest-output",
+    "neotest-summary",
   },
   callback = function(event)
     vim.bo[event.buf].buflisted = false
-    vim.keymap.set('n', 'q', '<cmd>close<cr>', { buffer = event.buf, silent = true })
-    vim.keymap.set('n', '<Esc>', '<cmd>nohlsearch<CR>', { buffer = event.buf, silent = true })
+    vim.keymap.set("n", "q", "<cmd>close<cr>", { buffer = event.buf, silent = true })
+    vim.keymap.set("n", "<Esc>", "<cmd>nohlsearch<CR>", { buffer = event.buf, silent = true })
   end,
 })
 
 -- resize splits if window got resized
-vim.api.nvim_create_autocmd({ 'VimResized' }, {
-  group = augroup 'resize_splits',
+vim.api.nvim_create_autocmd({ "VimResized" }, {
+  group = augroup("resize_splits"),
   callback = function()
     local current_tab = vim.fn.tabpagenr()
-    vim.cmd 'tabdo wincmd ='
-    vim.cmd('tabnext ' .. current_tab)
+    vim.cmd("tabdo wincmd =")
+    vim.cmd("tabnext " .. current_tab)
   end,
 })
 
 -- go to last loc when opening a buffer
-vim.api.nvim_create_autocmd('BufReadPost', {
-  group = augroup 'last_loc',
+vim.api.nvim_create_autocmd("BufReadPost", {
+  group = augroup("last_loc"),
   callback = function(event)
-    local exclude = { 'gitcommit' }
+    local exclude = { "gitcommit" }
     local buf = event.buf
     if vim.tbl_contains(exclude, vim.bo[buf].filetype) or vim.b[buf].lazyvim_last_loc then
       return
@@ -191,3 +191,45 @@ vim.api.nvim_create_autocmd('BufReadPost', {
     end
   end,
 })
+
+-- Restart ALL active LSP clients (session-wide)
+vim.api.nvim_create_user_command("LspRestartAll", function()
+  local clients = vim.lsp.get_clients()
+  for _, client in ipairs(clients) do
+    vim.lsp.stop_client(client.id)
+  end
+  -- Optional: force re-attach by reloading the current buffer
+  -- (LSP usually auto-restarts on demand)
+  vim.cmd("edit")
+end, { desc = "Restart all LSP clients" })
+
+-- function _G.lsp_info()
+--   local clients = get_buffer_clients()
+--   local bufnr = vim.api.nvim_get_current_buf()
+--   local filename = vim.api.nvim_buf_get_name(bufnr)
+--
+--   local lines = {}
+--   table.insert(lines, "LSP Clients attached to: " .. (filename ~= "" and filename or "[No Name]"))
+--   table.insert(lines, "─" .. string.rep("─", 60))
+--
+--   if vim.tbl_isempty(clients) then
+--     table.insert(lines, "No active LSP clients")
+--   else
+--     for _, client in ipairs(clients) do
+--       table.insert(lines, string.format("Client: %s (id: %d)", client.name, client.id))
+--       table.insert(lines, string.format("  Root: %s", client.config.root_dir or "Not set"))
+--       table.insert(
+--         lines,
+--         string.format("  Cmd: %s", client.config.cmd and table.concat(client.config.cmd, " ") or "N/A")
+--       )
+--       table.insert(lines, string.format("  Capabilities: %s", client.server_capabilities and "yes" or "no"))
+--       table.insert(lines, "")
+--     end
+--   end
+--
+--   print(table.concat(lines, "\n"))
+-- end
+--
+-- vim.api.nvim_create_user_command("LspInfo", function()
+--   _G.lsp_info()
+-- end, {})
