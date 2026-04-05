@@ -29,6 +29,7 @@ local FALLBACK = {
   bg = '#1e1e2e',
   bg_dim = '#181825',
   bg_alt = '#313244',
+  bg_chip = '#26293a',
 
   -- Mode colours (fallback when colorscheme Function/String/Keyword are unset)
   normal = '#89b4fa', -- blue
@@ -48,6 +49,7 @@ local FALLBACK = {
   -- Accent (accent on top of statusline bg)
   accent = '#89b4fa',
   separator = '#45475a',
+  fill = '#313244',
 
   -- Semantic colors
   git_add = '#a6e3a1',
@@ -162,6 +164,7 @@ local function build_palette()
 
   -- ── Cursor / position ─────────────────────────────────────────────────────
   local cursor_bg = hl_color('CursorLine', 'bg') or FALLBACK.bg_alt
+  local pmenu_bg = hl_color('Pmenu', 'bg') or FALLBACK.bg_chip
 
   -- ── Specials ──────────────────────────────────────────────────────────────
   local macro_bg = first_color({ 'Constant', '@constant', 'Number' }, 'fg') or FALLBACK.macro
@@ -172,6 +175,7 @@ local function build_palette()
     bg = sl_bg,
     bg_dim = sl_nc_bg,
     bg_alt = cursor_bg,
+    bg_chip = pmenu_bg,
     fg = normal_fg,
     fg_dim = comment,
     fg_muted = nontext,
@@ -200,6 +204,7 @@ local function build_palette()
 
     accent = accent,
     separator = separator,
+    fill = nontext or FALLBACK.fill,
 
     modified = d_err,
     readonly = d_warn,
@@ -230,6 +235,9 @@ local function define_groups(p)
     StatusLineNC = { fg = p.fg_dim, bg = p.bg_dim },
     StatusLineSep = { fg = p.separator, bg = p.bg },
     StatusLineAlt = { fg = p.fg, bg = p.bg_alt },
+    StatusLineChip = { fg = p.fg, bg = p.bg_chip },
+    StatusLineChipMuted = { fg = p.fg_dim, bg = p.bg_chip },
+    StatusLineFill = { fg = p.fill, bg = p.bg },
 
     -- ── Mode pills ──────────────────────────────────────────────────────────
     StatusLineNormal = { fg = p.fg_on_accent, bg = p.normal, bold = true },
@@ -250,7 +258,7 @@ local function define_groups(p)
     StatusLineSelectSep = { fg = p.select, bg = p.bg },
 
     -- ── File ────────────────────────────────────────────────────────────────
-    StatusLineFilePath = { fg = p.fg, bg = p.bg },
+    StatusLineFilePath = { fg = p.fg, bg = p.bg, bold = true },
     StatusLineFileIcon = { fg = p.accent, bg = p.bg },
     StatusLineModified = { fg = p.modified, bg = p.bg, bold = true },
     StatusLineReadonly = { fg = p.readonly, bg = p.bg, bold = true },
@@ -266,16 +274,16 @@ local function define_groups(p)
     StatusLineGitDel = { fg = p.git_del, bg = p.bg },
 
     -- ── LSP ─────────────────────────────────────────────────────────────────
-    StatusLineLSPActive = { fg = p.lsp_active, bg = p.bg },
-    StatusLineLSPLoad = { fg = p.lsp_loading, bg = p.bg },
-    StatusLineLSPName = { fg = p.fg_dim, bg = p.bg, italic = true },
+    StatusLineLSPActive = { fg = p.lsp_active, bg = p.bg, bold = true },
+    StatusLineLSPLoad = { fg = p.lsp_loading, bg = p.bg, bold = true },
+    StatusLineLSPName = { fg = p.fg_dim, bg = p.bg },
     StatusLineDiagError = { fg = p.diag_error, bg = p.bg, bold = true },
     StatusLineDiagWarn = { fg = p.diag_warn, bg = p.bg },
     StatusLineDiagHint = { fg = p.diag_hint, bg = p.bg },
     StatusLineDiagInfo = { fg = p.diag_info, bg = p.bg },
 
     -- ── Cursor / progress ───────────────────────────────────────────────────
-    StatusLineCursor = { fg = p.fg, bg = p.bg_alt },
+    StatusLineCursor = { fg = p.fg, bg = p.bg_chip, bold = true },
     StatusLineProgress = { fg = p.progress, bg = p.bg, bold = true },
     StatusLineRulerFill = { fg = p.ruler_fill, bg = p.bg },
     StatusLineRulerEmpty = { fg = p.ruler_empty, bg = p.bg },

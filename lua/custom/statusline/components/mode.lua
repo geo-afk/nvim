@@ -7,65 +7,63 @@ local M = {}
 local hl = require('custom.statusline.highlights').hl
 
 -- ---------------------------------------------------------------------------
--- Mode table: [short_code] = { label, icon, hl, sep_hl }
+-- Mode table: [short_code] = { label, icon, hl }
 -- ---------------------------------------------------------------------------
 local modes = {
   -- Normal family
-  ['n'] = { label = 'NORMAL', icon = '󰋜 ', hl = 'StatusLineNormal', sep = 'StatusLineNormalSep' },
-  ['no'] = { label = 'N·OP', icon = '󰋜 ', hl = 'StatusLineNormal', sep = 'StatusLineNormalSep' },
-  ['nov'] = { label = 'N·OP', icon = '󰋜 ', hl = 'StatusLineNormal', sep = 'StatusLineNormalSep' },
-  ['noV'] = { label = 'N·OP', icon = '󰋜 ', hl = 'StatusLineNormal', sep = 'StatusLineNormalSep' },
-  ['no\22'] = { label = 'N·OP', icon = '󰋜 ', hl = 'StatusLineNormal', sep = 'StatusLineNormalSep' },
-  ['niI'] = { label = 'NORMAL', icon = '󰋜 ', hl = 'StatusLineNormal', sep = 'StatusLineNormalSep' },
-  ['niR'] = { label = 'NORMAL', icon = '󰋜 ', hl = 'StatusLineNormal', sep = 'StatusLineNormalSep' },
-  ['niV'] = { label = 'NORMAL', icon = '󰋜 ', hl = 'StatusLineNormal', sep = 'StatusLineNormalSep' },
-  ['nt'] = { label = 'NORMAL', icon = '󰋜 ', hl = 'StatusLineNormal', sep = 'StatusLineNormalSep' },
+  ['n'] = { label = 'NORMAL', icon = '󰋜 ', hl = 'StatusLineNormal' },
+  ['no'] = { label = 'N·OP', icon = '󰋜 ', hl = 'StatusLineNormal' },
+  ['nov'] = { label = 'N·OP', icon = '󰋜 ', hl = 'StatusLineNormal' },
+  ['noV'] = { label = 'N·OP', icon = '󰋜 ', hl = 'StatusLineNormal' },
+  ['no\22'] = { label = 'N·OP', icon = '󰋜 ', hl = 'StatusLineNormal' },
+  ['niI'] = { label = 'NORMAL', icon = '󰋜 ', hl = 'StatusLineNormal' },
+  ['niR'] = { label = 'NORMAL', icon = '󰋜 ', hl = 'StatusLineNormal' },
+  ['niV'] = { label = 'NORMAL', icon = '󰋜 ', hl = 'StatusLineNormal' },
+  ['nt'] = { label = 'NORMAL', icon = '󰋜 ', hl = 'StatusLineNormal' },
 
   -- Insert family
-  ['i'] = { label = 'INSERT', icon = '󰏫 ', hl = 'StatusLineInsert', sep = 'StatusLineInsertSep' },
-  ['ic'] = { label = 'INSERT', icon = '󰏫 ', hl = 'StatusLineInsert', sep = 'StatusLineInsertSep' },
-  ['ix'] = { label = 'INSERT', icon = '󰏫 ', hl = 'StatusLineInsert', sep = 'StatusLineInsertSep' },
+  ['i'] = { label = 'INSERT', icon = '󰏫 ', hl = 'StatusLineInsert' },
+  ['ic'] = { label = 'INSERT', icon = '󰏫 ', hl = 'StatusLineInsert' },
+  ['ix'] = { label = 'INSERT', icon = '󰏫 ', hl = 'StatusLineInsert' },
 
   -- Visual family
-  ['v'] = { label = 'VISUAL', icon = '󰈈 ', hl = 'StatusLineVisual', sep = 'StatusLineVisualSep' },
-  ['vs'] = { label = 'VISUAL', icon = '󰈈 ', hl = 'StatusLineVisual', sep = 'StatusLineVisualSep' },
-  ['V'] = { label = 'V·LINE', icon = '󰈈 ', hl = 'StatusLineVisual', sep = 'StatusLineVisualSep' },
-  ['Vs'] = { label = 'V·LINE', icon = '󰈈 ', hl = 'StatusLineVisual', sep = 'StatusLineVisualSep' },
-  ['\22'] = { label = 'V·BLOCK', icon = '󰈈 ', hl = 'StatusLineVisual', sep = 'StatusLineVisualSep' },
-  ['\22s'] = { label = 'V·BLOCK', icon = '󰈈 ', hl = 'StatusLineVisual', sep = 'StatusLineVisualSep' },
+  ['v'] = { label = 'VISUAL', icon = '󰈈 ', hl = 'StatusLineVisual' },
+  ['vs'] = { label = 'VISUAL', icon = '󰈈 ', hl = 'StatusLineVisual' },
+  ['V'] = { label = 'V·LINE', icon = '󰈈 ', hl = 'StatusLineVisual' },
+  ['Vs'] = { label = 'V·LINE', icon = '󰈈 ', hl = 'StatusLineVisual' },
+  ['\22'] = { label = 'V·BLOCK', icon = '󰈈 ', hl = 'StatusLineVisual' },
+  ['\22s'] = { label = 'V·BLOCK', icon = '󰈈 ', hl = 'StatusLineVisual' },
 
   -- Select family
-  ['s'] = { label = 'SELECT', icon = ' ', hl = 'StatusLineSelect', sep = 'StatusLineSelectSep' },
-  ['S'] = { label = 'S·LINE', icon = ' ', hl = 'StatusLineSelect', sep = 'StatusLineSelectSep' },
-  ['\19'] = { label = 'S·BLOCK', icon = ' ', hl = 'StatusLineSelect', sep = 'StatusLineSelectSep' },
+  ['s'] = { label = 'SELECT', icon = ' ', hl = 'StatusLineSelect' },
+  ['S'] = { label = 'S·LINE', icon = ' ', hl = 'StatusLineSelect' },
+  ['\19'] = { label = 'S·BLOCK', icon = ' ', hl = 'StatusLineSelect' },
 
   -- Replace family
-  ['R'] = { label = 'REPLACE', icon = '󰊄 ', hl = 'StatusLineReplace', sep = 'StatusLineReplaceSep' },
-  ['Rc'] = { label = 'REPLACE', icon = '󰊄 ', hl = 'StatusLineReplace', sep = 'StatusLineReplaceSep' },
-  ['Rx'] = { label = 'REPLACE', icon = '󰊄 ', hl = 'StatusLineReplace', sep = 'StatusLineReplaceSep' },
-  ['Rv'] = { label = 'V·REPLACE', icon = '󰊄 ', hl = 'StatusLineReplace', sep = 'StatusLineReplaceSep' },
-  ['Rvc'] = { label = 'V·REPLACE', icon = '󰊄 ', hl = 'StatusLineReplace', sep = 'StatusLineReplaceSep' },
-  ['Rvx'] = { label = 'V·REPLACE', icon = '󰊄 ', hl = 'StatusLineReplace', sep = 'StatusLineReplaceSep' },
+  ['R'] = { label = 'REPLACE', icon = '󰊄 ', hl = 'StatusLineReplace' },
+  ['Rc'] = { label = 'REPLACE', icon = '󰊄 ', hl = 'StatusLineReplace' },
+  ['Rx'] = { label = 'REPLACE', icon = '󰊄 ', hl = 'StatusLineReplace' },
+  ['Rv'] = { label = 'V·REPLACE', icon = '󰊄 ', hl = 'StatusLineReplace' },
+  ['Rvc'] = { label = 'V·REPLACE', icon = '󰊄 ', hl = 'StatusLineReplace' },
+  ['Rvx'] = { label = 'V·REPLACE', icon = '󰊄 ', hl = 'StatusLineReplace' },
 
   -- Command
-  ['c'] = { label = 'COMMAND', icon = ' ', hl = 'StatusLineCommand', sep = 'StatusLineCommandSep' },
-  ['cv'] = { label = 'EX', icon = ' ', hl = 'StatusLineCommand', sep = 'StatusLineCommandSep' },
-  ['ce'] = { label = 'EX', icon = ' ', hl = 'StatusLineCommand', sep = 'StatusLineCommandSep' },
-  ['r'] = { label = 'PROMPT', icon = ' ', hl = 'StatusLineCommand', sep = 'StatusLineCommandSep' },
-  ['rm'] = { label = 'MORE', icon = ' ', hl = 'StatusLineCommand', sep = 'StatusLineCommandSep' },
-  ['r?'] = { label = 'CONFIRM', icon = ' ', hl = 'StatusLineCommand', sep = 'StatusLineCommandSep' },
-  ['!'] = { label = 'SHELL', icon = ' ', hl = 'StatusLineCommand', sep = 'StatusLineCommandSep' },
+  ['c'] = { label = 'COMMAND', icon = ' ', hl = 'StatusLineCommand' },
+  ['cv'] = { label = 'EX', icon = ' ', hl = 'StatusLineCommand' },
+  ['ce'] = { label = 'EX', icon = ' ', hl = 'StatusLineCommand' },
+  ['r'] = { label = 'PROMPT', icon = ' ', hl = 'StatusLineCommand' },
+  ['rm'] = { label = 'MORE', icon = ' ', hl = 'StatusLineCommand' },
+  ['r?'] = { label = 'CONFIRM', icon = ' ', hl = 'StatusLineCommand' },
+  ['!'] = { label = 'SHELL', icon = ' ', hl = 'StatusLineCommand' },
 
   -- Terminal
-  ['t'] = { label = 'TERMINAL', icon = ' ', hl = 'StatusLineTerminal', sep = 'StatusLineTermSep' },
+  ['t'] = { label = 'TERMINAL', icon = ' ', hl = 'StatusLineTerminal' },
 }
-
-local sep_right = '' -- powerline right-facing solid
 
 --- Resolve mode info, with a safe fallback for unmapped codes.
 local function get_mode_info()
   local code = vim.api.nvim_get_mode().mode
-  return modes[code] or { label = code:upper(), icon = '? ', hl = 'StatusLineNormal', sep = 'StatusLineNormalSep' }
+  return modes[code] or { label = code:upper(), icon = '? ', hl = 'StatusLineNormal' }
 end
 
 --- Render the mode pill:  <icon> LABEL
@@ -73,8 +71,7 @@ end
 --- so downstream components can also use the colour.
 function M.render()
   local info = get_mode_info()
-  -- Pill: [MODE_HL] icon + label  [SEP_HL] powerline-sep [RESET]
-  local pill = hl(info.hl) .. ' ' .. info.icon .. info.label .. ' ' .. hl(info.sep) .. sep_right .. hl 'StatusLine'
+  local pill = hl(info.hl) .. info.icon .. info.label .. hl 'StatusLine'
   return pill, info.hl
 end
 

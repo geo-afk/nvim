@@ -13,7 +13,7 @@ return {
         { path = "LuaSnip", mods = { "luasnip" } },
         { path = "nvim-lspconfig", mods = { "lspconfig" } },
         { path = "friendly-snippets", mods = { "snippets" } }, -- has vimscript
-        { "~/AppData/Local/nvim-data/lazy/blink.cmp/lua/" },
+        { vim.fn.stdpath("data") .. "/site/pack/core/opt/blink.cmp/lua/" },
         -- {
         --   path = 'lazy.nvim',
         --   files = vim.tbl_map(function(file)

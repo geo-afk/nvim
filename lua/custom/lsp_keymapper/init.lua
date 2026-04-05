@@ -23,6 +23,7 @@
 --- }
 
 local M = {}
+local nvim_utils = require('utils.nvim')
 
 -- ──────────────────────────────────────────────────────────────────────────────
 -- Derive the base module path from the current file so that all sibling
@@ -137,16 +138,15 @@ function M.setup(user_opts)
   apply_filter(_opts.filter)
 
   -- Wire LspAttach autocmd
-  local aug = vim.api.nvim_create_augroup('LspKeymapper', { clear = true })
-  vim.api.nvim_create_autocmd('LspAttach', {
-    group = aug,
+  nvim_utils.autocmd('LspAttach', {
+    group = 'LspKeymapper',
     callback = on_lsp_attach,
     desc = 'lsp-keymapper: re-apply saved keymaps and optionally open browser',
   })
 
   -- Global key to open the browser for the current buffer's first active client
   if _opts.open_keymap then
-    vim.keymap.set('n', _opts.open_keymap, function()
+    nvim_utils.map('n', _opts.open_keymap, function()
       M.open()
     end, {
       desc = 'LSP Keymapper: open capability browser',
@@ -155,11 +155,11 @@ function M.setup(user_opts)
   end
 
   -- User commands
-  vim.api.nvim_create_user_command('LspKeymapBrowse', function()
+  nvim_utils.command('LspKeymapBrowse', function()
     M.open()
   end, { desc = 'Open the LSP capability browser for the current buffer' })
 
-  vim.api.nvim_create_user_command('LspKeymapReset', function(cmd_opts)
+  nvim_utils.command('LspKeymapReset', function(cmd_opts)
     local name = cmd_opts.args ~= '' and cmd_opts.args or nil
     M.reset(name)
   end, {
@@ -171,7 +171,7 @@ function M.setup(user_opts)
     end,
   })
 
-  vim.api.nvim_create_user_command('LspKeymapShow', function()
+  nvim_utils.command('LspKeymapShow', function()
     M.show_saved()
   end, { desc = 'Print all saved LSP keymaps' })
 end

@@ -3,6 +3,7 @@
 --- vim.lsp.buf handlers, display labels, and suggested default keys.
 
 local M = {}
+local code_action = require("custom.code_action")
 
 --- @class LspCapabilityDef
 --- @field label        string   Human-readable name shown in the UI
@@ -18,166 +19,168 @@ local M = {}
 --- @type table<string, LspCapabilityDef>
 M.registry = {
   hoverProvider = {
-    label = 'Hover',
-    description = 'Show documentation / type info for the symbol under the cursor',
-    handler = 'vim.lsp.buf.hover()',
+    label = "Hover",
+    description = "Show documentation / type info for the symbol under the cursor",
+    handler = "vim.lsp.buf.hover()",
     fn = vim.lsp.buf.hover,
-    modes = { 'n' },
-    suggested = 'K',
+    modes = { "n" },
+    suggested = "K",
   },
   definitionProvider = {
-    label = 'Go to Definition',
-    description = 'Jump to the definition of the symbol under the cursor',
-    handler = 'vim.lsp.buf.definition()',
+    label = "Go to Definition",
+    description = "Jump to the definition of the symbol under the cursor",
+    handler = "vim.lsp.buf.definition()",
     fn = vim.lsp.buf.definition,
-    modes = { 'n' },
-    suggested = 'gd',
+    modes = { "n" },
+    suggested = "gd",
   },
   declarationProvider = {
-    label = 'Go to Declaration',
-    description = 'Jump to the declaration of the symbol under the cursor',
-    handler = 'vim.lsp.buf.declaration()',
+    label = "Go to Declaration",
+    description = "Jump to the declaration of the symbol under the cursor",
+    handler = "vim.lsp.buf.declaration()",
     fn = vim.lsp.buf.declaration,
-    modes = { 'n' },
-    suggested = 'gD',
+    modes = { "n" },
+    suggested = "gD",
   },
   typeDefinitionProvider = {
-    label = 'Go to Type Definition',
-    description = 'Jump to the type definition of the symbol under the cursor',
-    handler = 'vim.lsp.buf.type_definition()',
+    label = "Go to Type Definition",
+    description = "Jump to the type definition of the symbol under the cursor",
+    handler = "vim.lsp.buf.type_definition()",
     fn = vim.lsp.buf.type_definition,
-    modes = { 'n' },
-    suggested = 'gy',
+    modes = { "n" },
+    suggested = "gy",
   },
   implementationProvider = {
-    label = 'Go to Implementation',
-    description = 'List / jump to implementations of the symbol under the cursor',
-    handler = 'vim.lsp.buf.implementation()',
+    label = "Go to Implementation",
+    description = "List / jump to implementations of the symbol under the cursor",
+    handler = "vim.lsp.buf.implementation()",
     fn = vim.lsp.buf.implementation,
-    modes = { 'n' },
-    suggested = 'gi',
+    modes = { "n" },
+    suggested = "gi",
   },
   referencesProvider = {
-    label = 'Find References',
-    description = 'List all references to the symbol under the cursor',
-    handler = 'vim.lsp.buf.references()',
+    label = "Find References",
+    description = "List all references to the symbol under the cursor",
+    handler = "vim.lsp.buf.references()",
     fn = function()
       vim.lsp.buf.references()
     end,
-    modes = { 'n' },
-    suggested = 'gr',
+    modes = { "n" },
+    suggested = "gr",
   },
   renameProvider = {
-    label = 'Rename Symbol',
-    description = 'Rename the symbol under the cursor across the project',
-    handler = 'vim.lsp.buf.rename()',
+    label = "Rename Symbol",
+    description = "Rename the symbol under the cursor across the project",
+    handler = "vim.lsp.buf.rename()",
     fn = vim.lsp.buf.rename,
-    modes = { 'n' },
-    suggested = '<leader>rn',
+    modes = { "n" },
+    suggested = "<leader>rn",
   },
   codeActionProvider = {
-    label = 'Code Action',
-    description = 'Trigger code actions (quick-fixes, refactors) at the cursor',
-    handler = 'vim.lsp.buf.code_action()',
-    fn = vim.lsp.buf.code_action,
-    modes = { 'n', 'v' },
-    suggested = '<leader>ca',
+    label = "Code Action",
+    description = "Trigger code actions (quick-fixes, refactors) at the cursor",
+    handler = 'require("custom.code_action_menu").open()',
+    fn = function()
+      code_action.open()
+    end,
+    modes = { "n", "v" },
+    suggested = "<leader>ca",
   },
   documentFormattingProvider = {
-    label = 'Format Document',
-    description = 'Format the entire current buffer',
-    handler = 'vim.lsp.buf.format({ async = true })',
+    label = "Format Document",
+    description = "Format the entire current buffer",
+    handler = "vim.lsp.buf.format({ async = true })",
     fn = function()
-      vim.lsp.buf.format { async = true }
+      vim.lsp.buf.format({ async = true })
     end,
-    modes = { 'n' },
-    suggested = '<leader>f',
+    modes = { "n" },
+    suggested = "<leader>f",
   },
   documentRangeFormattingProvider = {
-    label = 'Format Range',
-    description = 'Format the selected range',
-    handler = 'vim.lsp.buf.format({ async = true })',
+    label = "Format Range",
+    description = "Format the selected range",
+    handler = "vim.lsp.buf.format({ async = true })",
     fn = function()
-      vim.lsp.buf.format { async = true }
+      vim.lsp.buf.format({ async = true })
     end,
-    modes = { 'v' },
-    suggested = '<leader>f',
+    modes = { "v" },
+    suggested = "<leader>f",
   },
   documentSymbolProvider = {
-    label = 'Document Symbols',
-    description = 'List all symbols (functions, classes, …) in the current file',
-    handler = 'vim.lsp.buf.document_symbol()',
+    label = "Document Symbols",
+    description = "List all symbols (functions, classes, …) in the current file",
+    handler = "vim.lsp.buf.document_symbol()",
     fn = vim.lsp.buf.document_symbol,
-    modes = { 'n' },
-    suggested = '<leader>ds',
+    modes = { "n" },
+    suggested = "<leader>ds",
   },
   workspaceSymbolProvider = {
-    label = 'Workspace Symbols',
-    description = 'Search symbols across the entire workspace',
-    handler = 'vim.lsp.buf.workspace_symbol()',
+    label = "Workspace Symbols",
+    description = "Search symbols across the entire workspace",
+    handler = "vim.lsp.buf.workspace_symbol()",
     fn = function()
       vim.lsp.buf.workspace_symbol()
     end,
-    modes = { 'n' },
-    suggested = '<leader>ws',
+    modes = { "n" },
+    suggested = "<leader>ws",
   },
   signatureHelpProvider = {
-    label = 'Signature Help',
-    description = 'Show function / method signature hints',
-    handler = 'vim.lsp.buf.signature_help()',
+    label = "Signature Help",
+    description = "Show function / method signature hints",
+    handler = "vim.lsp.buf.signature_help()",
     fn = vim.lsp.buf.signature_help,
-    modes = { 'n', 'i' },
-    suggested = '<C-k>',
+    modes = { "n", "i" },
+    suggested = "<C-k>",
   },
   documentHighlightProvider = {
-    label = 'Highlight References',
-    description = 'Highlight all references to the symbol under the cursor',
-    handler = 'vim.lsp.buf.document_highlight()',
+    label = "Highlight References",
+    description = "Highlight all references to the symbol under the cursor",
+    handler = "vim.lsp.buf.document_highlight()",
     fn = vim.lsp.buf.document_highlight,
-    modes = { 'n' },
-    suggested = '<leader>hl',
+    modes = { "n" },
+    suggested = "<leader>hl",
   },
   codeLensProvider = {
-    label = 'Run Code Lens',
-    description = 'Execute the code lens action on the current line',
-    handler = 'vim.lsp.codelens.run()',
+    label = "Run Code Lens",
+    description = "Execute the code lens action on the current line",
+    handler = "vim.lsp.codelens.run()",
     fn = vim.lsp.codelens.run,
-    modes = { 'n' },
-    suggested = '<leader>cl',
+    modes = { "n" },
+    suggested = "<leader>cl",
   },
   callHierarchyProvider = {
-    label = 'Incoming Calls',
-    description = 'Show the call hierarchy (who calls this function)',
-    handler = 'vim.lsp.buf.incoming_calls()',
+    label = "Incoming Calls",
+    description = "Show the call hierarchy (who calls this function)",
+    handler = "vim.lsp.buf.incoming_calls()",
     fn = vim.lsp.buf.incoming_calls,
-    modes = { 'n' },
-    suggested = '<leader>ci',
+    modes = { "n" },
+    suggested = "<leader>ci",
   },
   inlayHintProvider = {
-    label = 'Toggle Inlay Hints',
-    description = 'Toggle LSP inlay hints in the current buffer',
-    handler = 'vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled())',
+    label = "Toggle Inlay Hints",
+    description = "Toggle LSP inlay hints in the current buffer",
+    handler = "vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled())",
     fn = function()
       vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled())
     end,
-    modes = { 'n' },
-    suggested = '<leader>ih',
+    modes = { "n" },
+    suggested = "<leader>ih",
   },
   diagnosticProvider = {
-    label = 'Diagnostics',
-    description = 'Open the diagnostics float for the current line',
-    handler = 'vim.diagnostic.open_float()',
+    label = "Diagnostics",
+    description = "Open the diagnostics float for the current line",
+    handler = "vim.diagnostic.open_float()",
     fn = vim.diagnostic.open_float,
-    modes = { 'n' },
-    suggested = '<leader>e',
+    modes = { "n" },
+    suggested = "<leader>e",
   },
   selectionRangeProvider = {
-    label = 'Expand Selection',
-    description = 'Expand the visual selection using semantic ranges',
-    handler = 'vim.lsp.buf.document_highlight()',
+    label = "Expand Selection",
+    description = "Expand the visual selection using semantic ranges",
+    handler = "vim.lsp.buf.document_highlight()",
     fn = vim.lsp.buf.document_highlight,
-    modes = { 'n', 'v' },
-    suggested = '<leader>sr',
+    modes = { "n", "v" },
+    suggested = "<leader>sr",
   },
 }
 
@@ -203,43 +206,90 @@ local SKIP_KEYS = {
 ---
 --- @type { pattern: string, fn: function, modes: string[], description: string }[]
 local HEURISTIC_HANDLERS = {
-  { pattern = 'definition', fn = vim.lsp.buf.definition, modes = { 'n' }, description = 'Go to definition (auto-detected)' },
-  { pattern = 'declaration', fn = vim.lsp.buf.declaration, modes = { 'n' }, description = 'Go to declaration (auto-detected)' },
-  { pattern = 'implementation', fn = vim.lsp.buf.implementation, modes = { 'n' }, description = 'Go to implementation (auto-detected)' },
-  { pattern = 'typeDefinition', fn = vim.lsp.buf.type_definition, modes = { 'n' }, description = 'Go to type definition (auto-detected)' },
   {
-    pattern = 'reference',
+    pattern = "definition",
+    fn = vim.lsp.buf.definition,
+    modes = { "n" },
+    description = "Go to definition (auto-detected)",
+  },
+  {
+    pattern = "declaration",
+    fn = vim.lsp.buf.declaration,
+    modes = { "n" },
+    description = "Go to declaration (auto-detected)",
+  },
+  {
+    pattern = "implementation",
+    fn = vim.lsp.buf.implementation,
+    modes = { "n" },
+    description = "Go to implementation (auto-detected)",
+  },
+  {
+    pattern = "typeDefinition",
+    fn = vim.lsp.buf.type_definition,
+    modes = { "n" },
+    description = "Go to type definition (auto-detected)",
+  },
+  {
+    pattern = "reference",
     fn = function()
       vim.lsp.buf.references()
     end,
-    modes = { 'n' },
-    description = 'Find references (auto-detected)',
+    modes = { "n" },
+    description = "Find references (auto-detected)",
   },
-  { pattern = 'hover', fn = vim.lsp.buf.hover, modes = { 'n' }, description = 'Show hover info (auto-detected)' },
-  { pattern = 'rename', fn = vim.lsp.buf.rename, modes = { 'n' }, description = 'Rename symbol (auto-detected)' },
-  { pattern = '[Aa]ction', fn = vim.lsp.buf.code_action, modes = { 'n', 'v' }, description = 'Code action (auto-detected)' },
+  { pattern = "hover", fn = vim.lsp.buf.hover, modes = { "n" }, description = "Show hover info (auto-detected)" },
+  { pattern = "rename", fn = vim.lsp.buf.rename, modes = { "n" }, description = "Rename symbol (auto-detected)" },
   {
-    pattern = '[Ff]ormat',
+    pattern = "[Aa]ction",
     fn = function()
-      vim.lsp.buf.format { async = true }
+      code_action.open()
     end,
-    modes = { 'n' },
-    description = 'Format (auto-detected)',
+    modes = { "n", "v" },
+    description = "Code action (auto-detected)",
   },
-  { pattern = '[Ss]ymbol', fn = vim.lsp.buf.document_symbol, modes = { 'n' }, description = 'Symbols (auto-detected)' },
-  { pattern = '[Ss]ignature', fn = vim.lsp.buf.signature_help, modes = { 'n', 'i' }, description = 'Signature help (auto-detected)' },
-  { pattern = '[Ll]ens', fn = vim.lsp.codelens.run, modes = { 'n' }, description = 'Code lens (auto-detected)' },
   {
-    pattern = '[Hh]int',
+    pattern = "[Ff]ormat",
+    fn = function()
+      vim.lsp.buf.format({ async = true })
+    end,
+    modes = { "n" },
+    description = "Format (auto-detected)",
+  },
+  { pattern = "[Ss]ymbol", fn = vim.lsp.buf.document_symbol, modes = { "n" }, description = "Symbols (auto-detected)" },
+  {
+    pattern = "[Ss]ignature",
+    fn = vim.lsp.buf.signature_help,
+    modes = { "n", "i" },
+    description = "Signature help (auto-detected)",
+  },
+  { pattern = "[Ll]ens", fn = vim.lsp.codelens.run, modes = { "n" }, description = "Code lens (auto-detected)" },
+  {
+    pattern = "[Hh]int",
     fn = function()
       vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled())
     end,
-    modes = { 'n' },
-    description = 'Inlay hints toggle (auto-detected)',
+    modes = { "n" },
+    description = "Inlay hints toggle (auto-detected)",
   },
-  { pattern = '[Dd]iagnostic', fn = vim.diagnostic.open_float, modes = { 'n' }, description = 'Diagnostics float (auto-detected)' },
-  { pattern = '[Cc]all', fn = vim.lsp.buf.incoming_calls, modes = { 'n' }, description = 'Call hierarchy (auto-detected)' },
-  { pattern = '[Hh]ighlight', fn = vim.lsp.buf.document_highlight, modes = { 'n' }, description = 'Highlight references (auto-detected)' },
+  {
+    pattern = "[Dd]iagnostic",
+    fn = vim.diagnostic.open_float,
+    modes = { "n" },
+    description = "Diagnostics float (auto-detected)",
+  },
+  {
+    pattern = "[Cc]all",
+    fn = vim.lsp.buf.incoming_calls,
+    modes = { "n" },
+    description = "Call hierarchy (auto-detected)",
+  },
+  {
+    pattern = "[Hh]ighlight",
+    fn = vim.lsp.buf.document_highlight,
+    modes = { "n" },
+    description = "Highlight references (auto-detected)",
+  },
 }
 
 --- Convert a camelCase capability key into a human-readable label.
@@ -249,10 +299,10 @@ local HEURISTIC_HANDLERS = {
 --- @return string
 local function key_to_label(key)
   -- Strip trailing "Provider" for cleanliness
-  local s = key:gsub('Provider$', '')
+  local s = key:gsub("Provider$", "")
   -- Split on camelCase boundaries and title-case each word
-  s = s:gsub('(%l)(%u)', '%1 %2')
-  s = s:gsub('(%u+)(%u%l)', '%1 %2')
+  s = s:gsub("(%l)(%u)", "%1 %2")
+  s = s:gsub("(%u+)(%u%l)", "%1 %2")
   return s:sub(1, 1):upper() .. s:sub(2)
 end
 
@@ -265,14 +315,14 @@ end
 local function summarise_value(val)
   --- Strip every newline / carriage-return from a string.
   local function clean(s)
-    return tostring(s):gsub('[\n\r]', ' ')
+    return tostring(s):gsub("[\n\r]", " ")
   end
 
-  if type(val) == 'boolean' then
-    return val and 'true' or 'false'
+  if type(val) == "boolean" then
+    return val and "true" or "false"
   end
 
-  if type(val) ~= 'table' then
+  if type(val) ~= "table" then
     return clean(val)
   end
 
@@ -280,11 +330,11 @@ local function summarise_value(val)
   -- count and the first element only so the line stays short.
   local is_array = (#val > 0)
   if is_array then
-    local first = clean(val[1] or '')
+    local first = clean(val[1] or "")
     if #first > 30 then
-      first = first:sub(1, 27) .. '...'
+      first = first:sub(1, 27) .. "..."
     end
-    return string.format('[%d items, first: %s]', #val, first)
+    return string.format("[%d items, first: %s]", #val, first)
   end
 
   -- For map-like tables collect up to 4 key=value pairs.
@@ -292,21 +342,21 @@ local function summarise_value(val)
   local count = 0
   for k, v in pairs(val) do
     if count >= 4 then
-      table.insert(parts, '...')
+      table.insert(parts, "...")
       break
     end
-    if type(v) == 'table' then
-      table.insert(parts, clean(k) .. '={...}')
+    if type(v) == "table" then
+      table.insert(parts, clean(k) .. "={...}")
     else
       local vs = clean(v)
       if #vs > 20 then
-        vs = vs:sub(1, 17) .. '...'
+        vs = vs:sub(1, 17) .. "..."
       end
-      table.insert(parts, clean(k) .. '=' .. vs)
+      table.insert(parts, clean(k) .. "=" .. vs)
     end
     count = count + 1
   end
-  return '{ ' .. table.concat(parts, ', ') .. ' }'
+  return "{ " .. table.concat(parts, ", ") .. " }"
 end
 
 --- Try to find a heuristic handler for an unknown capability key.
@@ -319,7 +369,7 @@ local function heuristic_for(cap_key)
       return h.fn, h.modes, h.description
     end
   end
-  return nil, { 'n' }, 'No automatic handler available'
+  return nil, { "n" }, "No automatic handler available"
 end
 
 --- @class DiscoveredCapability
@@ -358,7 +408,7 @@ function M.discover_unknown(client)
       return
     end
 
-    local display_key = prefix and (prefix .. '.' .. key) or key
+    local display_key = prefix and (prefix .. "." .. key) or key
     local fn, modes, auto_desc = heuristic_for(key)
     local value_summary = summarise_value(val)
 
@@ -370,7 +420,7 @@ function M.discover_unknown(client)
       value_summary = value_summary,
       fn = fn,
       modes = modes,
-      suggested = '',
+      suggested = "",
       is_discovered = true,
     })
   end
@@ -381,9 +431,9 @@ function M.discover_unknown(client)
   end
 
   -- One level of nesting for the `workspace` sub-table
-  if type(sc.workspace) == 'table' then
+  if type(sc.workspace) == "table" then
     for key, val in pairs(sc.workspace) do
-      process(key, val, 'workspace')
+      process(key, val, "workspace")
     end
   end
 

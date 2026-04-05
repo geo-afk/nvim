@@ -10,6 +10,7 @@
 
 local M = {}
 local hl = require('custom.statusline.highlights').hl
+local utils = require 'custom.statusline.utils'
 
 -- Injected by init.lua after setup (avoids circular require and gives us
 -- the same debounced, surgical redraw path as every other component).
@@ -126,10 +127,10 @@ function M.render(winid)
     return ''
   end
 
-  local branch_str = hl 'StatusLineGitBranch' .. ' ' .. entry.branch .. hl 'StatusLine'
+  local branch_str = hl 'StatusLineGitBranch' .. '  ' .. entry.branch .. ' ' .. hl 'StatusLine'
 
   if compact then
-    return '  ' .. branch_str
+    return branch_str
   end
 
   local parts = { branch_str }
@@ -143,7 +144,7 @@ function M.render(winid)
     parts[#parts + 1] = hl 'StatusLineGitDel' .. '  ' .. entry.removed .. hl 'StatusLine'
   end
 
-  return '  ' .. table.concat(parts, ' ')
+  return utils.join(parts, ' ')
 end
 
 return M

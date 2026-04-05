@@ -21,9 +21,10 @@ local function get_mason_angular_ls_path()
 end
 
 --- Get project's node_modules directory
+--- @param path? string|integer File path or buffer number to resolve from
 --- @return string Path to node_modules, or empty string if not found
-local function get_project_node_modules()
-  local node_modules = utils.find_node_modules()
+local function get_project_node_modules(path)
+  local node_modules = utils.find_node_modules(path)
   return node_modules or ''
 end
 
@@ -32,12 +33,14 @@ end
 -- ============================================================================
 
 --- Build paths and command configuration for Angular Language Server
+--- @param path? string|integer File path or buffer number to resolve from
 --- @return table Configuration with cmd array
-local function build_angular_ls_config()
+local function build_angular_ls_config(path)
   -- Get required paths
   local mason_extension_path = get_mason_angular_ls_path()
-  local project_node_modules = get_project_node_modules()
-  local angular_version = utils.get_angular_version()
+  local project_node_modules = get_project_node_modules(path)
+  local angular_root = utils.find_angular_root(path)
+  local angular_version = utils.get_angular_version(angular_root)
 
   -- Use placeholder if Mason path not found (prevents crash)
   mason_extension_path = mason_extension_path or '?'

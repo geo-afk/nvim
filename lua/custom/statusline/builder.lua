@@ -72,29 +72,30 @@
 -- =============================================================================
 
 local M = {}
-local hl = require('custom.statusline.highlights').hl
+local hl = require("custom.statusline.highlights").hl
+local utils = require("custom.statusline.utils")
 
 -- ---------------------------------------------------------------------------
 -- Minimal-buffer detection
 -- ---------------------------------------------------------------------------
 local minimal_fts = {
-  ['NvimTree'] = true,
-  ['neo-tree'] = true,
-  ['Telescope'] = true,
-  ['TelescopePrompt'] = true,
-  ['lazy'] = true,
-  ['mason'] = true,
-  ['help'] = true,
-  ['qf'] = true,
-  ['terminal'] = true,
-  ['nofile'] = true,
-  ['prompt'] = true,
-  ['toggleterm'] = true,
+  ["NvimTree"] = true,
+  ["neo-tree"] = true,
+  ["Telescope"] = true,
+  ["TelescopePrompt"] = true,
+  ["lazy"] = true,
+  ["mason"] = true,
+  ["help"] = true,
+  ["qf"] = true,
+  ["terminal"] = true,
+  ["nofile"] = true,
+  ["prompt"] = true,
+  ["toggleterm"] = true,
 }
 
 local function is_minimal_buf(bufnr)
-  local ft = vim.bo[bufnr].filetype or ''
-  local bt = vim.bo[bufnr].buftype or ''
+  local ft = vim.bo[bufnr].filetype or ""
+  local bt = vim.bo[bufnr].buftype or ""
   return minimal_fts[ft] or minimal_fts[bt] or false
 end
 
@@ -118,7 +119,7 @@ function M.add(side, fn, id)
     id = id or tostring(#sections + 1),
     always_fresh = ALWAYS_FRESH[id] or false,
     dirty = true, -- start dirty so first render always runs
-    cache = '',
+    cache = "",
   }
 end
 
@@ -154,17 +155,27 @@ function M.mark_dirty_side(side)
   end
 end
 
--- ---------------------------------------------------------------------------
--- Section separator (between left-side components)
--- ---------------------------------------------------------------------------
-local SEP = hl 'StatusLineSep' .. '│' .. hl 'StatusLine'
+local function separators(active, win_width)
+  local base = active and "StatusLine" or "StatusLineNC"
+  if win_width < 70 then
+    return {
+      left = hl("StatusLineSep") .. "·" .. hl(base),
+      center = hl("StatusLineFill") .. " " .. hl(base),
+      right = hl("StatusLineFill") .. " " .. hl(base),
+    }
+  end
+  return {
+    left = hl("StatusLineSep") .. " • " .. hl(base),
+    center = hl("StatusLineFill") .. "  " .. hl(base),
+    right = hl("StatusLineFill") .. "  " .. hl(base),
+  }
+end
 
 -- ---------------------------------------------------------------------------
 -- Gather — partial-update hot path
 -- ---------------------------------------------------------------------------
-local function gather(side, winid, bufnr, active)
+local function gather(side, winid, bufnr, active, separator)
   local parts = {}
-  local prev_non_empty = false
 
   for _, sec in ipairs(sections) do
     if sec.side == side then
@@ -172,12 +183,12 @@ local function gather(side, winid, bufnr, active)
       if sec.always_fresh then
         -- Always-fresh: call every time (cheap, < 1 µs)
         local ok, s = pcall(sec.fn, winid, bufnr, active)
-        rendered = (ok and s) or ''
+        rendered = (ok and s) or ""
         sec.cache = rendered
       elseif sec.dirty then
         -- Dirty: rebuild the cached string
         local ok, s = pcall(sec.fn, winid, bufnr, active)
-        rendered = (ok and s) or ''
+        rendered = (ok and s) or ""
         sec.cache = rendered
         sec.dirty = false
       else
@@ -185,25 +196,23 @@ local function gather(side, winid, bufnr, active)
         rendered = sec.cache
       end
 
-      if rendered ~= '' then
-        if side == 'left' and prev_non_empty then
-          parts[#parts + 1] = SEP
-        end
+      if rendered ~= "" then
         parts[#parts + 1] = rendered
-        prev_non_empty = true
       end
     end
   end
 
-  return table.concat(parts)
+  return utils.join(parts, separator)
 end
 
 -- ---------------------------------------------------------------------------
 -- Minimal statusline for special buffers
 -- ---------------------------------------------------------------------------
 local function minimal_render(bufnr)
-  local label = (vim.bo[bufnr].filetype ~= '' and vim.bo[bufnr].filetype:upper()) or (vim.bo[bufnr].buftype ~= '' and vim.bo[bufnr].buftype:upper()) or 'BUFFER'
-  return hl 'StatusLineNC' .. ' ' .. hl 'StatusLineFilePath' .. label .. hl 'StatusLineNC' .. '%=' .. ' '
+  local label = (vim.bo[bufnr].filetype ~= "" and vim.bo[bufnr].filetype:upper())
+    or (vim.bo[bufnr].buftype ~= "" and vim.bo[bufnr].buftype:upper())
+    or "BUFFER"
+  return hl("StatusLineNC") .. " " .. hl("StatusLineFilePath") .. label .. hl("StatusLineNC") .. "%="
 end
 
 -- ---------------------------------------------------------------------------
@@ -218,15 +227,21 @@ function M.render(winid)
     return minimal_render(bufnr)
   end
 
-  local base_hl = active and hl 'StatusLine' or hl 'StatusLineNC'
-  local left = gather('left', winid, bufnr, active)
-  local center = gather('center', winid, bufnr, active)
-  local right = gather('right', winid, bufnr, active)
+  local base_hl = active and hl("StatusLine") or hl("StatusLineNC")
+  local win_width = vim.api.nvim_win_get_width(winid)
+  local sep = separators(active, win_width)
+  local left = gather("left", winid, bufnr, active, sep.left)
+  local center = gather("center", winid, bufnr, active, sep.center)
+  local right = gather("right", winid, bufnr, active, sep.right)
 
-  if center ~= '' then
-    return base_hl .. left .. '%=' .. center .. '%=' .. right
+  if center ~= "" then
+    local center_width = utils.statusline_width(center)
+    local outer_width = utils.statusline_width(left) + utils.statusline_width(right)
+    if center_width > 0 and (outer_width + center_width + 8) < win_width then
+      return base_hl .. left .. "%=" .. center .. "%=" .. right
+    end
   end
-  return base_hl .. left .. '%=' .. right
+  return base_hl .. left .. "%=" .. right
 end
 
 return M

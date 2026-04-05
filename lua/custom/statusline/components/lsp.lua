@@ -23,6 +23,7 @@
 
 local M = {}
 local hl = require('custom.statusline.highlights').hl
+local utils = require 'custom.statusline.utils'
 local diag = vim.diagnostic
 local uv = vim.uv or vim.loop
 
@@ -224,10 +225,10 @@ function M.render(winid, bufnr)
   -- Diagnostics (cached per buffer)
   local d = get_diags(bufnr)
   if d.e > 0 then
-    parts[#parts + 1] = hl 'StatusLineDiagError' .. ' ' .. d.e .. hl 'StatusLine'
+    parts[#parts + 1] = hl 'StatusLineDiagError' .. '󰅚 ' .. d.e .. hl 'StatusLine'
   end
   if d.w > 0 then
-    parts[#parts + 1] = hl 'StatusLineDiagWarn' .. ' ' .. d.w .. hl 'StatusLine'
+    parts[#parts + 1] = hl 'StatusLineDiagWarn' .. '󰀪 ' .. d.w .. hl 'StatusLine'
   end
   if not compact then
     if d.h > 0 then
@@ -243,13 +244,13 @@ function M.render(winid, bufnr)
     -- Also advance frame here so keypress activity adds bonus smoothness
     -- on top of the timer's base animation.
     spinner_idx = (spinner_idx % #SPINNER_FRAMES) + 1
-    parts[#parts + 1] = hl 'StatusLineLSPLoad' .. SPINNER_FRAMES[spinner_idx] .. hl 'StatusLine'
+    parts[#parts + 1] = hl 'StatusLineLSPLoad' .. ' ' .. SPINNER_FRAMES[spinner_idx] .. ' ' .. hl 'StatusLine'
   else
     -- Static idle dot when an LSP is attached but not loading.
     -- get_clients() is cheap and only called in this non-loading branch.
     local clients = vim.lsp.get_clients { bufnr = bufnr }
     if #clients > 0 then
-      parts[#parts + 1] = hl 'StatusLineLSPActive' .. '󰄴' .. hl 'StatusLine'
+      parts[#parts + 1] = hl 'StatusLineLSPActive' .. ' 󰄴 ' .. hl 'StatusLine'
     end
   end
 
@@ -264,7 +265,7 @@ function M.render(winid, bufnr)
   if #parts == 0 then
     return ''
   end
-  return ' ' .. table.concat(parts, ' ') .. ' '
+  return utils.join(parts, ' ')
 end
 
 return M

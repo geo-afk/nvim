@@ -1,5 +1,6 @@
 -- Safely attempt to load the angular path helper
 local ok, angular_paths = pcall(require, "utils.angular_location")
+local ok_utils, utils = pcall(require, "utils")
 
 -- fallback if module is missing
 if not ok then
@@ -30,7 +31,19 @@ return {
 
   cmd = angular_paths.cmd,
 
-  root_markers = { "angular.json", "nx.json" },
+  root_dir = function(bufnr, on_dir)
+    if not ok_utils or not utils.find_angular_root then
+      return
+    end
+
+    local bufname = vim.api.nvim_buf_get_name(bufnr)
+    local root = utils.find_angular_root(bufname)
+    if root then
+      on_dir(root)
+    end
+  end,
+
+  single_file_support = false,
 
   filetypes = { "html", "htmlangular", "typescript" },
 }

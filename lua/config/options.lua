@@ -6,13 +6,8 @@ vim.opt.undofile = true
 -- ============================================================
 vim.o.sessionoptions = "blank,buffers,curdir,help,tabpages,winsize,winpos,terminal,localoptions"
 
--- =======================================================================
---  Compatibility / Neovim Version Checks
--- =======================================================================
-if vim.fn.has("nvim-0.11") == 1 then
-  -- When closing a window, automatically jump to the last used one
-  vim.opt.tabclose:append({ "uselast" })
-end
+-- When closing a window, automatically jump to the last used one
+vim.opt.tabclose:append({ "uselast" })
 
 vim.opt.guicursor = {
   "n-sm:block",
@@ -128,7 +123,6 @@ vim.o.confirm = true -- Ask to save when quitting with unsaved changes
 -- =======================================================================
 --  Plugin/Framework Specific Globals
 -- =======================================================================
-vim.g.lazyvim_cmp = "blink.cmp" -- Completion plugin
 vim.g.root_spec = { "lsp", { ".git", "lua" }, "cwd" } -- Project root detection
 
 -- =======================================================================

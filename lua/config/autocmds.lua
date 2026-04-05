@@ -194,13 +194,7 @@ vim.api.nvim_create_autocmd("BufReadPost", {
 
 -- Restart ALL active LSP clients (session-wide)
 vim.api.nvim_create_user_command("LspRestartAll", function()
-  local clients = vim.lsp.get_clients()
-  for _, client in ipairs(clients) do
-    vim.lsp.stop_client(client.id)
-  end
-  -- Optional: force re-attach by reloading the current buffer
-  -- (LSP usually auto-restarts on demand)
-  vim.cmd("edit")
+  vim.cmd("lsp restart")
 end, { desc = "Restart all LSP clients" })
 
 -- function _G.lsp_info()
@@ -233,3 +227,10 @@ end, { desc = "Restart all LSP clients" })
 -- vim.api.nvim_create_user_command("LspInfo", function()
 --   _G.lsp_info()
 -- end, {})
+
+vim.api.nvim_create_autocmd("CompleteDone", {
+  pattern = "*",
+  callback = function()
+    vim.cmd("redraw!")
+  end,
+})

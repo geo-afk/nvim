@@ -1,4 +1,6 @@
 local rename = require("config.lsp.functions.rename").rename
+local code_action = require("custom.code_action")
+
 ---@diagnostic disable: missing-parameter
 local M = {}
 
@@ -20,8 +22,8 @@ end
 
 -- New
 function M.setup_color_provider(client, bufnr)
-  if client:supports_method("textDocument/documentColor") and vim.lsp.document_color then
-    vim.lsp.document_color.enable(true, bufnr, { style = "virtual" })
+  if client:supports_method("textDocument/documentColor", { bufnr = bufnr }) and vim.lsp.document_color then
+    vim.lsp.document_color.enable(true, { bufnr = bufnr }, { style = "virtual" })
   end
 end
 
@@ -64,6 +66,8 @@ function M.setup_dynamic_capabilities()
 end
 
 function M.setup_keymaps(args)
+  local codelens = require("custom.codelens")
+  local codelens_keys = codelens.get_keymaps()
   local map = function(mode, keys, func, desc)
     vim.keymap.set(mode, keys, func, {
       buffer = args.buf,
@@ -71,9 +75,15 @@ function M.setup_keymaps(args)
     })
   end
 
-  -- Hover info
+  -- Ensure floating windows have highlighting
+  vim.api.nvim_set_hl(0, "NormalFloat", { link = "Normal", default = true })
+  vim.api.nvim_set_hl(0, "FloatBorder", { link = "Normal", default = true })
+
   map("n", "K", function()
-    vim.lsp.buf.hover({ border = "rounded" })
+    vim.lsp.buf.hover({
+      border = "rounded",
+      focusable = true,
+    })
   end, "Show Hover Documentation")
 
   -- Declarations, Definitions, Implementations
@@ -96,14 +106,26 @@ function M.setup_keymaps(args)
   -- Signature help
   map("n", "<C-k>", vim.lsp.buf.signature_help, "Signature Help")
 
+  map({ "n", "x" }, "<leader>ca", function()
+    local ok, err = pcall(code_action.open, {
+      bufnr = args.buf,
+    })
+    if not ok then
+      vim.notify("Code action menu failed: " .. tostring(err), vim.log.levels.ERROR, { title = "Code Actions" })
+    end
+  end, "Code Action")
+
   -- Code Lens
-  map({ "n", "x" }, "<leader>cc", vim.lsp.codelens.run, "Run Code Lens")
-  map("n", "<leader>cC", vim.lsp.codelens.refresh, "Refresh & Display Code Lens")
+  map({ "n", "x" }, codelens_keys.run or "<leader>cc", codelens.run_action, "Run Code Lens")
+  map("n", codelens_keys.toggle or "<leader>cC", function()
+    codelens.toggle(args.buf)
+  end, "Toggle Code Lens")
+  map("n", codelens_keys.references or "<leader>cR", codelens.show_references, "Show References UI")
 
   -- Inlay Hints
   map("n", "<leader>ci", function()
     local ih = vim.lsp.inlay_hint
-    ih.enable(not ih.is_enabled())
+    ih.enable(not ih.is_enabled({ bufnr = args.buf }), { bufnr = args.buf })
   end, "Toggle Inlay Hints")
 
   -- Rename

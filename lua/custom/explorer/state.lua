@@ -18,6 +18,7 @@ local S = {
   git = {},
   filter = nil,
   marks = {},
+  recent_roots = {},
 
   ns = api.nvim_create_namespace 'explorer_tree',
   git_ns = api.nvim_create_namespace 'explorer_git',

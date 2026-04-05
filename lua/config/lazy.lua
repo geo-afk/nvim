@@ -106,7 +106,7 @@ local codelens = require("custom.codelens")
 
 -- Setup with settings
 codelens.setup({
-  codelens = true, -- Enable by default
+  -- codelens = true, -- Enable by default
 })
 
 require("custom.cmdline").setup()

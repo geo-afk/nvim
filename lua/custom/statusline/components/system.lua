@@ -12,6 +12,7 @@
 
 local M = {}
 local hl = require('custom.statusline.highlights').hl
+local utils = require 'custom.statusline.utils'
 
 -- ---------------------------------------------------------------------------
 -- OS detection — computed exactly once at module load
@@ -100,7 +101,7 @@ function M.render(winid)
   end
 
   if very_compact then
-    return table.concat(parts, ' ')
+    return utils.join(parts, ' ')
   end
 
   -- OS icon (module-level constant — zero cost)
@@ -112,7 +113,7 @@ function M.render(winid)
     parts[#parts + 1] = hl 'StatusLineCWD' .. short_cwd(max_cwd) .. hl 'StatusLine'
   end
 
-  return ' ' .. table.concat(parts, ' ') .. ' '
+  return utils.join(parts, ' ')
 end
 
 return M

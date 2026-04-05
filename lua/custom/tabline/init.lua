@@ -12,6 +12,7 @@
 --   require("custom.tabline").move_buffer_right()
 
 local M = {}
+local nvim_utils = require("utils.nvim")
 
 local _config     = nil
 local _buffers    = nil
@@ -85,8 +86,7 @@ end
 -- ─── keymaps ──────────────────────────────────────────────────────────────
 
 local function bind(lhs, fn, desc)
-  if lhs == false or lhs == nil or lhs == "" then return end
-  vim.keymap.set("n", lhs, fn, { silent = true, noremap = true, desc = desc })
+  nvim_utils.map("n", lhs, fn, { silent = true, noremap = true, desc = desc })
 end
 
 local function setup_keymaps(km)
@@ -100,10 +100,10 @@ end
 -- ─── autocmds ─────────────────────────────────────────────────────────────
 
 local function setup_autocmds()
-  local grp = vim.api.nvim_create_augroup("TablinePlugin", { clear = true })
+  local grp = nvim_utils.augroup("TablinePlugin")
 
   -- Standard redraw events: buffer list changes or active buffer changes
-  vim.api.nvim_create_autocmd({
+  nvim_utils.autocmd({
     "BufAdd",
     "BufDelete",
     "BufEnter",
@@ -125,7 +125,7 @@ local function setup_autocmds()
   -- All three must explicitly bust the name cache — the fingerprint alone
   -- is not sufficient because the cache is keyed by the visible slice and
   -- a BufEnter scheduled redraw might fire BEFORE the file name is set.
-  vim.api.nvim_create_autocmd({
+  nvim_utils.autocmd({
     "BufReadPost",
     "BufNewFile",
     "BufFilePost",
@@ -140,7 +140,7 @@ local function setup_autocmds()
   })
 
   -- Re-apply highlights whenever the colorscheme changes
-  vim.api.nvim_create_autocmd("ColorScheme", {
+  nvim_utils.autocmd("ColorScheme", {
     group    = grp,
     callback = function()
       _highlights.setup()
@@ -153,7 +153,7 @@ local function setup_autocmds()
 
   -- SAVE: triggered on normal exit (:qa, :wqa …)
   -- VimLeavePre fires reliably when you quit via commands.
-  vim.api.nvim_create_autocmd("VimLeavePre", {
+  nvim_utils.autocmd("VimLeavePre", {
     group    = grp,
     callback = function()
       if _config.persist.save_on_exit and _session then
@@ -170,7 +170,7 @@ local function setup_autocmds()
   -- (Kitty, Konsole) all buffers are already marked unloaded before it runs.
   -- UILeave fires earlier in the shutdown sequence and sees valid state.
   -- Research: https://github.com/stevearc/resession.nvim/issues/49
-  vim.api.nvim_create_autocmd("UILeave", {
+  nvim_utils.autocmd("UILeave", {
     group    = grp,
     callback = function()
       if _config.persist.save_on_exit and _session then
@@ -184,7 +184,7 @@ local function setup_autocmds()
   -- some lazy-loaders.  vim.schedule() defers past any remaining plugin init.
   -- Guard: only restore when Neovim was opened with no file/dir arguments
   -- (argc == 0).  Opening `nvim myfile.lua` should never clobber the argument.
-  vim.api.nvim_create_autocmd("VimEnter", {
+  nvim_utils.autocmd("VimEnter", {
     group    = grp,
     once     = true,   -- only ever fires once per session
     callback = function()
@@ -227,36 +227,36 @@ local function setup_commands()
   -- "command already exists" errors.
   local opts = { force = true }
 
-  vim.api.nvim_create_user_command("TablineNext",
+  nvim_utils.command("TablineNext",
     M.next_buffer, vim.tbl_extend("force", opts, { desc = "TabLine: next buffer" }))
 
-  vim.api.nvim_create_user_command("TablinePrev",
+  nvim_utils.command("TablinePrev",
     M.prev_buffer, vim.tbl_extend("force", opts, { desc = "TabLine: prev buffer" }))
 
-  vim.api.nvim_create_user_command("TablineClose", function(o)
+  nvim_utils.command("TablineClose", function(o)
     M.close_buffer(o.args ~= "" and tonumber(o.args) or nil)
   end, vim.tbl_extend("force", opts, { nargs = "?", desc = "TabLine: close buffer" }))
 
-  vim.api.nvim_create_user_command("TablineMoveLeft",
+  nvim_utils.command("TablineMoveLeft",
     M.move_buffer_left, vim.tbl_extend("force", opts, { desc = "TabLine: move buffer left" }))
 
-  vim.api.nvim_create_user_command("TablineMoveRight",
+  nvim_utils.command("TablineMoveRight",
     M.move_buffer_right, vim.tbl_extend("force", opts, { desc = "TabLine: move buffer right" }))
 
   -- Session commands (always registered; they are no-ops when persist is disabled)
-  vim.api.nvim_create_user_command("TablineSessionSave", function()
+  nvim_utils.command("TablineSessionSave", function()
     M.session_save()
   end, vim.tbl_extend("force", opts, { desc = "TabLine: manually save session" }))
 
-  vim.api.nvim_create_user_command("TablineSessionRestore", function()
+  nvim_utils.command("TablineSessionRestore", function()
     M.session_restore()
   end, vim.tbl_extend("force", opts, { desc = "TabLine: manually restore session" }))
 
-  vim.api.nvim_create_user_command("TablineSessionDelete", function()
+  nvim_utils.command("TablineSessionDelete", function()
     M.session_delete()
   end, vim.tbl_extend("force", opts, { desc = "TabLine: delete session for cwd" }))
 
-  vim.api.nvim_create_user_command("TablineSessionList", function()
+  nvim_utils.command("TablineSessionList", function()
     M.session_list_print()
   end, vim.tbl_extend("force", opts, { desc = "TabLine: list all saved sessions" }))
 end

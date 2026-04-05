@@ -16,6 +16,7 @@ local _BASE = (...):match '^(.+)%.[^.]+$' or (...)
 
 local caps = require(_BASE .. '.capabilities')
 local keymaps = require(_BASE .. '.keymap')
+local nvim_utils = require('utils.nvim')
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Constants
@@ -285,24 +286,19 @@ function M.open(client, bufnr, opts)
   -- ── Key bindings ───────────────────────────────────────────────────────────
   local mo = { buffer = fbuf, nowait = true, silent = true }
 
-  vim.keymap.set('n', 'q', function()
-    vim.api.nvim_win_close(fwin, true)
-  end, mo)
-  vim.keymap.set('n', '<Esc>', function()
-    vim.api.nvim_win_close(fwin, true)
-  end, mo)
+  nvim_utils.bind_close_keys(fbuf, fwin, { 'q', '<Esc>' }, mo)
 
-  vim.keymap.set('n', 'f', function()
+  nvim_utils.buf_map(fbuf, 'n', 'f', function()
     show_mapped = not show_mapped
     refresh()
   end, mo)
 
-  vim.keymap.set('n', 'd', function()
+  nvim_utils.buf_map(fbuf, 'n', 'd', function()
     show_discovered = not show_discovered
     refresh()
   end, mo)
 
-  vim.keymap.set('n', '<CR>', function()
+  nvim_utils.buf_map(fbuf, 'n', '<CR>', function()
     local entry = current_entry()
     if not entry then
       return
@@ -322,7 +318,7 @@ function M.open(client, bufnr, opts)
     end
 
     local def = entry.def
-    vim.api.nvim_win_close(fwin, true)
+    nvim_utils.close_win(fwin, true)
 
     vim.schedule(function()
       M.prompt_and_bind(client, bufnr, entry.cap_key, def, opts, function()

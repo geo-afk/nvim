@@ -52,9 +52,9 @@ local state = {
 -- Config
 -- ---------------------------------------------------------------------------
 M.config = {
-  width_ratio = 0.52,
-  max_width = 80,
-  min_width = 44,
+  width_ratio = 0.58,
+  max_width = 92,
+  min_width = 52,
   animation = { enabled = true, steps = 4, duration_ms = 72 },
   border = { "╭", "─", "╮", "│", "╯", "─", "╰", "│" },
   -- Set to true if your terminal font is a Nerd Font (enables icon glyphs).
@@ -111,7 +111,13 @@ local MODE_INFO = {
     sep_hl = "NvimCmdlineSep",
     border_hl = "NvimCmdlineBorder",
     title_hl = "NvimCmdlineFloatTitle",
-    hint = "  Tab complete  ↑↓ history  Enter run  Esc dismiss  ",
+    badge = "CMD",
+    hint = {
+      { "Tab", "complete" },
+      { "Up/Down", "history" },
+      { "Enter", "run" },
+      { "Esc", "close" },
+    },
   },
   search_fwd = {
     icon = "  ",
@@ -122,7 +128,12 @@ local MODE_INFO = {
     sep_hl = "NvimCmdlineSep",
     border_hl = "NvimCmdlineSearchBorder",
     title_hl = "NvimCmdlineSearchTitle",
-    hint = "  ↑↓ history  Enter search  Esc dismiss  ",
+    badge = "FIND",
+    hint = {
+      { "Up/Down", "history" },
+      { "Enter", "next" },
+      { "Esc", "close" },
+    },
   },
   search_bwd = {
     icon = "  ",
@@ -133,7 +144,12 @@ local MODE_INFO = {
     sep_hl = "NvimCmdlineSep",
     border_hl = "NvimCmdlineSearchBorder",
     title_hl = "NvimCmdlineSearchTitle",
-    hint = "  ↑↓ history  Enter search  Esc dismiss  ",
+    badge = "BACK",
+    hint = {
+      { "Up/Down", "history" },
+      { "Enter", "prev" },
+      { "Esc", "close" },
+    },
   },
 }
 
@@ -145,6 +161,8 @@ local function use_nerd_font()
   end
   return vim.g.have_nerd_font == true or vim.g.have_nerd_font == 1
 end
+
+local get_title
 
 -- ---------------------------------------------------------------------------
 -- Layout
@@ -161,6 +179,140 @@ end
 
 local function get_target_row()
   return math.max(0, vim.o.lines - vim.o.cmdheight - 3)
+end
+
+local function truncate_label(text, max_len)
+  if type(text) ~= "string" then
+    return ""
+  end
+  if #text <= max_len then
+    return text
+  end
+  if max_len <= 1 then
+    return text:sub(1, max_len)
+  end
+  return text:sub(1, max_len - 1) .. "…"
+end
+
+local function get_prev_buf()
+  if state.prev_win and vim.api.nvim_win_is_valid(state.prev_win) then
+    local ok, buf = pcall(vim.api.nvim_win_get_buf, state.prev_win)
+    if ok and type(buf) == "number" and vim.api.nvim_buf_is_valid(buf) then
+      return buf
+    end
+  end
+  return nil
+end
+
+local function get_prev_buf_meta()
+  local buf = get_prev_buf()
+  if not buf then
+    return nil
+  end
+
+  local name = vim.api.nvim_buf_get_name(buf)
+  local basename = name ~= "" and vim.fn.fnamemodify(name, ":t") or "[No Name]"
+  local ft = vim.bo[buf].filetype ~= "" and vim.bo[buf].filetype or "text"
+  local modified = vim.bo[buf].modified
+  local readonly = vim.bo[buf].readonly
+  local line_count = vim.api.nvim_buf_line_count(buf)
+
+  return {
+    name = basename,
+    ft = ft,
+    modified = modified,
+    readonly = readonly,
+    line_count = line_count,
+  }
+end
+
+local function get_variant_key(mode, subtype)
+  if mode == "search_fwd" or mode == "search_bwd" then
+    return "Search"
+  end
+
+  local title = subtype and subtype.title or ""
+  if title:find("Lua", 1, true) or title:find("Expression", 1, true) then
+    return "Lua"
+  end
+  if title:find("Shell", 1, true) or title:find("Terminal", 1, true) then
+    return "Shell"
+  end
+  if title:find("Help", 1, true) then
+    return "Help"
+  end
+  if title:find("Options", 1, true) then
+    return "Opts"
+  end
+  if title:find("Substitute", 1, true) then
+    return "Subst"
+  end
+  if title:find("Filter", 1, true) then
+    return "Filter"
+  end
+  if title:find("File", 1, true) then
+    return "File"
+  end
+  return "Cmd"
+end
+
+local function get_badge_hls(mode, subtype)
+  local key = get_variant_key(mode, subtype)
+  return "NvimCmdlineBadgeCol" .. key, "NvimCmdlineBadgeLabel" .. key
+end
+
+local function get_title_hls(mode, subtype)
+  local key = get_variant_key(mode, subtype)
+  return "NvimCmdlineTitleIcon" .. key, "NvimCmdlineTitleText" .. key
+end
+
+local function get_hint_key_hl(mode, subtype)
+  local key = get_variant_key(mode, subtype)
+  return "NvimCmdlineHintKey" .. key
+end
+
+local function get_title_chunks(mode, info, subtype)
+  local icon_hl, text_hl = get_title_hls(mode, subtype)
+  local title = vim.trim(get_title(info, subtype))
+  local chunks = {
+    { " " .. (info.badge or "CMD") .. " ", icon_hl },
+    { " " .. title .. " ", text_hl },
+  }
+
+  if mode == "cmd" then
+    chunks[#chunks + 1] = { " Live ", "NvimCmdlineBufInfoChip" }
+  else
+    chunks[#chunks + 1] = { " Matches ", "NvimCmdlineCounterChip" }
+  end
+
+  return chunks
+end
+
+local function get_footer_chunks(mode, subtype)
+  local meta = get_prev_buf_meta()
+  if not meta then
+    return nil
+  end
+
+  local file_hl = mode == "cmd" and "NvimCmdlineBufInfoFile" or "NvimCmdlineBufInfoFileSearch"
+  local chunks = {
+    { " " .. truncate_label(meta.name, 28) .. " ", file_hl },
+    { " ", "NvimCmdlineBufInfoSep" },
+    { " " .. meta.ft .. " ", "NvimCmdlineBufInfoFt" },
+    { " ", "NvimCmdlineBufInfoSep" },
+    { (" %d lines "):format(meta.line_count), "NvimCmdlineBufInfoMeta" },
+  }
+
+  if meta.modified then
+    chunks[#chunks + 1] = { " ", "NvimCmdlineBufInfoSep" }
+    chunks[#chunks + 1] = { " +modified ", "NvimCmdlineBufInfoMod" }
+  end
+  if meta.readonly then
+    chunks[#chunks + 1] = { " ", "NvimCmdlineBufInfoSep" }
+    chunks[#chunks + 1] = { " read-only ", "NvimCmdlineBufInfoRO" }
+  end
+
+  return chunks
 end
 
 -- ---------------------------------------------------------------------------
@@ -204,39 +356,29 @@ end
 local function render_badge(buf, info, subtype)
   vim.api.nvim_buf_clear_namespace(buf, NS_BADGE, 0, -1)
 
+  local col_hl, _ = get_badge_hls(state.mode, subtype)
   local nf = use_nerd_font()
+  local icon = (subtype and type(subtype.icon) == "string" and subtype.icon ~= "") and subtype.icon or info.icon
+  local ascii_icon = (info.icon_ascii or " :  "):gsub("%s+", "")
+  local badge_text = nf and ("  " .. icon .. " ") or (" " .. truncate_label(ascii_icon, 4) .. " ")
+  pcall(vim.api.nvim_buf_set_extmark, buf, NS_BADGE, 0, 0, {
+    virt_text = {
+      { badge_text, info.badge_hl },
+      { "│ ", info.sep_hl },
+    },
+    virt_text_pos = "overlay",
+    priority = 60,
+  })
 
-  -- Which icon to show: prefer subtype icon (e.g. :lua  ) over mode default
-  local icon
-  if nf then
-    icon = (subtype and type(subtype.icon) == "string" and subtype.icon ~= "") and subtype.icon or info.icon
-    -- Badge layout (7 cells): "  <icon> │ "
-    --   "  " = 2 spaces, icon = 2 cells, " " = 1, "│" = 1, " " = 1 → total 7
-    pcall(vim.api.nvim_buf_set_extmark, buf, NS_BADGE, 0, 0, {
-      virt_text = {
-        { "  " .. icon .. " ", info.badge_hl },
-        { "│ ", info.sep_hl },
-      },
-      virt_text_pos = "overlay",
-      priority = 60,
-    })
-  else
-    -- ASCII badge layout (7 cells): " <char>  │ "
-    --   e.g. " :  │ " for cmd, " /  │ " for search
-    local ascii_icon = info.icon_ascii or " :  " -- 4 chars
-    pcall(vim.api.nvim_buf_set_extmark, buf, NS_BADGE, 0, 0, {
-      virt_text = {
-        { ascii_icon, info.badge_hl },
-        { "│ ", info.sep_hl },
-      },
-      virt_text_pos = "overlay",
-      priority = 60,
-    })
-  end
+  pcall(vim.api.nvim_buf_set_extmark, buf, NS_BADGE, 0, 0, {
+    end_col = PROMPT_LEN,
+    hl_group = col_hl,
+    priority = 40,
+  })
 end
 
 ---Return the correct window title for the current state.
-local function get_title(info, subtype)
+get_title = function(info, subtype)
   local nf = use_nerd_font()
   if subtype and type(subtype.title) == "string" and subtype.title ~= "" then
     return subtype.title
@@ -266,10 +408,31 @@ local function render_counter(buf, count)
 end
 
 ---Hint line below the input via virt_lines (Nvim 0.10+ only).
-local function render_hint(buf, info)
+local function render_hint(buf, info, subtype)
   vim.api.nvim_buf_clear_namespace(buf, NS_HINT, 0, -1)
+  local hint = info.hint
+  if type(hint) ~= "table" then
+    pcall(vim.api.nvim_buf_set_extmark, buf, NS_HINT, 0, 0, {
+      virt_lines = { { { tostring(hint or ""), "NvimCmdlineHint" } } },
+      virt_lines_above = false,
+      priority = 5,
+    })
+    return
+  end
+
+  local key_hl = get_hint_key_hl(state.mode, subtype)
+  local chunks = { { "  ", "NvimCmdlineHintPad" } }
+  for i, pair in ipairs(hint) do
+    chunks[#chunks + 1] = { pair[1], key_hl }
+    chunks[#chunks + 1] = { " " .. pair[2], "NvimCmdlineHintDesc" }
+    if i < #hint then
+      chunks[#chunks + 1] = { "  •  ", "NvimCmdlineHintSep" }
+    end
+  end
+  chunks[#chunks + 1] = { "  ", "NvimCmdlineHintPad" }
+
   pcall(vim.api.nvim_buf_set_extmark, buf, NS_HINT, 0, 0, {
-    virt_lines = { { { info.hint, "NvimCmdlineHint" } } },
+    virt_lines = { chunks },
     virt_lines_above = false,
     priority = 5,
   })
@@ -281,8 +444,10 @@ local function render_title(win, info, subtype)
     return
   end
   pcall(vim.api.nvim_win_set_config, win, {
-    title = get_title(info, subtype),
+    title = get_title_chunks(state.mode, info, subtype),
     title_pos = "left",
+    footer = get_footer_chunks(state.mode, subtype),
+    footer_pos = "left",
   })
 end
 
@@ -402,7 +567,7 @@ local function show_range_preview(input, parent_win)
     width = width,
     height = height,
     style = "minimal",
-    border = M.config.border,
+    border = M.config.border_cmd or M.config.border,
     title = (" Lines %d – %d "):format(lo, hi),
     title_pos = "left",
     zindex = 190,
@@ -461,7 +626,7 @@ local function show_output(lines, is_error)
     width = width,
     height = height,
     style = "minimal",
-    border = M.config.border,
+    border = M.config.border_cmd or M.config.border,
     title = is_error and " Error " or " Output ",
     title_pos = "left",
     zindex = 150,
@@ -481,7 +646,12 @@ local function show_output(lines, is_error)
 
   local uv = vim.uv or vim.loop
   local t = uv.new_timer()
+  local dismissed = false
   local function dismiss()
+    if dismissed then
+      return
+    end
+    dismissed = true
     if not t:is_closing() then
       t:stop()
       t:close()
@@ -491,22 +661,41 @@ local function show_output(lines, is_error)
     end
   end
   t:start(5000, 0, vim.schedule_wrap(dismiss))
-  vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI", "BufWinLeave" }, {
-    once = true,
-    callback = vim.schedule_wrap(dismiss),
-  })
+  -- Defer the CursorMoved autocmd by ~300 ms so that window-switch events
+  -- fired by the slide-out animation (which runs ~75–100 ms) do not
+  -- accidentally dismiss the output float before the user sees it.
+  -- NOTE: BufWinLeave intentionally excluded for the same reason.
+  vim.defer_fn(function()
+    if dismissed then
+      return
+    end
+    vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
+      once = true,
+      callback = vim.schedule_wrap(dismiss),
+    })
+  end, 350)
 end
 
 -- ---------------------------------------------------------------------------
 -- Blink.cmp suppression
 -- ---------------------------------------------------------------------------
 
+-- Cache the blink.cmp module so pcall(require) isn't called on every open/close.
+local _blink_cache = nil
+local _blink_checked = false
+
 local blink_was_enabled = nil
 local function blink_set_enabled(enable)
-  local ok, blink = pcall(require, "blink.cmp")
-  if not ok or type(blink) ~= "table" then
+  if not _blink_checked then
+    local ok, mod = pcall(require, "blink.cmp")
+    _blink_cache = (ok and type(mod) == "table") and mod or false
+    _blink_checked = true
+  end
+  local blink = _blink_cache
+  if not blink then
     return
   end
+
   if enable then
     if blink_was_enabled ~= nil then
       if type(blink.set_enabled) == "function" then
@@ -609,16 +798,22 @@ local function execute(buf, mode)
   if mode == "cmd" then
     history.add(":", input)
     restore_and_run(function()
-      local ok, result = pcall(vim.api.nvim_exec2, input, { output = true })
+      -- NOTE: nvim_exec2() with output=true silently captures nothing when the
+      -- cmdline-mode context has set redir_off=true (Neovim issue #35321).
+      -- vim.fn.execute() explicitly resets redir_off before running the command,
+      -- so it reliably captures output from :echo, :messages, :lua print(), etc.
+      local ok, result = pcall(vim.fn.execute, input)
+      local out, is_error
       if ok then
-        local out = (type(result) == "table" and type(result.output) == "string") and result.output or ""
+        out = type(result) == "string" and result or ""
         out = out:gsub("\nPress ENTER.*$", ""):gsub("^%s+", ""):gsub("%s+$", "")
-        if out ~= "" then
-          show_output(vim.split(out, "\n", { plain = true }), false)
-        end
+        is_error = false
       else
-        local msg = tostring(result):gsub("^Vim%([^)]*%):", ""):gsub("^Vim:", ""):gsub("^%s+", "")
-        show_output({ msg }, true)
+        out = tostring(result):gsub("^Vim%([^)]*%):", ""):gsub("^Vim:", ""):gsub("^%s+", "")
+        is_error = true
+      end
+      if out ~= "" then
+        show_output(vim.split(out, "\n", { plain = true }), is_error)
       end
     end)
   elseif mode == "search_fwd" or mode == "search_bwd" then
@@ -711,7 +906,7 @@ local function setup_keymaps(buf, win, mode, info)
         elseif #items > 1 then
           local query = input:match("[^%s=]+$") or input
           local prefix = input:match("^(.*[%s=])") or ""
-          completion.open(win, items, query, prefix, state.target_row)
+          completion.open(win, items, query, prefix, state.target_row, PROMPT_LEN, mode)
           completion.lock()
           local sel = forward and completion.select_next() or completion.select_prev()
           if sel then
@@ -741,7 +936,15 @@ local function setup_keymaps(buf, win, mode, info)
       local input = read_input(buf)
       local items = completion.get_completions(input)
       if #items > 0 then
-        completion.open(win, items, input:match("[^%s=]+$") or input, input:match("^(.*[%s=])") or "", state.target_row)
+        completion.open(
+          win,
+          items,
+          input:match("[^%s=]+$") or input,
+          input:match("^(.*[%s=])") or "",
+          state.target_row,
+          PROMPT_LEN,
+          mode
+        )
       else
         completion.close()
       end
@@ -821,6 +1024,17 @@ local function setup_keymaps(buf, win, mode, info)
     end
     pcall(vim.api.nvim_win_set_cursor, win, { 1, pos[2] - 1 })
   end)
+
+  km_i(buf, { "<BS>", "<C-h>" }, function()
+    if not vim.api.nvim_win_is_valid(win) then
+      return
+    end
+    local pos = vim.api.nvim_win_get_cursor(win)
+    if pos[2] <= PROMPT_LEN then
+      return
+    end
+    vim.api.nvim_feedkeys(vim.keycode("<BS>"), "n", false)
+  end)
 end
 
 -- ---------------------------------------------------------------------------
@@ -851,7 +1065,15 @@ local function setup_autocmds(buf, win, mode, info)
       end
       local items = completion.get_completions(input)
       if #items > 0 then
-        completion.open(win, items, input:match("[^%s=]+$") or input, input:match("^(.*[%s=])") or "", state.target_row)
+        completion.open(
+          win,
+          items,
+          input:match("[^%s=]+$") or input,
+          input:match("^(.*[%s=])") or "",
+          state.target_row,
+          PROMPT_LEN,
+          mode
+        )
       else
         completion.close()
       end
@@ -863,7 +1085,7 @@ local function setup_autocmds(buf, win, mode, info)
       if M.config.completion.auto_open and #input >= M.config.completion.min_length then
         local words = completion.get_buffer_words(input)
         if #words > 0 then
-          completion.open(win, words, input, "", state.target_row)
+          completion.open(win, words, input, "", state.target_row, PROMPT_LEN, mode)
         else
           completion.close()
         end
@@ -912,6 +1134,7 @@ local function setup_autocmds(buf, win, mode, info)
         if subtype ~= state.current_subtype then
           state.current_subtype = subtype
           render_badge(buf, info, subtype)
+          render_hint(buf, info, subtype)
           render_title(win, info, subtype)
           apply_syntax(buf, subtype)
         end
@@ -994,6 +1217,11 @@ function M.open(mode, opts)
   local subtype = mode == "cmd" and modes.detect_cmd(default) or modes.detect_search(mode)
   state.current_subtype = subtype
 
+  -- Resolve border: prefer per-mode config strings, fall back to border table.
+  local border = (mode == "cmd" and M.config.border_cmd)
+    or ((mode == "search_fwd" or mode == "search_bwd") and M.config.border_search)
+    or M.config.border
+
   -- ── Buffer ────────────────────────────────────────────────────────────────
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_set_option_value("buftype", "nofile", { buf = buf })
@@ -1010,8 +1238,7 @@ function M.open(mode, opts)
   -- ── Window ────────────────────────────────────────────────────────────────
   local start_row = M.config.animation.enabled and (target_row + M.config.animation.steps + 1) or target_row
 
-  -- Use subtype title if available, else mode title
-  local title_text = get_title(info, subtype)
+  local title_text = get_title_chunks(mode, info, subtype)
 
   local win = vim.api.nvim_open_win(buf, true, {
     relative = "editor",
@@ -1020,9 +1247,11 @@ function M.open(mode, opts)
     width = width,
     height = 1,
     style = "minimal",
-    border = M.config.border,
+    border = border,
     title = title_text,
     title_pos = "left",
+    footer = get_footer_chunks(mode, subtype),
+    footer_pos = "left",
     zindex = 200,
   })
 
@@ -1047,7 +1276,7 @@ function M.open(mode, opts)
   -- ── Decorations ───────────────────────────────────────────────────────────
   render_prompt_hl(buf)
   render_badge(buf, info, subtype)
-  render_hint(buf, info)
+  render_hint(buf, info, subtype)
 
   if mode == "search_fwd" or mode == "search_bwd" then
     render_counter(buf, { current = 0, total = 0, incomplete = false })

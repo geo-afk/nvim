@@ -42,6 +42,150 @@ M.devicons_override = {
   },
 }
 
+local uv = vim.uv or vim.loop
+
+local function path_exists(path)
+  return path and uv.fs_stat(path) ~= nil
+end
+
+local function normalize_dir(path)
+  if not path or path == "" then
+    return nil
+  end
+
+  local normalized = vim.fs.normalize(path)
+  local stat = uv.fs_stat(normalized)
+  if stat and stat.type == "file" then
+    return vim.fs.dirname(normalized)
+  end
+
+  return normalized
+end
+
+local function resolve_start_dir(path)
+  if type(path) == "number" then
+    local bufname = vim.api.nvim_buf_get_name(path)
+    if bufname ~= "" then
+      return normalize_dir(bufname)
+    end
+  end
+
+  if type(path) == "string" and path ~= "" then
+    return normalize_dir(path)
+  end
+
+  local bufname = vim.api.nvim_buf_get_name(0)
+  if bufname ~= "" then
+    return normalize_dir(bufname)
+  end
+
+  return normalize_dir(vim.fn.getcwd())
+end
+
+local function read_json_file(path)
+  if not path_exists(path) then
+    return nil
+  end
+
+  local file = io.open(path, "r")
+  if not file then
+    return nil
+  end
+
+  local contents = file:read("*a")
+  file:close()
+
+  local ok, decoded = pcall(vim.json.decode, contents)
+  if ok then
+    return decoded
+  end
+
+  return nil
+end
+
+local function package_has_angular(package_json)
+  if type(package_json) ~= "table" then
+    return false
+  end
+
+  for _, section in ipairs({ "dependencies", "devDependencies", "peerDependencies" }) do
+    local deps = package_json[section]
+    if type(deps) == "table" and deps["@angular/core"] then
+      return true
+    end
+  end
+
+  return false
+end
+
+local function project_json_has_angular(project_json)
+  if type(project_json) ~= "table" then
+    return false
+  end
+
+  if type(project_json.tags) == "table" then
+    for _, tag in ipairs(project_json.tags) do
+      if type(tag) == "string" and tag:lower():find("angular", 1, true) then
+        return true
+      end
+    end
+  end
+
+  local targets = project_json.targets or project_json.architect
+  if type(targets) ~= "table" then
+    return false
+  end
+
+  for _, target in pairs(targets) do
+    if type(target) == "table" then
+      local executor = target.executor or target.builder
+      if type(executor) == "string" and executor:find("angular", 1, true) then
+        return true
+      end
+    end
+  end
+
+  return false
+end
+
+local function has_angular_project_marker(dir)
+  if not dir then
+    return false
+  end
+
+  if path_exists(vim.fs.joinpath(dir, "angular.json")) then
+    return true
+  end
+
+  if project_json_has_angular(read_json_file(vim.fs.joinpath(dir, "project.json"))) then
+    return true
+  end
+
+  if package_has_angular(read_json_file(vim.fs.joinpath(dir, "package.json"))) then
+    return true
+  end
+
+  return false
+end
+
+local function find_upward(start_dir, predicate)
+  local dir = resolve_start_dir(start_dir)
+
+  while dir do
+    if predicate(dir) then
+      return dir
+    end
+
+    local parent = vim.fs.dirname(dir)
+    if not parent or parent == dir then
+      break
+    end
+    dir = parent
+  end
+
+  return nil
+end
+
 
 
 -- ============================================================================
@@ -101,22 +245,28 @@ end
 -- ============================================================================
 
 --- Check if current directory is within an Angular project
+--- @param path? string|integer Optional file path or buffer number
 --- @return boolean True if angular.json exists in current or parent directories
-function M.is_angular_project()
-  local angular_file = vim.fn.findfile('angular.json', vim.fn.getcwd() .. ';')
-  return angular_file ~= ''
+function M.is_angular_project(path)
+  return M.find_angular_root(path) ~= nil
 end
 
 --- Find the Angular project root directory
+--- @param path? string|integer Optional file path or buffer number
 --- @return string|nil The project root path, or nil if not found
-function M.find_angular_root()
-  local angular_file = vim.fn.findfile('angular.json', vim.fn.getcwd() .. ';')
+function M.find_angular_root(path)
+  return find_upward(path, function(dir)
+    if path_exists(vim.fs.joinpath(dir, "angular.json")) then
+      return true
+    end
 
-  if angular_file == '' then
-    return nil
-  end
+    local has_nx_root = path_exists(vim.fs.joinpath(dir, "nx.json"))
+    if not has_nx_root then
+      return false
+    end
 
-  return vim.fn.fnamemodify(angular_file, ':h')
+    return has_angular_project_marker(dir)
+  end)
 end
 
 --- Get Angular core version from package.json
@@ -131,34 +281,33 @@ function M.get_angular_version(project_root)
 
   local package_json = project_root .. '/package.json'
 
-  if not vim.uv.fs_stat(package_json) then
+  local json = read_json_file(package_json)
+  if not json then
     return ''
   end
 
-  local f = io.open(package_json, 'r')
-  if not f then
-    return ''
+  local angular_core_version = nil
+  for _, section in ipairs({ "dependencies", "devDependencies", "peerDependencies" }) do
+    if type(json[section]) == "table" and json[section]["@angular/core"] then
+      angular_core_version = json[section]["@angular/core"]
+      break
+    end
   end
 
-  local contents = f:read '*a'
-  f:close()
-
-  local ok, json = pcall(vim.json.decode, contents)
-
-  if not ok or not json.dependencies then
-    return ''
-  end
-
-  local angular_core_version = json.dependencies['@angular/core']
   angular_core_version = angular_core_version and angular_core_version:match '%d+%.%d+%.%d+'
 
   return angular_core_version or ''
 end
 
 --- Find project's node_modules directory
+--- @param path? string|integer Optional file path or buffer number
 --- @return string|nil Path to node_modules, or nil if not found
-function M.find_node_modules()
-  local root_dir = vim.fn.getcwd()
+function M.find_node_modules(path)
+  local root_dir = resolve_start_dir(path)
+  if not root_dir then
+    return nil
+  end
+
   local node_modules_dir = vim.fs.find('node_modules', { path = root_dir, upward = true })[1]
 
   if not node_modules_dir then

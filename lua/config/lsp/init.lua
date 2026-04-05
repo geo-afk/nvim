@@ -2,25 +2,12 @@ local M = {}
 local handler = require("config.lsp.handlers")
 
 function M.setup()
-  -- Log current Neovim version
-  local version = vim.version()
-  local version_string = string.format("%d.%d.%d", version.major, version.minor, version.patch)
-  -- print('Current Neovim version: ' .. version_string)
-
-  -- Check if Neovim version is 0.10 or higher
-  if version.major == 0 and version.minor < 10 then
-    vim.notify(
-      "This configuration requires Neovim 0.10 or higher. Current version: " .. version_string,
-      vim.log.levels.ERROR
-    )
-    return
-  end
-
   vim.api.nvim_create_autocmd("LspAttach", {
     group = vim.api.nvim_create_augroup("UserLspConfig", { clear = true }),
 
     callback = function(args)
       handler.setup_keymaps(args)
+      local codelens = require("custom.codelens")
 
       local client = vim.lsp.get_client_by_id(args.data.client_id)
       if not client then
@@ -30,6 +17,10 @@ function M.setup()
 
       if client:supports_method("textDocument/inlayHint") then
         vim.lsp.inlay_hint.enable(true, { bufnr = args.buf })
+      end
+
+      if client:supports_method("textDocument/codeLens") then
+        codelens.attach(args.buf, client)
       end
 
       require("config.lsp.setup.ts_keymap").setup(args.buf, client)
@@ -114,12 +105,9 @@ function M.setup_lsps()
   end
 
   vim.lsp.config("angularls", {
-    server_capabilities = {
-      renameProvider = false,
-    },
-    -- capabilities = {
-    --   renameProvider = false,
-    -- },
+    on_attach = function(client)
+      client.server_capabilities.renameProvider = false
+    end,
   })
 
   -- test_lsp()
