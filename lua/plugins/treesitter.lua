@@ -1,118 +1,89 @@
-return {
-  "nvim-treesitter/nvim-treesitter",
-  branch = "master",
-  event = { "BufReadPre", "BufNewFile" },
-  build = ":TSUpdate",
+-- =============================================================================
+--  plugins/treesitter.lua  ·  nvim-treesitter
+-- =============================================================================
 
-  opts = {}, -- we will use config() manually
+local utils_ok, utils = pcall(require, "utils")
+utils = utils_ok and utils or {}
 
-  config = function()
-    -- Safe require
-    local ok, configs = pcall(require, "nvim-treesitter.configs")
-    if not ok then
-      vim.notify("[Treesitter] nvim-treesitter.configs missing!", vim.log.levels.WARN)
-      return
-    end
+vim.pack.add({
+	{
+		src = "https://github.com/nvim-treesitter/nvim-treesitter",
+		build = ":TSUpdate",
+	},
+})
 
-    -- =========================================================================
-    -- Treesitter Setup
-    -- =========================================================================
-    configs.setup({
-      -- Languages to ensure are installed
-      ensure_installed = {
-        "bash",
-        "c",
-        "go",
-        "html",
-        "javascript",
-        "lua",
-        "markdown",
-        "markdown_inline",
-        "scss",
-        "sql",
-        "typescript",
-        "vim",
-        "vimdoc",
-      },
+local ok, ts = pcall(require, "nvim-treesitter.configs")
+if not ok then
+	return
+end
 
-      -- Install missing parsers automatically
-      sync_install = false,
-      auto_install = true,
+ts.setup({
+	ensure_installed = {
+		"lua",
+		"typescript",
+		"tsx",
+		"javascript",
+		"go",
+		"json",
+		"jsonc",
+		"html",
+		"css",
+		"scss",
+		"markdown",
+		"markdown_inline",
+		"regex",
+		"vim",
+		"vimdoc",
+		"query",
+		"toml",
+		"sql",
+		"angular",
+	},
+	auto_install = true,
+	highlight = { enable = true, additional_vim_regex_highlighting = false },
+	indent = { enable = true, disable = { "ruby" } },
 
-      -- Highlighting
-      highlight = {
-        enable = true,
-        additional_vim_regex_highlighting = false,
-      },
+	-- [0.12] incremental_selection also powered by LSP selectionRange (v_an/v_in)
+	incremental_selection = {
+		enable = true,
+		keymaps = {
+			init_selection = "gnn",
+			node_incremental = "grn",
+			scope_incremental = "grc",
+			node_decremental = "grm",
+		},
+	},
+})
+local function is_angular_project()
+	if type(utils.is_angular_project) == "function" then
+		return utils.is_angular_project()
+	end
+	return false
+end
 
-      -- Indentation
-      indent = {
-        enable = true,
-        disable = { "ruby" },
-      },
+local function should_use_angular_parser(path)
+	if not path or type(path) ~= "string" then
+		return false
+	end
+	if not path:match("/src/app/") then
+		return false
+	end
+	return is_angular_project()
+end
 
-      -- Incremental Selection
-      incremental_selection = {
-        enable = true,
-        keymaps = {
-          init_selection = "<CR>",
-          node_incremental = "<CR>",
-          scope_incremental = false,
-          node_decremental = "<BS>",
-        },
-      },
-    })
-
-    -- =========================================================================
-    -- Optional Fold Settings (Treesitter-based folding)
-    -- =========================================================================
-    vim.api.nvim_create_autocmd("FileType", {
-      pattern = "*",
-      callback = function()
-        -- vim.wo.foldmethod = 'expr'
-        -- vim.wo.foldexpr = 'nvim_treesitter#foldexpr()'
-      end,
-      desc = "Enable treesitter-based folding",
-    })
-
-    -- =========================================================================
-    -- Angular Template Treesitter Logic
-    -- =========================================================================
-    local utils_ok, utils = pcall(require, "utils")
-    utils = utils_ok and utils or {}
-
-    local function is_angular_project()
-      if type(utils.is_angular_project) == "function" then
-        return utils.is_angular_project()
-      end
-      return false
-    end
-
-    local function should_use_angular_parser(path)
-      if not path or type(path) ~= "string" then
-        return false
-      end
-      if not path:match("/src/app/") then
-        return false
-      end
-      return is_angular_project()
-    end
-
-    vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile" }, {
-      pattern = { "*.component.html", "*.html" },
-      callback = function(args)
-        local buf = args.buf
-        local path = vim.api.nvim_buf_get_name(buf)
-        if should_use_angular_parser(path) then
-          local okay, _ = pcall(vim.treesitter.get_parser, buf, "angular")
-          if okay then
-            pcall(vim.treesitter.start, buf, "angular")
-          else
-            pcall(vim.treesitter.start, buf, "html")
-          end
-        end
-      end,
-      desc = "Apply Angular Treesitter parser or fallback",
-    })
-  end,
-}
+vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile" }, {
+	pattern = { "*.component.html", "*.html" },
+	callback = function(args)
+		local buf = args.buf
+		local path = vim.api.nvim_buf_get_name(buf)
+		if should_use_angular_parser(path) then
+			local okay, _ = pcall(vim.treesitter.get_parser, buf, "angular")
+			if okay then
+				pcall(vim.treesitter.start, buf, "angular")
+			else
+				pcall(vim.treesitter.start, buf, "html")
+			end
+		end
+	end,
+	desc = "Apply Angular Treesitter parser or fallback",
+})

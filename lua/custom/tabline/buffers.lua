@@ -24,6 +24,17 @@ local state = {
 
 -- ─── helpers ──────────────────────────────────────────────────────────────
 
+local function normalize_path(path)
+  return (path or ""):gsub("\\", "/")
+end
+
+local function truncate_display(str, max_len)
+  if not max_len or max_len <= 0 then return str end
+  local chars = vim.fn.strchars(str)
+  if chars <= max_len then return str end
+  return vim.fn.strcharpart(str, 0, max_len - 1) .. "…"
+end
+
 local function is_listed(b)
   return vim.fn.buflisted(b) == 1
 end
@@ -164,7 +175,19 @@ function M.close(bufnr, focus)
 
   -- If this is the last listed buffer, open a blank buffer first
   if #bufs == 1 then
-    vim.cmd("enew")
+    local replacement = vim.api.nvim_create_buf(true, false)
+    if not replacement or not vim.api.nvim_buf_is_valid(replacement) then
+      vim.notify("tabline: could not create replacement buffer", vim.log.levels.WARN)
+      return
+    end
+
+    for _, win in ipairs(vim.api.nvim_list_wins()) do
+      if vim.api.nvim_win_is_valid(win)
+         and vim.api.nvim_win_get_buf(win) == bufnr then
+        pcall(vim.api.nvim_win_set_buf, win, replacement)
+      end
+    end
+
     delete_buf(bufnr)
     return
   end
@@ -206,7 +229,7 @@ local function raw_label(b)
     return "[No Name]", true
 
   else
-    return name, false
+    return normalize_path(name), false
   end
 end
 
@@ -256,7 +279,7 @@ function M.get_display_names(bufs, max_len)
       local displays = {}
       for _, b in ipairs(conflict_bufs) do
         local parts = {}
-        for seg in (raw[b] .. "/"):gmatch("([^/]+)/") do
+        for seg in (normalize_path(raw[b]) .. "/"):gmatch("([^/]+)/") do
           parts[#parts + 1] = seg
         end
         displays[b] = { parts = parts, depth = 1 }
@@ -333,10 +356,7 @@ function M.get_display_names(bufs, max_len)
   -- Truncate long names
   if max_len and max_len > 0 then
     for _, b in ipairs(bufs) do
-      local nm = names[b]
-      if #nm > max_len then
-        names[b] = nm:sub(1, max_len - 1) .. "…"
-      end
+      names[b] = truncate_display(names[b], max_len)
     end
   end
 

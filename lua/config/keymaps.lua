@@ -1,47 +1,70 @@
-local opts = { noremap = true, silent = true }
-
--- Linters
-vim.keymap.set("n", "<leader>ll", function()
-  local ok, lint = pcall(require, "lint")
-  if not ok then
-    vim.notify("[lint] nvim-lint not available", vim.log.levels.ERROR)
-    return
-  end
-
-  local success, err = pcall(lint.try_lint)
-  if not success then
-    vim.notify("[lint] Lint failed: " .. tostring(err), vim.log.levels.ERROR)
-  end
-end, { desc = "Lint current file" })
-
--- Optional: show last lint result
-vim.keymap.set("n", "<leader>L", "<cmd>LintInfo<cr>", { desc = "Show nvim-lint info" })
-
--- Panes resizing
-vim.keymap.set("n", "+", ":vertical resize +5<CR>")
-vim.keymap.set("n", "_", ":vertical resize -5<CR>")
-vim.keymap.set("n", "=", ":resize +5<CR>")
-vim.keymap.set("n", "-", ":resize -5<CR>")
+-- =============================================================================
+--  config/keymaps.lua  ·  Key mappings
 --
---
-vim.keymap.set("n", "n", "nzz", opts)
+--  Annotations:
+--    [0.12-default] = Neovim 0.12 ships this mapping by DEFAULT (documented
+--                     here for awareness / potential overriding).
+--    [0.12-new]     = New API used in the mapping definition.
+--    [0.11]         = Available since 0.11.
+-- =============================================================================
+
+local map = vim.keymap.set
+local noremap_s = { noremap = true, silent = true }
+
+-- Clear search highlight
+map("n", "<Esc>", "<cmd>nohlsearch<CR>", noremap_s)
+
+-- Faster saves
+map("n", "<leader>w", "<cmd>w<CR>", noremap_s)
+
+-- [0.12-new] :wall with ++p auto-creates missing parent directories
+map("n", "<leader>W", "<cmd>wall ++p<CR>", noremap_s)
+
+-- Window navigation
+map("n", "<C-h>", "<C-w>h", noremap_s)
+map("n", "<C-j>", "<C-w>j", noremap_s)
+map("n", "<C-k>", "<C-w>k", noremap_s)
+map("n", "<C-l>", "<C-w>l", noremap_s)
+
+-- Resize windows
+map("n", "<C-Up>", "<cmd>resize +2<CR>", noremap_s)
+map("n", "<C-Down>", "<cmd>resize -2<CR>", noremap_s)
+map("n", "<C-Left>", "<cmd>vertical resize -2<CR>", noremap_s)
+map("n", "<C-Right>", "<cmd>vertical resize +2<CR>", noremap_s)
+
+map("n", "n", "nzz", noremap_s)
+
+-- Move lines
+map("v", "J", ":m '>+1<CR>gv=gv", noremap_s)
+map("v", "K", ":m '<-2<CR>gv=gv", noremap_s)
+
+-- Stay centred when scrolling
+map("n", "<C-d>", "<C-d>zz", noremap_s)
+map("n", "<C-u>", "<C-u>zz", noremap_s)
+
+-- Paste without replacing clipboard
+map("v", "<leader>p", '"_dP', noremap_s)
+
+-- =============================================================================
+--  TABS
+-- =============================================================================
+map("n", "<leader>tn", "<cmd>tabnew<CR>", noremap_s)
+map("n", "<leader>tc", "<cmd>tabclose<CR>", noremap_s)
+map("n", "]t", "<cmd>tabnext<CR>", noremap_s)
+map("n", "[t", "<cmd>tabprev<CR>", noremap_s)
+
+-- =============================================================================
+--  BUFFERS
+-- =============================================================================
+map("n", "]b", "<cmd>bnext<CR>", noremap_s)
+-- map("n", "<leader>bd", "<cmd>bdelete<CR>", noremap_s)
+map("n", "[b", "<cmd>bprev<CR>", noremap_s)
 
 -- Select All
-vim.keymap.set("n", "<C-a>", "gg<S-v>G")
+map("n", "<C-a>", "gg<S-v>G")
 
 -- save file
-vim.keymap.set({ "i", "n" }, "<C-s>", "<cmd> w <CR>", opts)
-
--- [[ Basic Keymaps ]]
---  See `:help vim.keymap.set()`
-
--- Clear highlights on search when pressing <Esc> in normal mode
---  See `:help hlsearch`
-
-vim.keymap.set("n", "<Esc>", function()
-  vim.cmd("nohlsearch")
-  vim.cmd("stopinsert")
-end, { silent = true })
+map({ "i", "n" }, "<C-s>", "<cmd> w <CR>", noremap_s)
 
 -- Exit terminal mode in the builtin terminal with a shortcut that is a bit easier
 -- for people to discover. Otherwise, you normally need to press <C-\><C-n>, which
@@ -49,79 +72,134 @@ end, { silent = true })
 --
 -- NOTE: This won't work in all terminal emulators/tmux/etc. Try your own mapping
 -- or just use <C-\><C-n> to exit terminal mode
-vim.keymap.set("t", "<Esc><Esc>", "<C-\\><C-n>", { desc = "Exit terminal mode" })
+map("t", "<Esc><Esc>", "<C-\\><C-n>", { desc = "Exit terminal mode" })
 
--- Keybinds to make split navigation easier.
---  Use CTRL+<hjkl> to switch between windows
---
---  See `:help wincmd` for a list of all window commands
-vim.keymap.set("n", "<C-h>", "<C-w><C-h>", { desc = "Move focus to the left window" })
-vim.keymap.set("n", "<C-l>", "<C-w><C-l>", { desc = "Move focus to the right window" })
-vim.keymap.set("n", "<C-j>", "<C-w><C-j>", { desc = "Move focus to the lower window" })
-vim.keymap.set("n", "<C-k>", "<C-w><C-k>", { desc = "Move focus to the upper window" })
+-- Clear highlights on search when pressing <Esc> in normal mode
+--  See `:help hlsearch`
 
--- Resize window using <ctrl> arrow keys
-vim.keymap.set("n", "<C-Up>", "<cmd>resize +2<cr>", { desc = "Increase Window Height" })
-vim.keymap.set("n", "<C-Down>", "<cmd>resize -2<cr>", { desc = "Decrease Window Height" })
-vim.keymap.set("n", "<C-Left>", "<cmd>vertical resize -2<cr>", { desc = "Decrease Window Width" })
-vim.keymap.set("n", "<C-Right>", "<cmd>vertical resize +2<cr>", { desc = "Increase Window Width" })
+map("n", "<Esc>", function()
+	vim.cmd("nohlsearch")
+	vim.cmd("stopinsert")
+end, { silent = true })
 
 -- Move Lines
-vim.keymap.set("n", "<A-j>", "<cmd>execute 'move .+' . v:count1<cr>==", { desc = "Move Down" })
-vim.keymap.set("n", "<A-k>", "<cmd>execute 'move .-' . (v:count1 + 1)<cr>==", { desc = "Move Up" })
-vim.keymap.set("i", "<A-j>", "<esc><cmd>m .+1<cr>==gi", { desc = "Move Down" })
-vim.keymap.set("i", "<A-k>", "<esc><cmd>m .-2<cr>==gi", { desc = "Move Up" })
-vim.keymap.set("v", "<A-j>", ":<C-u>execute \"'<,'>move '>+\" . v:count1<cr>gv=gv", { desc = "Move Down" })
-vim.keymap.set("v", "<A-k>", ":<C-u>execute \"'<,'>move '<-\" . (v:count1 + 1)<cr>gv=gv", { desc = "Move Up" })
+map("n", "<A-j>", "<cmd>execute 'move .+' . v:count1<cr>==", { desc = "Move Down" })
+map("n", "<A-k>", "<cmd>execute 'move .-' . (v:count1 + 1)<cr>==", { desc = "Move Up" })
+map("i", "<A-j>", "<esc><cmd>m .+1<cr>==gi", { desc = "Move Down" })
+map("i", "<A-k>", "<esc><cmd>m .-2<cr>==gi", { desc = "Move Up" })
+map("v", "<A-j>", ":<C-u>execute \"'<,'>move '>+\" . v:count1<cr>gv=gv", { desc = "Move Down" })
+map("v", "<A-k>", ":<C-u>execute \"'<,'>move '<-\" . (v:count1 + 1)<cr>gv=gv", { desc = "Move Up" })
 
 -- better indenting
-vim.keymap.set("v", "<", "<gv")
-vim.keymap.set("v", ">", ">gv")
+map("v", "<", "<gv")
+map("v", ">", ">gv")
 
-vim.keymap.set({ "n", "v" }, "<leader>rw", function()
-  local ok, strings = pcall(require, "utils.strings")
-  if not ok then
-    vim.notify("[strings] utils.strings module not found", vim.log.levels.ERROR)
-    return
-  end
+-- =============================================================================
+--  PLUGIN MANAGER  (vim.pack – 0.12-new)
+-- =============================================================================
+-- Update all plugins
+map("n", "<leader>pu", function()
+	vim.pack.update()
+end, { desc = "[0.12] vim.pack: update all plugins" })
 
-  local success, err = pcall(strings.replace_word_under_cursor)
-  if not success then
-    vim.notify("[strings] replace_word_under_cursor failed: " .. tostring(err), vim.log.levels.ERROR)
-  end
-end, { desc = "Replace all `<cword>` instances in buffer" })
+-- =============================================================================
+--  LSP  (using 0.12 new :lsp command and APIs)
+-- =============================================================================
 
-vim.keymap.set({ "n", "x" }, "j", "v:count == 0 ? 'gj' : 'j'", { desc = "Down", expr = true, silent = true })
-vim.keymap.set({ "n", "x" }, "<Down>", "v:count == 0 ? 'gj' : 'j'", { desc = "Down", expr = true, silent = true })
-vim.keymap.set({ "n", "x" }, "k", "v:count == 0 ? 'gk' : 'k'", { desc = "Up", expr = true, silent = true })
-vim.keymap.set({ "n", "x" }, "<Up>", "v:count == 0 ? 'gk' : 'k'", { desc = "Up", expr = true, silent = true })
+-- [0.12-new] :lsp command replaces the old LspInfo / LspRestart / LspLog
+-- Compatibility shims so muscle memory still works:
+vim.api.nvim_create_user_command("LspInfo", "checkhealth vim.lsp", {
+	desc = "[0.12] Show LSP info via :checkhealth",
+})
+vim.api.nvim_create_user_command("LspRestart", "lsp restart", {
+	desc = "[0.12] Restart LSP via :lsp restart",
+})
+vim.api.nvim_create_user_command("LspLog", function()
+	local log = vim.fs.joinpath(vim.fn.stdpath("state"), "lsp.log")
+	vim.cmd("edit " .. log)
+end, { desc = "[0.12] Open LSP log" })
+vim.api.nvim_create_user_command("LspStop", "lsp stop", {
+	desc = "[0.12] Stop LSP via :lsp stop",
+})
 
-vim.keymap.set({ "i", "n", "s" }, "<esc>", function()
-  vim.cmd("noh")
-  return "<esc>"
-end, { expr = true, desc = "Escape and Clear hlsearch" })
+-- Diagnostics
+map("n", "<leader>df", vim.diagnostic.open_float, { desc = "Open diagnostic float" })
+map("n", "]d", function()
+	vim.diagnostic.jump({
+		count = 1,
+		float = true,
+	})
+end, { desc = "Next diagnostic" })
+map("n", "[d", function()
+	vim.diagnostic.jump({
+		count = -1,
+		float = true,
+	})
+end, { desc = "Prev diagnostic" })
 
--- local function safe_call(module, fn, label)
---   return function()
---     local ok, mod = pcall(require, module)
---     if not ok then
---       vim.notify('[' .. label .. '] module not found', vim.log.levels.ERROR)
---       return
---     end
---
---     local success, err = pcall(mod[fn])
---     if not success then
---       vim.notify(
---         '[' .. label .. '] ' .. fn .. ' failed: ' .. tostring(err),
---         vim.log.levels.ERROR
---       )
---     end
---   end
--- end
---
--- vim.keymap.set('n', '<leader>xe', safe_call('custom.diagnostics_viewer', 'toggle', 'diagnostics'), { desc = 'Toggle Diagnostics List' })
--- vim.keymap.set('n', '<leader>xo', safe_call('custom.diagnostics_viewer', 'open',   'diagnostics'), { desc = 'Open Diagnostics List' })
--- vim.keymap.set('n', '<leader>xc', safe_call('custom.diagnostics_viewer', 'close',  'diagnostics'), { desc = 'Close Diagnostics List' })
+map("n", "<leader>dq", vim.diagnostic.setqflist, { desc = "Diagnostics → quickfix" })
 
-vim.keymap.set("n", "<F3>", ":set nu! rnu!<CR>", { noremap = true, silent = true })
-vim.keymap.set("n", "<F4>", ":set list! list?<CR>", { noremap = false, silent = true })
+-- [0.12-new] vim.diagnostic.status() – returns e.g. "E:2 W:1"
+map("n", "<leader>ds", function()
+	vim.notify("Diagnostics: " .. vim.diagnostic.status(), vim.log.levels.INFO)
+end, { desc = "[0.12] Show diagnostic status string" })
+
+-- [0.12-new] vim.lsp.buf.workspace_diagnostics()
+map("n", "<leader>dw", function()
+	vim.lsp.buf.workspace_diagnostics()
+end, { desc = "[0.12] Workspace diagnostics" })
+
+-- =============================================================================
+--  BUILT-IN OPTIONAL PLUGINS  (0.12-new)
+-- =============================================================================
+
+-- [0.12-new] :Undotree  (packadd nvim.undotree)
+map("n", "<leader>u", "<cmd>Undotree<CR>", { desc = "[0.12] Toggle undotree" })
+
+-- [0.12-new] :DiffTool  (packadd nvim.difftool)
+map("n", "<leader>dt", "<cmd>DiffTool<CR>", { desc = "[0.12] Open DiffTool" })
+
+-- =============================================================================
+--  GIT  (gitsigns)
+-- =============================================================================
+map("n", "]g", function()
+	require("gitsigns").nav_hunk("next")
+end, { desc = "Next git hunk" })
+
+map("n", "[g", function()
+	require("gitsigns").nav_hunk("prev")
+end, { desc = "Prev git hunk" })
+
+map("n", "<leader>gs", function()
+	require("gitsigns").stage_hunk()
+end, { desc = "Stage hunk" })
+
+map("n", "<leader>gr", function()
+	require("gitsigns").reset_hunk()
+end, { desc = "Reset hunk" })
+
+map("n", "<leader>gp", function()
+	require("gitsigns").preview_hunk()
+end, { desc = "Preview hunk" })
+
+map("n", "<leader>gb", function()
+	require("gitsigns").blame_line({ full = true })
+end, {
+	desc = "Blame line",
+})
+
+-- =============================================================================
+--  RESTART  (0.12-new)
+-- =============================================================================
+-- [0.12-new] :restart restarts Neovim and reattaches the current UI.
+--  Combine with a session plugin for seamless reload.
+map("n", "<leader>R", "<cmd>restart<CR>", { desc = "[0.12] Restart Neovim" })
+
+-- Close special windows with q
+local close_ft = { "help", "qf", "checkhealth", "lspinfo", "startuptime" }
+vim.api.nvim_create_autocmd("FileType", {
+	pattern = close_ft,
+	callback = function(ev)
+		map("n", "q", "<cmd>close<CR>", { buffer = ev.buf, silent = true })
+	end,
+})

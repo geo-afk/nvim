@@ -296,23 +296,68 @@ local function get_footer_chunks(mode, subtype)
 
   local file_hl = mode == "cmd" and "NvimCmdlineBufInfoFile" or "NvimCmdlineBufInfoFileSearch"
   local chunks = {
-    { " " .. truncate_label(meta.name, 28) .. " ", file_hl },
-    { " ", "NvimCmdlineBufInfoSep" },
+    { " lines ", "NvimCmdlineFooterLabel" },
+    { (" %d "):format(meta.line_count), "NvimCmdlineBufInfoMeta" },
+    { "  ", "NvimCmdlineBufInfoSep" },
+    { " lang ", "NvimCmdlineFooterLabel" },
     { " " .. meta.ft .. " ", "NvimCmdlineBufInfoFt" },
-    { " ", "NvimCmdlineBufInfoSep" },
-    { (" %d lines "):format(meta.line_count), "NvimCmdlineBufInfoMeta" },
+    { "  ", "NvimCmdlineBufInfoSep" },
+    { " file ", "NvimCmdlineFooterLabel" },
+    { " " .. truncate_label(meta.name, 28) .. " ", file_hl },
   }
 
   if meta.modified then
-    chunks[#chunks + 1] = { " ", "NvimCmdlineBufInfoSep" }
-    chunks[#chunks + 1] = { " +modified ", "NvimCmdlineBufInfoMod" }
+    chunks[#chunks + 1] = { "  ", "NvimCmdlineBufInfoSep" }
+    chunks[#chunks + 1] = { " modified ", "NvimCmdlineBufInfoMod" }
   end
   if meta.readonly then
-    chunks[#chunks + 1] = { " ", "NvimCmdlineBufInfoSep" }
+    chunks[#chunks + 1] = { "  ", "NvimCmdlineBufInfoSep" }
     chunks[#chunks + 1] = { " read-only ", "NvimCmdlineBufInfoRO" }
   end
 
   return chunks
+end
+
+local function find_completion_boundary(input)
+  for i = #input, 1, -1 do
+    local ch = input:sub(i, i)
+    if ch:match("[%s=,(]") then
+      return i
+    end
+  end
+  return 0
+end
+
+local function get_completion_context(input)
+  input = type(input) == "string" and input or ""
+  local boundary = find_completion_boundary(input)
+  local head = input:sub(1, boundary)
+  local token = input:sub(boundary + 1)
+  local qualifier, fragment = token:match("^(.*[%.:])([^. :]*)$")
+
+  return {
+    head = head,
+    token = token,
+    qualifier = qualifier or "",
+    fragment = fragment or token,
+  }
+end
+
+local function apply_completion_selection(input, selection)
+  local ctx = get_completion_context(input)
+
+  if selection:sub(1, #ctx.token) == ctx.token then
+    return ctx.head .. selection
+  end
+
+  if ctx.qualifier ~= "" then
+    if selection:sub(1, #ctx.qualifier) == ctx.qualifier then
+      return ctx.head .. selection
+    end
+    return ctx.head .. ctx.qualifier .. selection
+  end
+
+  return ctx.head .. selection
 end
 
 -- ---------------------------------------------------------------------------
@@ -447,7 +492,7 @@ local function render_title(win, info, subtype)
     title = get_title_chunks(state.mode, info, subtype),
     title_pos = "left",
     footer = get_footer_chunks(state.mode, subtype),
-    footer_pos = "left",
+    footer_pos = "right",
   })
 end
 
@@ -594,13 +639,18 @@ local function show_range_preview(input, parent_win)
 end
 
 -- ---------------------------------------------------------------------------
--- Output float
+-- Output float (modern, transparent, scrollable, no timer, no backgrounds)
 -- ---------------------------------------------------------------------------
+
+-- Counter for unique highlight group names
+local _output_win_counter = 0
 
 local function show_output(lines, is_error)
   if not lines or #lines == 0 then
     return
   end
+
+  -- Trim trailing empty lines
   while #lines > 0 and (lines[#lines] or ""):match("^%s*$") do
     table.remove(lines)
   end
@@ -608,72 +658,136 @@ local function show_output(lines, is_error)
     return
   end
 
-  local width = get_width()
+  -- Dynamic width based on longest line
+  local max_line_len = 0
+  for _, line in ipairs(lines) do
+    local display_width = vim.fn.strdisplaywidth(line)
+    if display_width > max_line_len then
+      max_line_len = display_width
+    end
+  end
+  local max_width = get_width()
+  local min_width = 30
+  local width = math.min(max_width, math.max(min_width, max_line_len + 2))
   local col = get_col(width)
-  local height = math.min(#lines, 10)
-  local row = math.max(0, get_target_row() - height - 2)
 
+  -- Dynamic height: cap at 60% of screen lines, at least 1
+  local max_height = math.floor(vim.o.lines * 0.6)
+  local height = math.min(#lines, max_height)
+  if height < 1 then
+    height = 1
+  end
+
+  -- Position: above the command line
+  local target_row = get_target_row()
+  local row = math.max(0, target_row - height - 2)
+
+  -- Create buffer
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_set_option_value("buftype", "nofile", { buf = buf })
   vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
   vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
 
-  local ok, win = pcall(vim.api.nvim_open_win, buf, false, {
+  -- Border style (reuse global config)
+  local border = M.config.border_cmd or M.config.border
+  local title = is_error and " Error " or " Output "
+
+  -- Create temporary highlight groups with NO background (unique per call)
+  _output_win_counter = _output_win_counter + 1
+  local suffix = tostring(_output_win_counter)
+  local hl_normal = "NvimCmdlineOutputNorm_" .. suffix
+  local hl_border = "NvimCmdlineOutputBorder_" .. suffix
+  local hl_title = "NvimCmdlineOutputTitle_" .. suffix
+
+  vim.api.nvim_set_hl(0, hl_normal, { bg = "NONE", fg = nil }) -- fg = nil keeps default
+  vim.api.nvim_set_hl(0, hl_border, { bg = "NONE", fg = nil })
+  vim.api.nvim_set_hl(0, hl_title, { bg = "NONE", fg = nil })
+
+  -- For error output, optionally change foreground colour
+  if is_error then
+    vim.api.nvim_set_hl(0, hl_normal, { bg = "NONE", fg = "#ff9999" })
+  end
+
+  local win = vim.api.nvim_open_win(buf, true, {
     relative = "editor",
     row = row,
     col = col,
     width = width,
     height = height,
     style = "minimal",
-    border = M.config.border_cmd or M.config.border,
-    title = is_error and " Error " or " Output ",
+    border = border,
+    title = title,
     title_pos = "left",
     zindex = 150,
-    focusable = false,
+    focusable = true,
   })
-  if not ok then
-    return
-  end
 
-  local hl = is_error and "NvimCmdlineError" or "NvimCmdlineOutput"
   vim.api.nvim_set_option_value(
     "winhighlight",
-    ("Normal:%s,FloatBorder:NvimCmdlineOutputBorder,FloatTitle:NvimCmdlineFloatTitle"):format(hl),
+    string.format("Normal:%s,FloatBorder:%s,FloatTitle:%s", hl_normal, hl_border, hl_title),
     { win = win }
   )
-  pcall(vim.api.nvim_set_option_value, "winblend", 10, { win = win })
+  vim.api.nvim_set_option_value("winblend", 0, { win = win })
+  vim.api.nvim_set_option_value("wrap", false, { win = win })
+  vim.api.nvim_set_option_value("cursorline", false, { win = win })
+  vim.api.nvim_set_option_value("scrolloff", 0, { win = win })
 
-  local uv = vim.uv or vim.loop
-  local t = uv.new_timer()
-  local dismissed = false
+  -- Place cursor at the top
+  pcall(vim.api.nvim_win_set_cursor, win, { 1, 0 })
+
+  -- Dismiss function (also cleans up highlight groups)
   local function dismiss()
-    if dismissed then
-      return
-    end
-    dismissed = true
-    if not t:is_closing() then
-      t:stop()
-      t:close()
-    end
     if vim.api.nvim_win_is_valid(win) then
       pcall(vim.api.nvim_win_close, win, true)
     end
+    -- Delete temporary highlights (optional)
+    pcall(vim.api.nvim_set_hl, 0, hl_normal, {})
+    pcall(vim.api.nvim_set_hl, 0, hl_border, {})
+    pcall(vim.api.nvim_set_hl, 0, hl_title, {})
   end
-  t:start(5000, 0, vim.schedule_wrap(dismiss))
-  -- Defer the CursorMoved autocmd by ~300 ms so that window-switch events
-  -- fired by the slide-out animation (which runs ~75–100 ms) do not
-  -- accidentally dismiss the output float before the user sees it.
-  -- NOTE: BufWinLeave intentionally excluded for the same reason.
-  vim.defer_fn(function()
-    if dismissed then
-      return
-    end
-    vim.api.nvim_create_autocmd({ "CursorMoved", "CursorMovedI" }, {
-      once = true,
-      callback = vim.schedule_wrap(dismiss),
-    })
-  end, 350)
+
+  -- Buffer‑local keymaps
+  local function buf_map(lhs, rhs, opts)
+    opts = vim.tbl_extend("force", { buffer = buf, noremap = true, silent = true }, opts or {})
+    vim.keymap.set("n", lhs, rhs, opts)
+  end
+
+  buf_map("j", function()
+    local cursor = vim.api.nvim_win_get_cursor(win)
+    local new_row = math.min(cursor[1] + 1, #lines)
+    pcall(vim.api.nvim_win_set_cursor, win, { new_row, 0 })
+  end)
+  buf_map("k", function()
+    local cursor = vim.api.nvim_win_get_cursor(win)
+    local new_row = math.max(cursor[1] - 1, 1)
+    pcall(vim.api.nvim_win_set_cursor, win, { new_row, 0 })
+  end)
+
+  local function half_page_down()
+    local cursor = vim.api.nvim_win_get_cursor(win)
+    local new_row = cursor[1] + math.floor(height / 2)
+    new_row = math.min(new_row, #lines)
+    pcall(vim.api.nvim_win_set_cursor, win, { new_row, 0 })
+  end
+  local function half_page_up()
+    local cursor = vim.api.nvim_win_get_cursor(win)
+    local new_row = cursor[1] - math.floor(height / 2)
+    new_row = math.max(new_row, 1)
+    pcall(vim.api.nvim_win_set_cursor, win, { new_row, 0 })
+  end
+  buf_map("<C-d>", half_page_down)
+  buf_map("<C-u>", half_page_up)
+
+  buf_map("gg", function()
+    pcall(vim.api.nvim_win_set_cursor, win, { 1, 0 })
+  end)
+  buf_map("G", function()
+    pcall(vim.api.nvim_win_set_cursor, win, { #lines, 0 })
+  end)
+
+  buf_map("q", dismiss)
+  buf_map("<Esc>", dismiss)
 end
 
 -- ---------------------------------------------------------------------------
@@ -890,8 +1004,7 @@ local function setup_keymaps(buf, win, mode, info)
       if completion.is_open() then
         local sel = forward and completion.select_next() or completion.select_prev()
         if sel then
-          local base = input:match("^(.*[%s=])") or ""
-          write_input(buf, win, base .. sel)
+          write_input(buf, win, apply_completion_selection(input, sel))
           render_prompt_hl(buf)
           render_badge(buf, info, state.current_subtype)
         end
@@ -899,19 +1012,19 @@ local function setup_keymaps(buf, win, mode, info)
         completion.unlock()
         local items = completion.get_completions(input)
         if #items == 1 then
-          write_input(buf, win, items[1])
+          write_input(buf, win, apply_completion_selection(input, items[1]))
           render_prompt_hl(buf)
           render_badge(buf, info, state.current_subtype)
           completion.unlock()
         elseif #items > 1 then
-          local query = input:match("[^%s=]+$") or input
-          local prefix = input:match("^(.*[%s=])") or ""
+          local ctx = get_completion_context(input)
+          local query = ctx.fragment
+          local prefix = ctx.head .. ctx.qualifier
           completion.open(win, items, query, prefix, state.target_row, PROMPT_LEN, mode)
           completion.lock()
           local sel = forward and completion.select_next() or completion.select_prev()
           if sel then
-            local base = input:match("^(.*[%s=])") or ""
-            write_input(buf, win, base .. sel)
+            write_input(buf, win, apply_completion_selection(input, sel))
             render_prompt_hl(buf)
             render_badge(buf, info, state.current_subtype)
           end
@@ -936,11 +1049,12 @@ local function setup_keymaps(buf, win, mode, info)
       local input = read_input(buf)
       local items = completion.get_completions(input)
       if #items > 0 then
+        local ctx = get_completion_context(input)
         completion.open(
           win,
           items,
-          input:match("[^%s=]+$") or input,
-          input:match("^(.*[%s=])") or "",
+          ctx.fragment,
+          ctx.head .. ctx.qualifier,
           state.target_row,
           PROMPT_LEN,
           mode
@@ -1065,11 +1179,12 @@ local function setup_autocmds(buf, win, mode, info)
       end
       local items = completion.get_completions(input)
       if #items > 0 then
+        local ctx = get_completion_context(input)
         completion.open(
           win,
           items,
-          input:match("[^%s=]+$") or input,
-          input:match("^(.*[%s=])") or "",
+          ctx.fragment,
+          ctx.head .. ctx.qualifier,
           state.target_row,
           PROMPT_LEN,
           mode
@@ -1251,7 +1366,7 @@ function M.open(mode, opts)
     title = title_text,
     title_pos = "left",
     footer = get_footer_chunks(mode, subtype),
-    footer_pos = "left",
+    footer_pos = "right",
     zindex = 200,
   })
 

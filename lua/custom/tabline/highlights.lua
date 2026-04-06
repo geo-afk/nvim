@@ -7,10 +7,6 @@ local M = {}
 
 ---@type table<string, table>  group_name -> nvim_set_hl opts
 local groups = {
-  -- Inactive buffer: modified icon colour (slightly dimmer)
-  TabLineModified    = { link = "TabLine"    , default = true },
-  -- Active buffer: modified icon colour
-  TabLineSelModified = { link = "TabLineSel" , default = true },
   -- Inactive close button
   TabLineClose       = { link = "TabLine"    , default = true },
   -- Active close button
@@ -19,8 +15,6 @@ local groups = {
   TabLineTrunc       = { link = "TabLineFill", default = true },
   -- Separator between tabs
   TabLineSep         = { link = "TabLineFill", default = true },
-  -- Inactive modified buffer name (some themes want a distinct colour here)
-  TabLineModifiedBuf = { link = "TabLine"    , default = true },
 }
 
 --- (Re)apply every highlight group.

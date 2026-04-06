@@ -45,12 +45,12 @@ M.config = {
 
   -- Keymaps (set to false to disable a specific mapping)
   keymaps = {
-    preview_file = "<leader>mp", -- preview current file
-    preview_visual = "<leader>mv", -- preview visual selection
-    preview_url = "<leader>mu", -- preview a URL (prompts for input)
-    open_tui = "<leader>mt", -- open Glow TUI in a split
-    open_tui_cwd = "<leader>md", -- open TUI browsing the cwd
-    toggle_auto = "<leader>ma", -- toggle auto-preview on save
+    preview_file = "<leader>ip", -- preview current file
+    preview_visual = "<leader>iv", -- preview visual selection
+    preview_url = "<leader>iu", -- preview a URL (prompts for input)
+    open_tui = "<leader>it", -- open Glow TUI in a split
+    open_tui_cwd = "<leader>id", -- open TUI browsing the cwd
+    toggle_auto = "<leader>ia", -- toggle auto-preview on save
   },
 }
 

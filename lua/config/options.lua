@@ -1,105 +1,75 @@
--- BACKUP AND SWAP
-vim.opt.swapfile = false
-vim.opt.undofile = true
--- ============================================================
--- setting Auto-Sessions so when session is restored on startup.
--- ============================================================
-vim.o.sessionoptions = "blank,buffers,curdir,help,tabpages,winsize,winpos,terminal,localoptions"
+local opt = vim.opt
 
--- When closing a window, automatically jump to the last used one
-vim.opt.tabclose:append({ "uselast" })
-
-vim.opt.guicursor = {
+-- ── UI / appearance ───────────────────────────────────────────────────────────
+opt.number = true
+opt.relativenumber = true
+opt.cursorline = true
+opt.signcolumn = "yes"
+opt.wrap = false
+opt.scrolloff = 8
+opt.sidescrolloff = 8
+opt.termguicolors = true
+opt.showmode = false
+opt.cmdheight = 0 -- 0.12 UI/message handling makes the reserved cmdline row unnecessary
+opt.laststatus = 3
+opt.winborder = "rounded"
+opt.guicursor = { -- from old: fine‑tuned cursor shapes
   "n-sm:block",
   "v:hor50",
   "i-c-ci-cr-ve:ver10-InsertCursor",
-  -- "i-c-ci-ve:block-InsertCursor",
   "o-r:hor50",
 }
 
--- =======================================================================
---  Disable Unwanted Built-in Plugins
--- =======================================================================
-vim.g.loaded_netrw = 1
-vim.g.loaded_netrwPlugin = 1
+-- [0.12-new] 'pumborder' adds a border around the completion popup menu.
+opt.pumborder = "rounded"
+opt.pummaxwidth = 50
 
--- =======================================================================
---  General UI Settings
--- =======================================================================
-vim.o.number = true -- Show line numbers
--- vim.o.winborder = "rounded"
-vim.opt.winborder = "rounded"
-vim.o.mouse = "a" -- Enable mouse support
-vim.o.showmode = false -- Don’t show mode in command line (already shown in statusline)
-vim.o.laststatus = 3 -- Global statusline (instead of per window)
-vim.o.cmdheight = 0 -- Hide command line unless needed
-vim.o.cursorline = true -- Highlight the current line
-vim.o.scrolloff = 5 -- Keep 5 lines visible above/below cursor
-vim.opt.termguicolors = true -- Enable true color support
-vim.g.have_nerd_font = true -- Enable Nerd Font icons if available
+-- ── Completion ────────────────────────────────────────────────────────────────
+opt.autocomplete = false -- blink.cmp handles completion
+opt.completeopt = "menuone,noselect,popup,nearest"
+opt.complete = ".,w,b,u,t,i,F,o"
 
--- =======================================================================
---  Editing Behavior
--- =======================================================================
-vim.bo.commentstring = "-- %s" -- Default comment style  Lua-like files
-vim.o.tabstop = 2 -- Tab width = 2 spaces
-vim.o.shiftwidth = 2 -- Indent width = 2 spaces
-vim.o.expandtab = true -- Use spaces instead of tabs
-vim.o.autoindent = true -- Maintain indent from previous line
-vim.o.smartindent = false -- Disable smart indent
-vim.o.cindent = false -- Disable C-style indent
-vim.o.showtabline = 2
-vim.o.wrap = false
--- =======================================================================
---  Clipboard
--- =======================================================================
-vim.schedule(function()
-  vim.o.clipboard = "unnamedplus" -- Use system clipboard
-end)
+-- ── Indentation ───────────────────────────────────────────────────────────────
+opt.tabstop = 2
+opt.shiftwidth = 2
+opt.softtabstop = 2
+opt.expandtab = true
+opt.smartindent = true -- new config uses true; old used false – keeping new
+opt.autoindent = true -- from old (new didn't set it)
+opt.cindent = false -- from old (new didn't set, keep disabled)
 
--- =======================================================================
---  Search
--- =======================================================================
--- vim.o.ignorecase = true -- Case-insensitive search...
--- vim.o.smartcase = true -- ...unless uppercase is used
--- vim.o.inccommand = 'split' -- Live preview substitutions
+-- ── Search ────────────────────────────────────────────────────────────────────
+opt.ignorecase = true
+opt.smartcase = true
+opt.hlsearch = true
+opt.incsearch = true
+opt.inccommand = "split" -- from old: live substitution preview
 
--- =======================================================================
---  Performance
--- =======================================================================
-vim.o.updatetime = 250 -- Faster diagnostics & CursorHold events
-vim.o.timeoutlen = 300 -- Faster mapped sequence wait time
+-- [0.12-new] 'maxsearchcount' caps searchcount() results
+opt.maxsearchcount = 999
 
--- =======================================================================
---  Window / Split Behavior
--- =======================================================================
-vim.o.splitright = true -- Vertical splits open to the right
-vim.o.splitbelow = true -- Horizontal splits open below
+-- ── Files / persistence ───────────────────────────────────────────────────────
+opt.backup = false
+opt.writebackup = false
+opt.swapfile = false
+opt.undofile = true
+opt.undodir = vim.fn.stdpath("data") .. "/undo"
+opt.sessionoptions = "blank,buffers,curdir,help,tabpages,winsize,winpos,terminal,localoptions" -- from old
+opt.autowriteall = true
 
--- =======================================================================
---  Persistent Data
--- =======================================================================
-vim.o.undofile = true -- Save undo history to file
+-- [0.12-changed] 'shada' default excludes /tmp etc.
+opt.shada = "!,'100,<50,s10,h,r/tmp,r/private"
 
--- =======================================================================
---  Signs & Columns
--- =======================================================================
-vim.o.signcolumn = "yes" -- Always show sign column (for diagnostics, git, etc.)
+-- quickfix stack size
+opt.chistory = 10
+opt.lhistory = 10
 
--- =======================================================================
---  Lists & Invisible Characters
--- =======================================================================
-vim.opt.list = true
-vim.opt.listchars = {
-  tab = "» ",
-  trail = "·",
-  nbsp = "␣",
-  extends = "›",
-  precedes = "‹",
-  conceal = "",
-}
-vim.opt.showbreak = "↪ " -- Show wrapped lines with symbol
-vim.opt.fillchars = {
+-- ── Diff ─────────────────────────────────────────────────────────────────────
+opt.diffopt = "internal,filler,closeoff,indent-heuristic,inline:char"
+
+-- ── Fills & list chars ────────────────────────────────────────────────────────
+-- Merged: old fillchars + new 'foldinner' (0.12)
+opt.fillchars = {
   fold = " ",
   foldopen = "",
   foldclose = "",
@@ -113,78 +83,86 @@ vim.opt.fillchars = {
   vertleft = "┫",
   vertright = "┣",
   verthoriz = "╋",
+  foldinner = "│", -- [0.12-new]
 }
 
--- =======================================================================
---  Behavior on Unsaved Changes
--- =======================================================================
-vim.o.confirm = true -- Ask to save when quitting with unsaved changes
+opt.list = true
+opt.listchars = { -- from old, fully functional
+  tab = "» ",
+  trail = "·",
+  nbsp = "␣",
+  extends = "›",
+  precedes = "‹",
+  conceal = "",
+}
+opt.showbreak = "↪ " -- from old
 
--- =======================================================================
---  Plugin/Framework Specific Globals
--- =======================================================================
-vim.g.root_spec = { "lsp", { ".git", "lua" }, "cwd" } -- Project root detection
+-- ── Splits / windows ─────────────────────────────────────────────────────────
+opt.splitright = true
+opt.splitbelow = true
+-- When closing a window, jump to last used one (from old)
+vim.opt.tabclose:append("uselast")
 
--- =======================================================================
---  Shell Configuration (auto)
--- =======================================================================
+-- ── Performance ───────────────────────────────────────────────────────────────
+opt.updatetime = 250 -- old used 250 (faster than new's 300)
+opt.timeoutlen = 300 -- old used 300 (new used 400)
+opt.synmaxcol = 300
 
+-- ── Clipboard ────────────────────────────────────────────────────────────────
+if not vim.env.SSH_TTY then
+  opt.clipboard = "unnamedplus"
+end
+
+-- ── Message options ───────────────────────────────────────────────────────────
+opt.messagesopt = "hit-enter,history:500,progress:c"
+
+-- ── 'exrc' (project-local config) ────────────────────────────────────────────
+opt.exrc = true
+
+-- ── Misc ─────────────────────────────────────────────────────────────────────
+opt.mouse = "a"
+opt.linebreak = true
+opt.spelllang = "en_us"
+opt.showtabline = 2 -- from old
+opt.confirm = true -- ask to save on quit with unsaved changes
+
+-- ── Wildmenu / wildchar ───────────────────────────────────────────────────────
+opt.wildmode = "longest:full,full"
+opt.wildignore = "*.o,*.pyc,*/.git/*,*/node_modules/*"
+
+-- ── Plugin / framework globals ───────────────────────────────────────────────
+vim.g.have_nerd_font = true -- from old
+vim.g.root_spec = { "lsp", { ".git", "lua" }, "cwd" } -- from old
+
+-- Disable built‑in netrw (old config)
+vim.g.loaded_netrw = 1
+vim.g.loaded_netrwPlugin = 1
+
+-- Default comment string (Lua style)
+vim.bo.commentstring = "-- %s"
+
+-- ── Shell configuration (preserved from old config) ───────────────────────────
+-- Uses NuShell if available, falls back to PowerShell 7+
 local fn = vim.fn
-local opt = vim.opt
 
--- Disable temp files globally (required for Nu, safe for pwsh)
 opt.shelltemp = false
-
--- Disable all escaping/quoting (required for Nu)
 opt.shellquote = ""
 opt.shellxquote = ""
 opt.shellxescape = ""
 
----------------------------------------------------------------------
--- Prefer NuShell if available
----------------------------------------------------------------------
 if fn.executable("nu") == 1 then
   opt.shell = "nu"
-
-  -- Nu flags:
-  -- --stdin        : read input from stdin (no temp files)
-  -- --no-newline   : do not append newline to stdout
-  -- -c             : execute command
   opt.shellcmdflag = "--stdin --no-newline -c"
-
-  -- Redirect stdout+stderr
   opt.shellredir = "out+err> %s"
-
-  -- Pipe used by :make and similar commands
-  -- - strips ANSI
-  -- - saves stderr for quickfix
   opt.shellpipe = "| complete"
     .. " | update stderr { ansi strip }"
     .. " | tee { get stderr | save --force --raw %s }"
     .. " | into record"
-
----------------------------------------------------------------------
--- Fallback to PowerShell 7+ if Nu is not available
----------------------------------------------------------------------
 elseif fn.executable("pwsh") == 1 then
-  -- opt.shell = 'pwsh'
-  --
-  -- opt.shellcmdflag = '-NoLogo -NoProfile -ExecutionPolicy RemoteSigned -Command'
-  --
-  -- opt.shellredir = '| Out-File -Encoding UTF8 %s'
-  -- opt.shellpipe = '| Out-File -Encoding UTF8 %s'
-
-  -- Setting shell command flags
-  vim.o.shellcmdflag =
+  opt.shellcmdflag =
     "-NoProfile -NoLogo -NonInteractive -ExecutionPolicy RemoteSigned -Command [Console]::InputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new();$PSDefaultParameterValues['Out-File:Encoding']='utf8';$PSStyle.OutputRendering='plaintext';Remove-Alias -Force -ErrorAction SilentlyContinue tee;"
-
-  -- Setting shell redirection
-  vim.o.shellredir = '2>&1 | %%{ "$_" } | Out-File %s; exit $LastExitCode'
-
-  -- Setting shell pipe
-  vim.o.shellpipe = '2>&1 | %%{ "$_" } | tee %s; exit $LastExitCode'
-
-  -- Setting shell quote options
-  vim.o.shellquote = ""
-  vim.o.shellxquote = ""
+  opt.shellredir = '2>&1 | %%{ "$_" } | Out-File %s; exit $LastExitCode'
+  opt.shellpipe = '2>&1 | %%{ "$_" } | tee %s; exit $LastExitCode'
+  opt.shellquote = ""
+  opt.shellxquote = ""
 end

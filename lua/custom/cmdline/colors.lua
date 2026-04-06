@@ -264,6 +264,7 @@ function M.setup_highlights()
   hl("NvimCmdlineBufInfoRange", { fg = c.lavender, bg = c.bg, bold = true })
   hl("NvimCmdlineBufInfoIcon", { fg = c.dim, bg = c.bg })
   hl("NvimCmdlineBufInfoChip", { fg = c.sub, bg = c.chip_bg_soft, bold = true })
+  hl("NvimCmdlineFooterLabel", { fg = c.dim, bg = c.chip_bg_soft, bold = true })
 end
 
 function M.setup_preview_highlights()

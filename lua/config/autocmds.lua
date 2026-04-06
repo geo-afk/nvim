@@ -1,236 +1,344 @@
--- Autocmds are automatically loaded on the VeryLazy event
--- Default autocmds that are always set: https://github.com/LazyVim/LazyVim/blob/main/lua/lazyvim/config/autocmds.lua
+-- =============================================================================
+--  config/autocmds.lua  ·  Autocommands
 --
--- Add any additional autocmds here
--- with `vim.api.nvim_create_autocmd`
---
--- Or remove existing autocmds by their group name (which is prefixed with `lazyvim_` for the defaults)
--- e.g. vim.api.nvim_del_augroup_by_name("lazyvim_wrap_spell")
+--  New 0.12 events are annotated [0.12-new].
+--  Changed 0.12 event behaviour is annotated [0.12-changed].
+-- =============================================================================
 
+local augroup = vim.api.nvim_create_augroup
+local autocmd = vim.api.nvim_create_autocmd
+
+-- ── Helpers ───────────────────────────────────────────────────────────────────
+local G = augroup("nvim12_config", { clear = true })
+
+-- =============================================================================
+--  GENERAL QoL AUTOCMDS
+-- =============================================================================
 -- Create an autocmd for both TypeScript and HTML files
-vim.api.nvim_create_autocmd("FileType", {
-  pattern = { "typescript", "html" }, -- both filetypes
-  callback = function()
-    if require("utils").is_angular_project() then
-      -- Buffer-local keymap
-      vim.keymap.set("n", "<leader>at", function()
-        -- Example: Toggle between .ts and .html
-        local bufname = vim.api.nvim_buf_get_name(0)
-        if bufname:match("%.ts$") then
-          vim.cmd("edit " .. bufname:gsub("%.ts$", ".html"))
-        elseif bufname:match("%.html$") then
-          vim.cmd("edit " .. bufname:gsub("%.html$", ".ts"))
-        end
-      end, { buffer = true, desc = "Toggle Angular .ts <-> .html" })
-    end
-  end,
+autocmd("FileType", {
+	pattern = { "typescript", "html" }, -- both filetypes
+	callback = function()
+		if require("utils").is_angular_project() then
+			-- Buffer-local keymap
+			vim.keymap.set("n", "<leader>at", function()
+				-- Example: Toggle between .ts and .html
+				local bufname = vim.api.nvim_buf_get_name(0)
+				if bufname:match("%.ts$") then
+					vim.cmd("edit " .. bufname:gsub("%.ts$", ".html"))
+				elseif bufname:match("%.html$") then
+					vim.cmd("edit " .. bufname:gsub("%.html$", ".ts"))
+				end
+			end, { buffer = true, desc = "Toggle Angular .ts <-> .html" })
+		end
+	end,
 })
 
-local function augroup(name)
-  return vim.api.nvim_create_augroup("lazyvim_" .. name, { clear = true })
-end
-
-vim.api.nvim_create_autocmd("InsertLeave", { command = "set relativenumber", pattern = "*" })
-vim.api.nvim_create_autocmd("InsertEnter", { command = "set norelativenumber", pattern = "*" })
+autocmd("InsertLeave", { command = "set relativenumber", pattern = "*" })
+autocmd("InsertEnter", { command = "set norelativenumber", pattern = "*" })
 
 -- Enable spell checking  certain file types
 vim.api.nvim_create_autocmd(
-  { "BufRead", "BufNewFile" },
-  -- { pattern = { "*.txt", "*.md", "*.tex" }, command = [[setlocal spell<cr> setlocal spelllang=en,de<cr>]] }
-  {
-    pattern = { "*.txt", "*.md", "*.tex" },
-    callback = function()
-      vim.opt.spell = true
-      vim.opt.spelllang = "en"
-    end,
-  }
+	{ "BufRead", "BufNewFile" },
+	-- { pattern = { "*.txt", "*.md", "*.tex" }, command = [[setlocal spell<cr> setlocal spelllang=en,de<cr>]] }
+	{
+		pattern = { "*.txt", "*.md", "*.tex" },
+		callback = function()
+			vim.opt.spell = true
+			vim.opt.spelllang = "en"
+		end,
+	}
 )
+
+-- Highlight on yank
+autocmd("TextYankPost", {
+	group = G,
+	callback = function()
+		vim.hl.on_yank({ higroup = "IncSearch", timeout = 150 })
+	end,
+})
+
+-- Strip trailing whitespace on save (non-binary files)
+autocmd("BufWritePre", {
+	group = G,
+	pattern = "*",
+	callback = function()
+		if not vim.bo.binary then
+			local pos = vim.api.nvim_win_get_cursor(0)
+			vim.cmd([[%s/\s\+$//e]])
+			vim.api.nvim_win_set_cursor(0, pos)
+		end
+	end,
+})
+
+-- Restore cursor to last position
+autocmd("BufReadPost", {
+	group = G,
+	callback = function()
+		local mark = vim.api.nvim_buf_get_mark(0, '"')
+		local line_count = vim.api.nvim_buf_line_count(0)
+		if mark[1] > 0 and mark[1] <= line_count then
+			vim.api.nvim_win_set_cursor(0, mark)
+		end
+	end,
+})
+
+-- Auto-resize splits on terminal resize
+autocmd("VimResized", {
+	group = G,
+	callback = function()
+		vim.cmd("tabdo wincmd =")
+	end,
+})
+
+-- Disable auto-comment on new lines for most filetypes
+autocmd("FileType", {
+	group = G,
+	callback = function()
+		vim.opt_local.formatoptions:remove({ "c", "r", "o" })
+	end,
+})
 
 --------------------------------------------------------------------------------
 -- AUTO-SAVE
 --------------------------------------------------------------------------------
-vim.api.nvim_create_autocmd({ "InsertLeave", "TextChanged", "BufLeave", "FocusLost" }, {
-  desc = "User: Auto-save",
-  callback = function(ctx)
-    local saveInstantly = ctx.event == "FocusLost" or ctx.event == "BufLeave"
-    local bufnr = ctx.buf
-    local bo, b = vim.bo[bufnr], vim.b[bufnr]
-    local bufname = ctx.file
-    if bo.buftype ~= "" or bo.ft == "gitcommit" or bo.readonly then
-      return
-    end
-    if b.saveQueued and not saveInstantly then
-      return
-    end
+autocmd({ "InsertLeave", "TextChanged", "BufLeave", "FocusLost" }, {
+	desc = "User: Auto-save",
+	callback = function(ctx)
+		local saveInstantly = ctx.event == "FocusLost" or ctx.event == "BufLeave"
+		local bufnr = ctx.buf
+		local bo, b = vim.bo[bufnr], vim.b[bufnr]
+		local bufname = ctx.file
+		if bo.buftype ~= "" or bo.ft == "gitcommit" or bo.readonly then
+			return
+		end
+		if b.saveQueued and not saveInstantly then
+			return
+		end
 
-    b.saveQueued = true
-    vim.defer_fn(function()
-      if not vim.api.nvim_buf_is_valid(bufnr) then
-        return
-      end
+		b.saveQueued = true
+		vim.defer_fn(function()
+			if not vim.api.nvim_buf_is_valid(bufnr) then
+				return
+			end
 
-      vim.api.nvim_buf_call(bufnr, function()
-        -- saving with explicit name prevents issues when changing `cwd`
-        -- `:update!` suppresses "The file has been changed since reading it!!!"
-        local vimCmd = ("silent! noautocmd lockmarks update! %q"):format(bufname)
-        vim.cmd(vimCmd)
-      end)
-      b.saveQueued = false
-    end, saveInstantly and 0 or 2000)
-  end,
+			vim.api.nvim_buf_call(bufnr, function()
+				-- saving with explicit name prevents issues when changing `cwd`
+				-- `:update!` suppresses "The file has been changed since reading it!!!"
+				local vimCmd = ("silent! noautocmd lockmarks update! %q"):format(bufname)
+				vim.cmd(vimCmd)
+			end)
+			b.saveQueued = false
+		end, saveInstantly and 0 or 2000)
+	end,
 })
 
-vim.api.nvim_create_autocmd("TextYankPost", {
-  desc = "Highlight when yanking (copying) text",
-  group = vim.api.nvim_create_augroup("kickstart-highlight-yank", { clear = true }),
-  callback = function()
-    vim.hl.on_yank()
-  end,
+-- =============================================================================
+--  MARK SET  (0.12-new)
+-- =============================================================================
+-- [0.12-new] MarkSet fires whenever the user sets a mark (currently excludes
+--  implicit marks like '[ and '<).  Useful to show visual feedback in the
+--  gutter without a plugin.
+autocmd("MarkSet", {
+	group = G,
+	desc = "[0.12] Echo mark name when user sets a mark",
+	callback = function(ev)
+		-- ev.data.mark = mark character; ev.data.pos = {line, col}
+		local mark = ev.data and ev.data.mark or "?"
+		local pos = ev.data and ev.data.pos or {}
+		vim.notify(string.format("Mark '%s' set at line %s", mark, tostring(pos[1])), vim.log.levels.INFO)
+	end,
 })
 
-vim.api.nvim_create_user_command("LspNames", function()
-  local clients = vim.lsp.get_clients()
-  if #clients == 0 then
-    print("No active LSP clients")
-  else
-    for _, client in pairs(clients) do
-      print(client.name)
-    end
-  end
-end, {})
-
-vim.api.nvim_create_autocmd("FileType", {
-  group = augroup("wrap_spell"),
-  pattern = { "text", "plaintex", "typst", "gitcommit", "markdown" },
-  callback = function()
-    vim.opt_local.wrap = true
-    vim.opt_local.spell = true
-  end,
+-- =============================================================================
+--  SESSION  (0.12-new)
+-- =============================================================================
+-- [0.12-new] SessionLoadPre fires BEFORE a Session file is loaded.
+autocmd("SessionLoadPre", {
+	group = G,
+	desc = "[0.12] Notify before session load",
+	callback = function(ev)
+		vim.notify("Loading session: " .. (ev.file or "<unknown>"), vim.log.levels.INFO)
+	end,
 })
 
--- Auto create dir when saving a file, in case some intermediate directory does not exist
-vim.api.nvim_create_autocmd({ "BufWritePre" }, {
-  group = augroup("auto_create_dir"),
-  callback = function(event)
-    if event.match:match("^%w%w+:[\\/][\\/]") then
-      return
-    end
-    local file = vim.uv.fs_realpath(event.match) or event.match
-    vim.fn.mkdir(vim.fn.fnamemodify(file, ":p:h"), "p")
-  end,
+-- =============================================================================
+--  TAB MANAGEMENT  (0.12-new)
+-- =============================================================================
+-- [0.12-new] TabClosedPre fires BEFORE a tabpage is closed.
+--  Use it to save or confirm unsaved changes in the tab.
+autocmd("TabClosedPre", {
+	group = G,
+	desc = "[0.12] Warn about unsaved buffers before tab close",
+	callback = function(ev)
+		local tabnr = ev.data and ev.data.tabnr
+		if not tabnr then
+			return
+		end
+		local wins = vim.api.nvim_tabpage_list_wins(tabnr)
+		for _, win in ipairs(wins) do
+			local buf = vim.api.nvim_win_get_buf(win)
+			if vim.bo[buf].modified then
+				vim.notify("Tab " .. tabnr .. " has unsaved changes in buffer " .. buf, vim.log.levels.WARN)
+			end
+		end
+	end,
 })
 
--- create group once (clear = true to avoid duplicates)
-local no_auto_comment_grp = vim.api.nvim_create_augroup("NoAutoComment", { clear = true })
-
-vim.api.nvim_create_autocmd("FileType", {
-  group = no_auto_comment_grp,
-  pattern = "*", -- all filetypes
-  callback = function()
-    -- Remove individually
-    vim.opt_local.formatoptions:remove("r")
-    vim.opt_local.formatoptions:remove("o")
-    vim.opt_local.formatoptions:remove("c") -- if you also want to stop auto-wrap of comments
-  end,
+-- =============================================================================
+--  CMDLINE EVENTS  (0.12-new)
+-- =============================================================================
+-- [0.12-new] CmdlineLeavePre fires BEFORE preparing to leave command-line mode.
+autocmd("CmdlineLeavePre", {
+	group = G,
+	desc = "[0.12] CmdlineLeavePre – pre-leave hook example",
+	callback = function(_ev)
+		-- Could be used to validate cmdline content before it executes.
+		-- ev.data.cmdline = the current cmdline text
+	end,
 })
 
--- close some filetypes with <q>
-vim.api.nvim_create_autocmd("FileType", {
-  group = vim.api.nvim_create_augroup("close_with_q", { clear = true }),
-  pattern = {
-    "PlenaryTestPopup",
-    "help",
-    "lspinfo",
-    "man",
-    "notify",
-    "qf",
-    "spectre_panel",
-    "startuptime",
-    "tsplayground",
-    "neotest-output",
-    "checkhealth",
-    "neotest-summary",
-    "neotest-output-panel",
-    "checkhealth",
-    "dbout",
-    "gitsigns-blame",
-    "neotest-output",
-    "neotest-summary",
-  },
-  callback = function(event)
-    vim.bo[event.buf].buflisted = false
-    vim.keymap.set("n", "q", "<cmd>close<cr>", { buffer = event.buf, silent = true })
-    vim.keymap.set("n", "<Esc>", "<cmd>nohlsearch<CR>", { buffer = event.buf, silent = true })
-  end,
+-- [0.12-new] CmdlineLeave now sets v:char to the character that stopped
+--  Cmdline mode (e.g. <CR>, <Esc>).
+autocmd("CmdlineLeave", {
+	group = G,
+	desc = "[0.12] Track cmdline exit character via v:char",
+	callback = function(_ev)
+		-- v:char is now populated:
+		-- vim.notify("CmdlineLeave via: " .. vim.v.char)
+		-- (commented to avoid noise; enable for debugging)
+	end,
 })
 
--- resize splits if window got resized
-vim.api.nvim_create_autocmd({ "VimResized" }, {
-  group = augroup("resize_splits"),
-  callback = function()
-    local current_tab = vim.fn.tabpagenr()
-    vim.cmd("tabdo wincmd =")
-    vim.cmd("tabnext " .. current_tab)
-  end,
+-- =============================================================================
+--  LSP PROGRESS  (0.12-enhanced)
+-- =============================================================================
+-- nvim_echo() gained Progress kind + id in 0.12, enabling per-client progress
+-- bars that update in-place in the cmdline / message area.
+autocmd("LspProgress", {
+	group = G,
+	desc = "[0.12] Show LSP progress via nvim_echo with progress kind",
+	callback = function(ev)
+		local ok, value = pcall(function()
+			return ev.data.params.value
+		end)
+		if not ok or not value then
+			return
+		end
+
+		-- [0.12-new] nvim_echo() id parameter de-duplicates progress messages:
+		--  same id = update in-place rather than appending a new line.
+		vim.api.nvim_echo(
+			{
+				{ (value.message or ""), "Comment" },
+			},
+			false,
+			{
+				id = "lsp." .. ev.data.client_id, -- [0.12-new] stable id
+				kind = "progress", -- [0.12-new] progress kind
+				source = "vim.lsp",
+				title = value.title,
+				status = value.kind ~= "end" and "running" or "success",
+				percent = value.percentage,
+			}
+		)
+	end,
 })
 
--- go to last loc when opening a buffer
-vim.api.nvim_create_autocmd("BufReadPost", {
-  group = augroup("last_loc"),
-  callback = function(event)
-    local exclude = { "gitcommit" }
-    local buf = event.buf
-    if vim.tbl_contains(exclude, vim.bo[buf].filetype) or vim.b[buf].lazyvim_last_loc then
-      return
-    end
-    vim.b[buf].lazyvim_last_loc = true
-    local mark = vim.api.nvim_buf_get_mark(buf, '"')
-    local lcount = vim.api.nvim_buf_line_count(buf)
-    if mark[1] > 0 and mark[1] <= lcount then
-      pcall(vim.api.nvim_win_set_cursor, 0, mark)
-    end
-  end,
+-- =============================================================================
+--  DIAGNOSTIC RELATED INFORMATION  (0.12-new)
+-- =============================================================================
+-- In 0.12, vim.diagnostic.open_float() shows DiagnosticRelatedInformation and
+-- you can press `gf` inside the float to jump to the referenced location.
+-- No extra autocmd needed – this is built-in behaviour.
+
+-- =============================================================================
+--  SMART HLSEARCH  (quality-of-life)
+-- =============================================================================
+-- Turn off hlsearch when entering insert mode
+autocmd("InsertEnter", {
+	group = G,
+	callback = function()
+		vim.opt.hlsearch = false
+	end,
+})
+autocmd("InsertLeave", {
+	group = G,
+	callback = function()
+		vim.opt.hlsearch = true
+	end,
 })
 
--- Restart ALL active LSP clients (session-wide)
-vim.api.nvim_create_user_command("LspRestartAll", function()
-  vim.cmd("lsp restart")
-end, { desc = "Restart all LSP clients" })
+-- =============================================================================
+--  DIFF INLINE HIGHLIGHTS  (0.12-new)
+-- =============================================================================
+-- [0.12-new] hl-DiffTextAdd highlights newly added text within a changed line.
+--  We customise it to be distinct from DiffText.
+autocmd("ColorScheme", {
+	group = G,
+	pattern = "*",
+	callback = function()
+		-- [0.12-new] nvim_set_hl() 'update' flag: update only specified attributes,
+		--  leaving all others (bold, italic, bg, …) unchanged.
+		vim.api.nvim_set_hl(0, "DiffTextAdd", {
+			bg = "#1c3a2a",
+			fg = "#73daca",
+			update = true, -- [0.12-new]: partial update, don't wipe other attrs
+		})
 
--- function _G.lsp_info()
---   local clients = get_buffer_clients()
---   local bufnr = vim.api.nvim_get_current_buf()
---   local filename = vim.api.nvim_buf_get_name(bufnr)
---
---   local lines = {}
---   table.insert(lines, "LSP Clients attached to: " .. (filename ~= "" and filename or "[No Name]"))
---   table.insert(lines, "─" .. string.rep("─", 60))
---
---   if vim.tbl_isempty(clients) then
---     table.insert(lines, "No active LSP clients")
---   else
---     for _, client in ipairs(clients) do
---       table.insert(lines, string.format("Client: %s (id: %d)", client.name, client.id))
---       table.insert(lines, string.format("  Root: %s", client.config.root_dir or "Not set"))
---       table.insert(
---         lines,
---         string.format("  Cmd: %s", client.config.cmd and table.concat(client.config.cmd, " ") or "N/A")
---       )
---       table.insert(lines, string.format("  Capabilities: %s", client.server_capabilities and "yes" or "no"))
---       table.insert(lines, "")
---     end
---   end
---
---   print(table.concat(lines, "\n"))
--- end
---
--- vim.api.nvim_create_user_command("LspInfo", function()
---   _G.lsp_info()
--- end, {})
+		-- Also partially update FloatBorder without clobbering its background.
+		vim.api.nvim_set_hl(0, "FloatBorder", {
+			fg = "#7dcfff",
+			update = true, -- [0.12-new]
+		})
 
-vim.api.nvim_create_autocmd("CompleteDone", {
-  pattern = "*",
-  callback = function()
-    vim.cmd("redraw!")
-  end,
+		-- [0.12-new] hl-SnippetTabstopActive – active snippet tabstop
+		vim.api.nvim_set_hl(0, "SnippetTabstopActive", {
+			underline = true,
+			sp = "#e0af68",
+		})
+
+		-- [0.12-new] hl-PmenuBorder / PmenuShadow
+		vim.api.nvim_set_hl(0, "PmenuBorder", { fg = "#414868" })
+		vim.api.nvim_set_hl(0, "PmenuShadow", { bg = "#1a1b26" })
+	end,
+})
+
+-- Trigger ColorScheme on load to apply immediately
+vim.api.nvim_exec_autocmds("ColorScheme", { pattern = "*", group = G })
+
+-- =============================================================================
+--  STARTUP ARGS  (0.12-new)
+-- =============================================================================
+-- [0.12-new] v:argf provides file arguments given at startup.
+autocmd("VimEnter", {
+	group = G,
+	once = true,
+	callback = function()
+		local args = vim.v.argf -- [0.12-new]: list of file arguments
+		if args and #args > 0 then
+			vim.notify("Startup args: " .. table.concat(args, ", "), vim.log.levels.INFO)
+		end
+	end,
+})
+
+-- =============================================================================
+--  BUSY STATUS  (0.12-new)
+-- =============================================================================
+-- [0.12-new] 'busy' is a buffer option that marks it as busy (e.g. a running
+--  terminal).  The default statusline shows ◐ when busy = true.
+--  Mark terminal buffers as busy while the job is running.
+autocmd("TermOpen", {
+	group = G,
+	callback = function(ev)
+		vim.bo[ev.buf].busy = true
+	end,
+})
+autocmd("TermClose", {
+	group = G,
+	callback = function(ev)
+		-- Guard: buffer may already be invalid on close
+		if vim.api.nvim_buf_is_valid(ev.buf) then
+			vim.bo[ev.buf].busy = false
+		end
+	end,
 })

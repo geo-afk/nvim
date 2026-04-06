@@ -38,6 +38,7 @@
 
 local M = {}
 local _config = nil   -- set by M.setup(), the persist sub-table
+local uv = vim.uv or vim.loop
 
 -- ─── internal state ───────────────────────────────────────────────────────
 
@@ -437,11 +438,11 @@ function M.list()
   if vim.fn.isdirectory(_config.data_dir) ~= 1 then return {} end
 
   local results = {}
-  local handle = vim.loop.fs_scandir(_config.data_dir)
+  local handle = uv.fs_scandir(_config.data_dir)
   if not handle then return {} end
 
   while true do
-    local name, ftype = vim.loop.fs_scandir_next(handle)
+    local name, ftype = uv.fs_scandir_next(handle)
     if not name then break end
 
     if ftype == "file" and name:match("%.json$") then
