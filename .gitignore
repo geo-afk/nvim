@@ -1,8 +1,0 @@
-tags
-test.sh
-.luarc.json
-nvim
-
-./lua/config/lsp/servers/sqls.lua
-spell/
-lazy-lock.json
