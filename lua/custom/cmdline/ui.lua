@@ -1050,15 +1050,7 @@ local function setup_keymaps(buf, win, mode, info)
       local items = completion.get_completions(input)
       if #items > 0 then
         local ctx = get_completion_context(input)
-        completion.open(
-          win,
-          items,
-          ctx.fragment,
-          ctx.head .. ctx.qualifier,
-          state.target_row,
-          PROMPT_LEN,
-          mode
-        )
+        completion.open(win, items, ctx.fragment, ctx.head .. ctx.qualifier, state.target_row, PROMPT_LEN, mode)
       else
         completion.close()
       end
@@ -1180,15 +1172,7 @@ local function setup_autocmds(buf, win, mode, info)
       local items = completion.get_completions(input)
       if #items > 0 then
         local ctx = get_completion_context(input)
-        completion.open(
-          win,
-          items,
-          ctx.fragment,
-          ctx.head .. ctx.qualifier,
-          state.target_row,
-          PROMPT_LEN,
-          mode
-        )
+        completion.open(win, items, ctx.fragment, ctx.head .. ctx.qualifier, state.target_row, PROMPT_LEN, mode)
       else
         completion.close()
       end
