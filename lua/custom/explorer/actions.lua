@@ -1,8 +1,3 @@
--- custom/explorer/actions.lua
--- Buffer layout: line 1 = search bar, lines 2+ = items.
--- S.items[i] → line i+1 (1-based).
--- current_item() → S.items[cursor_row - 1]
-
 local S = require("custom.explorer.state")
 local cfg = require("custom.explorer.config")
 local tree = require("custom.explorer.tree")
@@ -22,7 +17,6 @@ local function open_float_input(opts, on_submit)
   local default = opts.default or ""
   local prompt = opts.prompt or ""
   local title = opts.title or " Input "
-  local path = opts.path or ""
 
   pcall(api.nvim_set_hl, 0, "ExplorerInputNormal", { bg = "none" })
   pcall(api.nvim_set_hl, 0, "ExplorerInputBorder", { bg = "none" })
@@ -422,9 +416,11 @@ function A.rename()
       return
     end
     for _, client in ipairs(vim.lsp.get_clients()) do
-      local caps = ((client.server_capabilities.workspace or {}).fileOperations or {})
-      if caps.didRename then
-        client.notify("workspace/didRenameFiles", {
+      -- Check if the server supports the 'didRename' file operation notification
+      local file_ops = client.server_capabilities.workspace and client.server_capabilities.workspace.fileOperations
+      if file_ops and file_ops.didRename then
+        local method = vim.lsp.protocol.Methods.workspace_didRenameFiles
+        client.notify(method, {
           files = {
             {
               oldUri = vim.uri_from_fname(item.path),
