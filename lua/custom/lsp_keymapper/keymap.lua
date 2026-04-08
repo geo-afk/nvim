@@ -11,7 +11,7 @@ local M = {}
 --- @return table<string, vim.api.keyset.get_keymap>
 function M.get_buf_keymaps(bufnr, modes)
   bufnr = bufnr or 0
-  modes = modes or { 'n', 'v', 'i' }
+  modes = modes or { "n", "v", "i" }
 
   local result = {}
 
@@ -19,14 +19,14 @@ function M.get_buf_keymaps(bufnr, modes)
     -- Buffer-local maps
     local buf_maps = vim.api.nvim_buf_get_keymap(bufnr, mode)
     for _, map in ipairs(buf_maps) do
-      local key = mode .. (map.lhs or '')
+      local key = mode .. (map.lhs or "")
       result[key] = map
     end
 
     -- Global maps
     local global_maps = vim.api.nvim_get_keymap(mode)
     for _, map in ipairs(global_maps) do
-      local key = mode .. (map.lhs or '')
+      local key = mode .. (map.lhs or "")
       -- Buffer-local takes precedence; do not overwrite if already set
       if not result[key] then
         result[key] = map
@@ -58,11 +58,11 @@ end
 --- @return string
 function M.describe(map)
   if not map then
-    return '(none)'
+    return "(none)"
   end
 
-  local rhs = map.rhs or map.callback and '[lua callback]' or '?'
-  local src = map.buffer and map.buffer ~= 0 and 'buf-local' or 'global'
+  local rhs = map.rhs or map.callback and "[lua callback]" or "?"
+  local src = map.buffer and map.buffer ~= 0 and "buf-local" or "global"
   return string.format("'%s' → %s [%s]", map.lhs, rhs, src)
 end
 
