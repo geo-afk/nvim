@@ -5,32 +5,32 @@ local autoclose = {}
 
 local config = {
   keys = {
-    ['('] = { escape = false, close = true, pair = '()' },
-    ['['] = { escape = false, close = true, pair = '[]' },
-    ['{'] = { escape = false, close = true, pair = '{}' },
+    ["("] = { escape = false, close = true, pair = "()" },
+    ["["] = { escape = false, close = true, pair = "[]" },
+    ["{"] = { escape = false, close = true, pair = "{}" },
 
-    ['>'] = { escape = true, close = false, pair = '<>' },
-    [')'] = { escape = true, close = false, pair = '()' },
-    [']'] = { escape = true, close = false, pair = '[]' },
-    ['}'] = { escape = true, close = false, pair = '{}' },
+    [">"] = { escape = true, close = false, pair = "<>" },
+    [")"] = { escape = true, close = false, pair = "()" },
+    ["]"] = { escape = true, close = false, pair = "[]" },
+    ["}"] = { escape = true, close = false, pair = "{}" },
 
     ['"'] = { escape = true, close = true, pair = '""' },
     ["'"] = { escape = true, close = true, pair = "''" },
-    ['`'] = { escape = true, close = true, pair = '``' },
+    ["`"] = { escape = true, close = true, pair = "``" },
 
-    [' '] = { escape = false, close = true, pair = '  ' },
+    [" "] = { escape = false, close = true, pair = "  " },
 
-    ['<BS>'] = {},
-    ['<C-H>'] = {},
-    ['<C-W>'] = {},
-    ['<CR>'] = { disable_command_mode = true },
-    ['<S-CR>'] = { disable_command_mode = true },
+    ["<BS>"] = {},
+    ["<C-H>"] = {},
+    ["<C-W>"] = {},
+    ["<CR>"] = { disable_command_mode = true },
+    ["<S-CR>"] = { disable_command_mode = true },
   },
 
   options = {
-    disabled_filetypes = { 'text' },
+    disabled_filetypes = { "text" },
     disable_when_touch = false,
-    touch_regex = '[%w(%[{]',
+    touch_regex = "[%w(%[{]",
     pair_spaces = false,
     auto_indent = true,
     disable_command_mode = false,
@@ -47,13 +47,13 @@ local _setup_done = false
 --------------------------------------------------
 
 local function insert_get_pair()
-  local line = '_' .. vim.api.nvim_get_current_line()
+  local line = "_" .. vim.api.nvim_get_current_line()
   local col = vim.api.nvim_win_get_cursor(0)[2] + 1
   return line:sub(col, col + 1)
 end
 
 local function command_get_pair()
-  local line = '_' .. vim.fn.getcmdline()
+  local line = "_" .. vim.fn.getcmdline()
   local col = vim.fn.getcmdpos()
   return line:sub(col, col + 1)
 end
@@ -139,31 +139,30 @@ local function handler(key, info, mode)
     return key
   end
 
-  local pair = mode == 'insert' and insert_get_pair() or command_get_pair()
+  local pair = mode == "insert" and insert_get_pair() or command_get_pair()
 
   -- Backspace handling
-  if (key == '<BS>' or key == '<C-H>') and is_pair(pair) then
-    return '<BS><Del>'
+  if (key == "<BS>" or key == "<C-H>") and is_pair(pair) then
+    return "<BS><Del>"
   end
 
   -- Word delete should behave normally
-  if key == '<C-W>' then
-    return '<C-W>'
+  if key == "<C-W>" then
+    return "<C-W>"
   end
 
   -- Enter between pairs
-  if mode == 'insert' and (key == '<CR>' or key == '<S-CR>') and is_pair(pair) then
-    return '<CR><ESC>O' .. (config.options.auto_indent and '' or '<C-D>')
+  if mode == "insert" and (key == "<CR>" or key == "<S-CR>") and is_pair(pair) then
+    return "<CR><ESC>O" .. (config.options.auto_indent and "" or "<C-D>")
   end
 
   -- Escape through existing closer
   if info.escape and pair:sub(2, 2) == key then
-    return mode == 'insert' and '<C-G>U<Right>' or '<Right>'
+    return mode == "insert" and "<C-G>U<Right>" or "<Right>"
   end
 
   -- Pair insertion
   if info.close then
-
     -- Skip pairing inside strings/comments
     if in_string_or_comment() then
       return key
@@ -174,27 +173,28 @@ local function handler(key, info, mode)
       local left = pair:sub(1, 1)
       local right = pair:sub(2, 2)
 
-      if left:match('[%w_]') or right:match('[%w_]') then
+      if left:match("[%w_]") or right:match("[%w_]") then
         return key
       end
     end
 
-    if config.options.disable_when_touch
-      and (pair .. '_'):sub(2, 2):match(config.options.touch_regex)
-    then
+    if config.options.disable_when_touch and (pair .. "_"):sub(2, 2):match(config.options.touch_regex) then
       return key
     end
 
     -- Space pairing control
-    if key == ' ' and (
-      not config.options.pair_spaces
-      or (config.options.pair_spaces and not is_pair(pair))
-      or pair:sub(1,1) == pair:sub(2,2)
-    ) then
+    if
+      key == " "
+      and (
+        not config.options.pair_spaces
+        or (config.options.pair_spaces and not is_pair(pair))
+        or pair:sub(1, 1) == pair:sub(2, 2)
+      )
+    then
       return key
     end
 
-    return info.pair .. (mode == 'insert' and '<C-G>U<Left>' or '<Left>')
+    return info.pair .. (mode == "insert" and "<C-G>U<Left>" or "<Left>")
   end
 
   return key
@@ -226,19 +226,19 @@ function autoclose.setup(user_config)
 
   -- Build pair lookup table
   for _, info in pairs(config.keys) do
-    if info.pair and info.pair ~= '  ' then
+    if info.pair and info.pair ~= "  " then
       pair_set[info.pair] = true
     end
   end
 
   for key, info in pairs(config.keys) do
-    vim.keymap.set('i', key, function()
-      return (key == ' ' and '<C-]>' or '') .. handler(key, info, 'insert')
+    vim.keymap.set("i", key, function()
+      return (key == " " and "<C-]>" or "") .. handler(key, info, "insert")
     end, { noremap = true, expr = true })
 
     if not config.options.disable_command_mode and not info.disable_command_mode then
-      vim.keymap.set('c', key, function()
-        return (key == ' ' and '<C-]>' or '') .. handler(key, info, 'command')
+      vim.keymap.set("c", key, function()
+        return (key == " " and "<C-]>" or "") .. handler(key, info, "command")
       end, { noremap = true, expr = true })
     end
   end
@@ -256,11 +256,11 @@ end
 -- Lazy setup
 --------------------------------------------------
 
-vim.api.nvim_create_autocmd('InsertEnter', {
+vim.api.nvim_create_autocmd("InsertEnter", {
   once = true,
   callback = function()
     if not _setup_done then
-      autoclose.setup {}
+      autoclose.setup({})
     end
   end,
 })

@@ -152,7 +152,9 @@ local function open_references_picker(items, symbol)
   local ok_state, action_state = pcall(require, "telescope.actions.state")
   local ok_themes, themes = pcall(require, "telescope.themes")
 
-  if not (ok_pickers and ok_finders and ok_conf and ok_entry and ok_previewers and ok_actions and ok_state and ok_themes) then
+  if
+    not (ok_pickers and ok_finders and ok_conf and ok_entry and ok_previewers and ok_actions and ok_state and ok_themes)
+  then
     open_references_fallback(items, symbol)
     return
   end
