@@ -14,43 +14,48 @@ vim.pack.add({
 
 -- ── LSP servers (vim.lsp server name → Mason package name) ───────────────────
 local lsp_to_mason = {
-  lua_ls                = "lua-language-server",
-  angularls             = "angular-language-server",
+  lua_ls = "lua-language-server",
+  angularls = "angular-language-server",
   emmet_language_server = "emmet-language-server",
-  vtsls                 = "vtsls",
-  gopls                 = "gopls",
-  html                  = "html-lsp",
-  cssls                 = "css-lsp",
-  sqls                  = "sqls",
-  tailwindcss           = "tailwindcss-language-server",
-  typos_lsp             = "typos-lsp",
-  pyright               = "pyright",
-  rust_analyzer         = "rust-analyzer",
-  yamlls                = "yaml-language-server",
-  bashls                = "bash-language-server",
-  marksman              = "marksman",
-  taplo                 = "taplo",
-  clangd                = "clangd",
-  jsonls                = "json-lsp",
+  vtsls = "vtsls",
+  gopls = "gopls",
+  html = "html-lsp",
+  cssls = "css-lsp",
+  sqls = "sqls",
+  tailwindcss = "tailwindcss-language-server",
+  typos_lsp = "typos-lsp",
+  -- pyright               = "pyright",
+  marksman = "marksman",
+  -- taplo                 = "taplo",
+  -- clangd                = "clangd",
+  jsonls = "json-lsp",
 }
 
 -- Formatters, linters, DAP adapters
 local mason_tools = {
   -- Go
-  "gofumpt", "goimports", "golines", "gotests", "staticcheck",
-  "iferr", "gomodifytags",
+  "gofumpt",
+  "goimports",
+  "golines",
+  "gotests",
+  "staticcheck",
+  "iferr",
+  "gomodifytags",
   -- JS/TS
-  "biome", "prettierd",
+  "biome",
+  "prettierd",
   -- Lua
   "stylua",
   -- Python
   "ruff",
   -- Shell
-  "shfmt", "shellcheck",
+  -- "shfmt", "shellcheck",
   -- Markdown
-  "markdownlint",
+  -- "markdownlint",
   -- DAP
-  "debugpy", "codelldb", "delve",
+  -- "debugpy",
+  -- "codelldb",
+  -- "delve",
 }
 
 -- ── 1. mason.nvim ─────────────────────────────────────────────────────────────
@@ -63,23 +68,23 @@ end
 mason.setup({
   install_root_dir = vim.fn.stdpath("data") .. "/mason",
   ui = {
-    border  = "rounded",
-    width   = 0.85,
-    height  = 0.8,
-    icons   = {
-      package_installed   = "✓",
-      package_pending     = "➜",
+    border = "rounded",
+    width = 0.85,
+    height = 0.8,
+    icons = {
+      package_installed = "✓",
+      package_pending = "➜",
       package_uninstalled = "✗",
     },
     keymaps = {
-      toggle_package_expand   = "<CR>",
-      install_package         = "i",
-      update_package          = "u",
-      check_package_version   = "c",
-      update_all_packages     = "U",
+      toggle_package_expand = "<CR>",
+      install_package = "i",
+      update_package = "u",
+      check_package_version = "c",
+      update_all_packages = "U",
       check_outdated_packages = "C",
-      uninstall_package       = "X",
-      cancel_installation     = "<C-c>",
+      uninstall_package = "X",
+      cancel_installation = "<C-c>",
     },
   },
   pip = { upgrade_pip = true },
@@ -99,9 +104,12 @@ if registry_ok then
     for _, pkg_name in ipairs(ensure) do
       local ok2, pkg = pcall(registry.get_package, pkg_name)
       if ok2 and not pkg:is_installed() then
-        pkg:install():once("install:success", vim.schedule_wrap(function()
-          vim.notify("[Mason] Installed: " .. pkg_name, vim.log.levels.INFO)
-        end))
+        pkg:install():once(
+          "install:success",
+          vim.schedule_wrap(function()
+            vim.notify("[Mason] Installed: " .. pkg_name, vim.log.levels.INFO)
+          end)
+        )
       elseif not ok2 then
         vim.notify("[Mason] Package not found in registry: " .. pkg_name, vim.log.levels.WARN)
       end
@@ -119,12 +127,23 @@ if mlsp_ok then
       function(server_name)
         -- Servers with rich config in config/lsp.lua – skip here
         local explicit = {
-          lua_ls = true, vtsls = true, gopls = true, pyright = true,
-          rust_analyzer = true, cssls = true, html = true, jsonls = true,
-          angularls = true, tailwindcss = true, sqls = true,
-          emmet_language_server = true, typos_lsp = true,
+          lua_ls = true,
+          vtsls = true,
+          gopls = true,
+          pyright = true,
+          rust_analyzer = true,
+          cssls = true,
+          html = true,
+          jsonls = true,
+          angularls = true,
+          tailwindcss = true,
+          sqls = true,
+          emmet_language_server = true,
+          typos_lsp = true,
         }
-        if explicit[server_name] then return end
+        if explicit[server_name] then
+          return
+        end
 
         -- Generic enable for everything else (yamlls, bashls, marksman, taplo…)
         vim.lsp.config(server_name, { exit_timeout = 3000 })
@@ -139,13 +158,13 @@ local mti_ok, mti = pcall(require, "mason-tool-installer")
 if mti_ok then
   mti.setup({
     ensure_installed = mason_tools,
-    auto_update      = false,
-    run_on_start     = true,
-    start_delay      = 2000,
+    auto_update = false,
+    run_on_start = true,
+    start_delay = 2000,
   })
 end
 
 -- ── 5. Keymaps ────────────────────────────────────────────────────────────────
-vim.keymap.set("n", "<leader>cm", "<cmd>Mason<CR>",       { desc = "Mason UI" })
+vim.keymap.set("n", "<leader>cm", "<cmd>Mason<CR>", { desc = "Mason UI" })
 vim.keymap.set("n", "<leader>mu", "<cmd>MasonUpdate<CR>", { desc = "Mason: update registry" })
-vim.keymap.set("n", "<leader>ml", "<cmd>MasonLog<CR>",    { desc = "Mason: log" })
+vim.keymap.set("n", "<leader>ml", "<cmd>MasonLog<CR>", { desc = "Mason: log" })

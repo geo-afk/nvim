@@ -5,7 +5,9 @@
 vim.pack.add({ { src = "https://github.com/folke/flash.nvim" } })
 
 local ok, flash = pcall(require, "flash")
-if not ok then return end
+if not ok then
+  return
+end
 
 -- Optional cinnamon.nvim smooth-scroll integration
 local cinnamon_ok, cinnamon = pcall(require, "cinnamon")
