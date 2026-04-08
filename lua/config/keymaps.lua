@@ -45,20 +45,20 @@ map("n", "<C-u>", "<C-u>zz", noremap_s)
 -- Paste without replacing clipboard
 map("v", "<leader>p", '"_dP', noremap_s)
 
--- =============================================================================
---  TABS
--- =============================================================================
-map("n", "<leader>tn", "<cmd>tabnew<CR>", noremap_s)
-map("n", "<leader>tc", "<cmd>tabclose<CR>", noremap_s)
-map("n", "]t", "<cmd>tabnext<CR>", noremap_s)
-map("n", "[t", "<cmd>tabprev<CR>", noremap_s)
+-- -- =============================================================================
+-- --  TABS
+-- -- =============================================================================
+-- map("n", "<leader>tn", "<cmd>tabnew<CR>", noremap_s)
+-- map("n", "<leader>tc", "<cmd>tabclose<CR>", noremap_s)
+-- map("n", "]t", "<cmd>tabnext<CR>", noremap_s)
+-- map("n", "[t", "<cmd>tabprev<CR>", noremap_s)
 
 -- =============================================================================
 --  BUFFERS
 -- =============================================================================
-map("n", "]b", "<cmd>bnext<CR>", noremap_s)
+-- map("n", "]b", "<cmd>bnext<CR>", noremap_s)
 -- map("n", "<leader>bd", "<cmd>bdelete<CR>", noremap_s)
-map("n", "[b", "<cmd>bprev<CR>", noremap_s)
+-- map("n", "[b", "<cmd>bprev<CR>", noremap_s)
 
 -- Select All
 map("n", "<C-a>", "gg<S-v>G")
@@ -78,8 +78,8 @@ map("t", "<Esc><Esc>", "<C-\\><C-n>", { desc = "Exit terminal mode" })
 --  See `:help hlsearch`
 
 map("n", "<Esc>", function()
-	vim.cmd("nohlsearch")
-	vim.cmd("stopinsert")
+  vim.cmd("nohlsearch")
+  vim.cmd("stopinsert")
 end, { silent = true })
 
 -- Move Lines
@@ -99,7 +99,7 @@ map("v", ">", ">gv")
 -- =============================================================================
 -- Update all plugins
 map("n", "<leader>pu", function()
-	vim.pack.update()
+  vim.pack.update()
 end, { desc = "[0.12] vim.pack: update all plugins" })
 
 -- =============================================================================
@@ -109,44 +109,44 @@ end, { desc = "[0.12] vim.pack: update all plugins" })
 -- [0.12-new] :lsp command replaces the old LspInfo / LspRestart / LspLog
 -- Compatibility shims so muscle memory still works:
 vim.api.nvim_create_user_command("LspInfo", "checkhealth vim.lsp", {
-	desc = "[0.12] Show LSP info via :checkhealth",
+  desc = "[0.12] Show LSP info via :checkhealth",
 })
 vim.api.nvim_create_user_command("LspRestart", "lsp restart", {
-	desc = "[0.12] Restart LSP via :lsp restart",
+  desc = "[0.12] Restart LSP via :lsp restart",
 })
 vim.api.nvim_create_user_command("LspLog", function()
-	local log = vim.fs.joinpath(vim.fn.stdpath("state"), "lsp.log")
-	vim.cmd("edit " .. log)
+  local log = vim.fs.joinpath(vim.fn.stdpath("state"), "lsp.log")
+  vim.cmd("edit " .. log)
 end, { desc = "[0.12] Open LSP log" })
 vim.api.nvim_create_user_command("LspStop", "lsp stop", {
-	desc = "[0.12] Stop LSP via :lsp stop",
+  desc = "[0.12] Stop LSP via :lsp stop",
 })
 
 -- Diagnostics
 map("n", "<leader>df", vim.diagnostic.open_float, { desc = "Open diagnostic float" })
 map("n", "]d", function()
-	vim.diagnostic.jump({
-		count = 1,
-		float = true,
-	})
+  vim.diagnostic.jump({
+    count = 1,
+    float = true,
+  })
 end, { desc = "Next diagnostic" })
 map("n", "[d", function()
-	vim.diagnostic.jump({
-		count = -1,
-		float = true,
-	})
+  vim.diagnostic.jump({
+    count = -1,
+    float = true,
+  })
 end, { desc = "Prev diagnostic" })
 
 map("n", "<leader>dq", vim.diagnostic.setqflist, { desc = "Diagnostics → quickfix" })
 
 -- [0.12-new] vim.diagnostic.status() – returns e.g. "E:2 W:1"
 map("n", "<leader>ds", function()
-	vim.notify("Diagnostics: " .. vim.diagnostic.status(), vim.log.levels.INFO)
+  vim.notify("Diagnostics: " .. vim.diagnostic.status(), vim.log.levels.INFO)
 end, { desc = "[0.12] Show diagnostic status string" })
 
 -- [0.12-new] vim.lsp.buf.workspace_diagnostics()
 map("n", "<leader>dw", function()
-	vim.lsp.buf.workspace_diagnostics()
+  vim.lsp.buf.workspace_diagnostics()
 end, { desc = "[0.12] Workspace diagnostics" })
 
 -- =============================================================================
@@ -163,29 +163,29 @@ map("n", "<leader>dt", "<cmd>DiffTool<CR>", { desc = "[0.12] Open DiffTool" })
 --  GIT  (gitsigns)
 -- =============================================================================
 map("n", "]g", function()
-	require("gitsigns").nav_hunk("next")
+  require("gitsigns").nav_hunk("next")
 end, { desc = "Next git hunk" })
 
 map("n", "[g", function()
-	require("gitsigns").nav_hunk("prev")
+  require("gitsigns").nav_hunk("prev")
 end, { desc = "Prev git hunk" })
 
 map("n", "<leader>gs", function()
-	require("gitsigns").stage_hunk()
+  require("gitsigns").stage_hunk()
 end, { desc = "Stage hunk" })
 
 map("n", "<leader>gr", function()
-	require("gitsigns").reset_hunk()
+  require("gitsigns").reset_hunk()
 end, { desc = "Reset hunk" })
 
 map("n", "<leader>gp", function()
-	require("gitsigns").preview_hunk()
+  require("gitsigns").preview_hunk()
 end, { desc = "Preview hunk" })
 
 map("n", "<leader>gb", function()
-	require("gitsigns").blame_line({ full = true })
+  require("gitsigns").blame_line({ full = true })
 end, {
-	desc = "Blame line",
+  desc = "Blame line",
 })
 
 -- =============================================================================
@@ -198,8 +198,8 @@ map("n", "<leader>R", "<cmd>restart<CR>", { desc = "[0.12] Restart Neovim" })
 -- Close special windows with q
 local close_ft = { "help", "qf", "checkhealth", "lspinfo", "startuptime" }
 vim.api.nvim_create_autocmd("FileType", {
-	pattern = close_ft,
-	callback = function(ev)
-		map("n", "q", "<cmd>close<CR>", { buffer = ev.buf, silent = true })
-	end,
+  pattern = close_ft,
+  callback = function(ev)
+    map("n", "q", "<cmd>close<CR>", { buffer = ev.buf, silent = true })
+  end,
 })

@@ -1,5 +1,7 @@
 local opt = vim.opt
 
+vim.o.cmdheight = 0 -- Hide command line unless needed
+
 -- ── UI / appearance ───────────────────────────────────────────────────────────
 opt.number = true
 opt.relativenumber = true
