@@ -21,6 +21,7 @@ local colors = require(_pkg .. ".colors")
 local modes = require(_pkg .. ".modes")
 local debounce = require(_pkg .. ".debounce")
 local preview = require(_pkg .. ".preview")
+local output = require(_pkg .. ".output")
 
 -- ---------------------------------------------------------------------------
 -- Namespaces
@@ -63,8 +64,15 @@ M.config = {
   nerd_font = nil,
   completion = { debounce_ms = 40, auto_open = true, min_length = 1 },
   syntax = { enable = true },
+  show_hint = true,
   range_preview = { enable = true, context = 2, max_lines = 8 },
   live_preview = { enable = true },
+  output = {
+    min_width = 30,
+    max_height_ratio = 0.60,
+    default_wrap = false,
+    enable_syntax = true,
+  },
   keymaps = {
     confirm = "<CR>",
     dismiss = { "<Esc>", "<C-c>" },
@@ -455,6 +463,9 @@ end
 ---Hint line below the input via virt_lines (Nvim 0.10+ only).
 local function render_hint(buf, info, subtype)
   vim.api.nvim_buf_clear_namespace(buf, NS_HINT, 0, -1)
+  if M.config.show_hint == false then
+    return
+  end
   local hint = info.hint
   if type(hint) ~= "table" then
     pcall(vim.api.nvim_buf_set_extmark, buf, NS_HINT, 0, 0, {
@@ -639,156 +650,8 @@ local function show_range_preview(input, parent_win)
 end
 
 -- ---------------------------------------------------------------------------
--- Output float (modern, transparent, scrollable, no timer, no backgrounds)
+-- Output float
 -- ---------------------------------------------------------------------------
-
--- Counter for unique highlight group names
-local _output_win_counter = 0
-
-local function show_output(lines, is_error)
-  if not lines or #lines == 0 then
-    return
-  end
-
-  -- Trim trailing empty lines
-  while #lines > 0 and (lines[#lines] or ""):match("^%s*$") do
-    table.remove(lines)
-  end
-  if #lines == 0 then
-    return
-  end
-
-  -- Dynamic width based on longest line
-  local max_line_len = 0
-  for _, line in ipairs(lines) do
-    local display_width = vim.fn.strdisplaywidth(line)
-    if display_width > max_line_len then
-      max_line_len = display_width
-    end
-  end
-  local max_width = get_width()
-  local min_width = 30
-  local width = math.min(max_width, math.max(min_width, max_line_len + 2))
-  local col = get_col(width)
-
-  -- Dynamic height: cap at 60% of screen lines, at least 1
-  local max_height = math.floor(vim.o.lines * 0.6)
-  local height = math.min(#lines, max_height)
-  if height < 1 then
-    height = 1
-  end
-
-  -- Position: above the command line
-  local target_row = get_target_row()
-  local row = math.max(0, target_row - height - 2)
-
-  -- Create buffer
-  local buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_set_option_value("buftype", "nofile", { buf = buf })
-  vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-  vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
-
-  -- Border style (reuse global config)
-  local border = M.config.border_cmd or M.config.border
-  local title = is_error and " Error " or " Output "
-
-  -- Create temporary highlight groups with NO background (unique per call)
-  _output_win_counter = _output_win_counter + 1
-  local suffix = tostring(_output_win_counter)
-  local hl_normal = "NvimCmdlineOutputNorm_" .. suffix
-  local hl_border = "NvimCmdlineOutputBorder_" .. suffix
-  local hl_title = "NvimCmdlineOutputTitle_" .. suffix
-
-  vim.api.nvim_set_hl(0, hl_normal, { bg = "NONE", fg = nil }) -- fg = nil keeps default
-  vim.api.nvim_set_hl(0, hl_border, { bg = "NONE", fg = nil })
-  vim.api.nvim_set_hl(0, hl_title, { bg = "NONE", fg = nil })
-
-  -- For error output, optionally change foreground colour
-  if is_error then
-    vim.api.nvim_set_hl(0, hl_normal, { bg = "NONE", fg = "#ff9999" })
-  end
-
-  local win = vim.api.nvim_open_win(buf, true, {
-    relative = "editor",
-    row = row,
-    col = col,
-    width = width,
-    height = height,
-    style = "minimal",
-    border = border,
-    title = title,
-    title_pos = "left",
-    zindex = 150,
-    focusable = true,
-  })
-
-  vim.api.nvim_set_option_value(
-    "winhighlight",
-    string.format("Normal:%s,FloatBorder:%s,FloatTitle:%s", hl_normal, hl_border, hl_title),
-    { win = win }
-  )
-  vim.api.nvim_set_option_value("winblend", 0, { win = win })
-  vim.api.nvim_set_option_value("wrap", false, { win = win })
-  vim.api.nvim_set_option_value("cursorline", false, { win = win })
-  vim.api.nvim_set_option_value("scrolloff", 0, { win = win })
-
-  -- Place cursor at the top
-  pcall(vim.api.nvim_win_set_cursor, win, { 1, 0 })
-
-  -- Dismiss function (also cleans up highlight groups)
-  local function dismiss()
-    if vim.api.nvim_win_is_valid(win) then
-      pcall(vim.api.nvim_win_close, win, true)
-    end
-    -- Delete temporary highlights (optional)
-    pcall(vim.api.nvim_set_hl, 0, hl_normal, {})
-    pcall(vim.api.nvim_set_hl, 0, hl_border, {})
-    pcall(vim.api.nvim_set_hl, 0, hl_title, {})
-  end
-
-  -- Buffer‑local keymaps
-  local function buf_map(lhs, rhs, opts)
-    opts = vim.tbl_extend("force", { buffer = buf, noremap = true, silent = true }, opts or {})
-    vim.keymap.set("n", lhs, rhs, opts)
-  end
-
-  buf_map("j", function()
-    local cursor = vim.api.nvim_win_get_cursor(win)
-    local new_row = math.min(cursor[1] + 1, #lines)
-    pcall(vim.api.nvim_win_set_cursor, win, { new_row, 0 })
-  end)
-  buf_map("k", function()
-    local cursor = vim.api.nvim_win_get_cursor(win)
-    local new_row = math.max(cursor[1] - 1, 1)
-    pcall(vim.api.nvim_win_set_cursor, win, { new_row, 0 })
-  end)
-
-  local function half_page_down()
-    local cursor = vim.api.nvim_win_get_cursor(win)
-    local new_row = cursor[1] + math.floor(height / 2)
-    new_row = math.min(new_row, #lines)
-    pcall(vim.api.nvim_win_set_cursor, win, { new_row, 0 })
-  end
-  local function half_page_up()
-    local cursor = vim.api.nvim_win_get_cursor(win)
-    local new_row = cursor[1] - math.floor(height / 2)
-    new_row = math.max(new_row, 1)
-    pcall(vim.api.nvim_win_set_cursor, win, { new_row, 0 })
-  end
-  buf_map("<C-d>", half_page_down)
-  buf_map("<C-u>", half_page_up)
-
-  buf_map("gg", function()
-    pcall(vim.api.nvim_win_set_cursor, win, { 1, 0 })
-  end)
-  buf_map("G", function()
-    pcall(vim.api.nvim_win_set_cursor, win, { #lines, 0 })
-  end)
-
-  buf_map("q", dismiss)
-  buf_map("<Esc>", dismiss)
-end
 
 -- ---------------------------------------------------------------------------
 -- Blink.cmp suppression
@@ -927,7 +790,15 @@ local function execute(buf, mode)
         is_error = true
       end
       if out ~= "" then
-        show_output(vim.split(out, "\n", { plain = true }), is_error)
+        output.show({
+          lines = vim.split(out, "\n", { plain = true }),
+          is_error = is_error,
+          command = input,
+          border = M.config.border_cmd or M.config.border,
+          max_width = get_width(),
+          target_row = get_target_row(),
+          config = M.config.output,
+        })
       end
     end)
   elseif mode == "search_fwd" or mode == "search_bwd" then

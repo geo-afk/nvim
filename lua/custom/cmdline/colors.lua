@@ -57,6 +57,9 @@ local P = {
   tbg_subst = "#2a1400",
   tbg_filter = "#2a0810",
   tbg_file = "#0e2218",
+  tbg_output = "#0f2238",
+  tbg_output_soft = "#15263a",
+  tbg_error = "#301416",
 
   -- ── Completion kind backgrounds ───────────────────────────────────────────
   kind_bg = "#1f2b3e",
@@ -246,6 +249,21 @@ function M.setup_highlights()
   hl("NvimCmdlineOutput", { fg = c.fg2, bg = c.muted_bg })
   hl("NvimCmdlineOutputBorder", { fg = c.border_dim, bg = c.muted_bg })
   hl("NvimCmdlineError", { fg = c.rose, bg = c.muted_bg })
+  hl("NvimCmdlineOutputNormal", { fg = c.fg2, bg = c.bg })
+  hl("NvimCmdlineOutputErrorNormal", { fg = c.rose, bg = c.bg })
+  hl("NvimCmdlineOutputErrorBorder", { fg = c.rose, bg = c.bg })
+  hl("NvimCmdlineOutputTitleBadge", { fg = c.cyan2, bg = c.tbg_output, bold = true })
+  hl("NvimCmdlineOutputTitleText", { fg = c.fg, bg = c.tbg_output_soft, bold = true })
+  hl("NvimCmdlineOutputTitleCmd", { fg = c.sub, bg = c.bg, italic = true })
+  hl("NvimCmdlineOutputTitleBadgeError", { fg = c.rose, bg = c.tbg_error, bold = true })
+  hl("NvimCmdlineOutputTitleTextError", { fg = c.fg, bg = c.tbg_error, bold = true })
+  hl("NvimCmdlineOutputTitleCmdError", { fg = c.rose, bg = c.bg, italic = true })
+  hl("NvimCmdlineOutputFooterLabel", { fg = c.dim, bg = c.chip_bg_soft, bold = true })
+  hl("NvimCmdlineOutputFooterValue", { fg = c.fg2, bg = c.bg })
+  hl("NvimCmdlineOutputFooterSep", { fg = c.border_dim, bg = c.bg })
+  hl("NvimCmdlineOutputFooterHint", { fg = c.sub, bg = c.bg })
+  hl("NvimCmdlineOutputHintKey", { fg = c.cyan2, bg = c.bg, bold = true })
+  hl("NvimCmdlineOutputHintKeyError", { fg = c.rose, bg = c.bg, bold = true })
 
   -- ── Live preview extmarks ─────────────────────────────────────────────────
   hl("NvimCmdlinePreviewDel", { fg = c.red, bg = c.preview_del_bg, strikethrough = true })
