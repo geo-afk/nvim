@@ -21,8 +21,8 @@ vim.g.mapleader = " "
 vim.g.maplocalleader = "\\"
 
 -- ── Bootstrap modules ────────────────────────────────────────────────────────
-require("plugins") -- lua/plugins/init.lua → requires each plugin file
 require("config.options")
+require("plugins") -- lua/plugins/init.lua → requires each plugin file
 require("config.keymaps")
 require("config.autocmds")
 require("config.lsp") -- native LSP server configs (vim.lsp.config/enable)
