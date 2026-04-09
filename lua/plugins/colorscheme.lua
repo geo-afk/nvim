@@ -6,15 +6,15 @@ vim.pack.add({ { src = "https://github.com/folke/tokyonight.nvim" } })
 local ok, tokyonight = pcall(require, "tokyonight")
 if ok then
   tokyonight.setup({
-    style       = "night",
+    style = "night",
     transparent = false,
-    styles      = {
-      comments  = { italic = true },
-      keywords  = { italic = true },
+    styles = {
+      comments = { italic = true },
+      keywords = { italic = true },
       functions = {},
       variables = {},
     },
-    on_highlights = function(hl, _c)
+    on_highlights = function(hl, _)
       -- [0.12-new] nvim_set_hl update=true used in autocmds.lua for partial
       -- updates; here we set full definitions via the theme hook.
       hl.DiffTextAdd = { bg = "#1c3a2a", fg = "#73daca" }

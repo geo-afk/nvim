@@ -10,10 +10,10 @@
 -- =============================================================================
 
 local function load(mod)
-	local ok, err = pcall(require, mod)
-	if not ok then
-		vim.notify("plugins: failed to load " .. mod .. "\n" .. err, vim.log.levels.ERROR)
-	end
+  local ok, err = pcall(require, mod)
+  if not ok then
+    vim.notify("plugins: failed to load " .. mod .. "\n" .. err, vim.log.levels.ERROR)
+  end
 end
 
 -- ── Core / UI foundation ─────────────────────────────────────────────────────
@@ -59,5 +59,6 @@ load("plugins.dev-server") -- dev-server.nvim
 
 -- ── Activate built-in 0.12 optional plugins ──────────────────────────────────
 for _, pkg in ipairs({ "nvim.undotree", "nvim.difftool", "nvim.tohtml" }) do
-	pcall(vim.cmd, "packadd " .. pkg)
+  ---@diagnostic disable-next-line: param-type-mismatch
+  pcall(vim.cmd, "packadd " .. pkg)
 end

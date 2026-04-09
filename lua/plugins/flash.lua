@@ -22,7 +22,7 @@ if cinnamon_ok then
     end,
   })
 else
-  flash.setup()
+  fash.setup()
 end
 
 local map = vim.keymap.set
