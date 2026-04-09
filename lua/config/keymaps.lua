@@ -14,6 +14,14 @@ local noremap_s = { noremap = true, silent = true }
 -- Clear search highlight
 map("n", "<Esc>", "<cmd>nohlsearch<CR>", noremap_s)
 
+map("t", "<C-/>", "<cmd>close<cr>", { desc = "Hide Terminal" })
+map(
+  "n",
+  "<leader>ur",
+  "<Cmd>nohlsearch<Bar>diffupdate<Bar>normal! <C-L><CR>",
+  { desc = "Redraw / Clear hlsearch / Diff Update" }
+)
+
 -- Faster saves
 map("n", "<leader>w", "<cmd>w<CR>", noremap_s)
 
