@@ -168,3 +168,20 @@ elseif fn.executable("pwsh") == 1 then
   opt.shellquote = ""
   opt.shellxquote = ""
 end
+
+vim.filetype.add({
+  extension = {
+    env = "dotenv",
+  },
+
+  filename = {
+    [".env"] = "dotenv",
+    ["env"] = "dotenv",
+  },
+
+  pattern = {
+
+    ["[jt]sconfig.*.json"] = "jsonc",
+    ["%.env%.[%w_.-]+"] = "dotenv",
+  },
+})
