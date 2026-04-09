@@ -8,9 +8,10 @@ local function setup_diagnostics()
     virtual_text = {
       spacing = 2,
       prefix = "●",
-      format = function(d)
-        return d.message:sub(1, 80)
-      end,
+      source = "if_many",
+      -- format = function(d)
+      --   return d.message:sub(1, 80)
+      -- end,
     },
     signs = true,
     underline = true,
