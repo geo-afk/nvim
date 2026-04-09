@@ -137,7 +137,7 @@ local function builtin(path, is_dir)
     return M.DIR_CLOSED, "ExplorerDirectory"
   end
 
-  local uv = vim.uv or vim.loop
+  local uv = vim.uv
   local stat = uv.fs_lstat(path)
 
   if stat and stat.type == "link" then

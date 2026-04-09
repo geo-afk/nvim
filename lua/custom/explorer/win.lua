@@ -76,8 +76,6 @@ function M.ensure_hl()
   local comment = get("Comment")
   local cursor = get("CursorLine")
   local pmenu = get("Pmenu")
-  local visual = get("Visual")
-
   -- Sidebar background: prefer NormalFloat; fall back to a slightly
   -- darkened Normal so the panel always looks distinct.
   local editor_bg = normal.bg or 0x1e1e2e
@@ -172,6 +170,14 @@ function M.reset_hl()
     "ExplorerSearchCount",
     "ExplorerWinbar",
     "ExplorerWinbarBranch",
+    "ExplorerPopupNormal",
+    "ExplorerPopupBorder",
+    "ExplorerPopupTitle",
+    "ExplorerPopupFooter",
+    "ExplorerPopupPrompt",
+    "ExplorerPopupValue",
+    "ExplorerPopupDangerBorder",
+    "ExplorerPopupDangerTitle",
     "ExplorerGitAdded",
     "ExplorerGitModified",
     "ExplorerGitDeleted",
@@ -222,13 +228,20 @@ local function git_branch(root)
   return (r ~= "" and vim.v.shell_error == 0) and r or nil
 end
 
-function M.make_win(buf)
-  M.ensure_hl()
-  local c = cfg.get()
-  local side = c.side == "right" and "botright" or "topleft"
-  vim.cmd(side .. " " .. c.width .. "vsplit")
-  local win = api.nvim_get_current_win()
-  api.nvim_win_set_buf(win, buf)
+local function build_winbar()
+  local root = vim.fn.fnamemodify(S.root or vim.fn.getcwd(), ":t")
+  local branch = git_branch(S.root or vim.fn.getcwd())
+  local bar = "%#ExplorerWinbar# 󰉋 " .. root
+  if branch then
+    bar = bar .. " %#ExplorerWinbarBranch#   " .. branch
+  end
+  return bar .. "%#ExplorerWinbar# "
+end
+
+function M.apply_window_options(win)
+  if not (win and api.nvim_win_is_valid(win)) then
+    return
+  end
 
   local wo = vim.wo[win]
   wo.number = false
@@ -241,19 +254,6 @@ function M.make_win(buf)
   wo.cursorline = true
   wo.fillchars = "eob: "
 
-  -- Winbar: "  󰉋 root  ⎇ branch"
-  -- Built once and stored statically — no %{} expressions that re-eval on
-  -- every cursor move, which was the original cause of blinking.
-  pcall(function()
-    local root = vim.fn.fnamemodify(S.root or vim.fn.getcwd(), ":t")
-    local branch = git_branch(S.root or vim.fn.getcwd())
-    local bar = "%#ExplorerWinbar# 󰉋 " .. root
-    if branch then
-      bar = bar .. " %#ExplorerWinbarBranch#  " .. branch
-    end
-    bar = bar .. "%#ExplorerWinbar# "
-    wo.winbar = bar
-  end)
   pcall(function()
     wo.statuscolumn = ""
   end)
@@ -267,7 +267,25 @@ function M.make_win(buf)
     "WinBar:ExplorerWinbar",
     "WinBarNC:ExplorerWinbar",
   }, ",")
+end
 
+function M.make_win(buf)
+  M.ensure_hl()
+  local c = cfg.get()
+  local side = c.side == "right" and "botright" or "topleft"
+  vim.cmd(side .. " " .. c.width .. "vsplit")
+  local win = api.nvim_get_current_win()
+  api.nvim_win_set_buf(win, buf)
+
+  M.apply_window_options(win)
+  local wo = vim.wo[win]
+
+  -- Winbar: "  󰉋 root  ⎇ branch"
+  -- Built once and stored statically — no %{} expressions that re-eval on
+  -- every cursor move, which was the original cause of blinking.
+  pcall(function()
+    wo.winbar = build_winbar()
+  end)
   S.icon_fn = icons.resolve()
   return win
 end
@@ -278,15 +296,8 @@ function M.update_winbar()
   if not (S.win and api.nvim_win_is_valid(S.win)) then
     return
   end
-  local root = vim.fn.fnamemodify(S.root or vim.fn.getcwd(), ":t")
-  local branch = git_branch(S.root or vim.fn.getcwd())
   pcall(function()
-    local bar = "%#ExplorerWinbar# 󰉋 " .. root
-    if branch then
-      bar = bar .. " %#ExplorerWinbarBranch#  " .. branch
-    end
-    bar = bar .. "%#ExplorerWinbar# "
-    vim.wo[S.win].winbar = bar
+    vim.wo[S.win].winbar = build_winbar()
   end)
 end
 

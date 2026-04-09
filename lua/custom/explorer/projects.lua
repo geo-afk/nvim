@@ -31,7 +31,7 @@ local cfg = require("custom.explorer.config")
 local store = require("custom.explorer.project_store")
 local api = vim.api
 local fn = vim.fn
-local uv = vim.uv or vim.loop
+local uv = vim.uv
 
 local M = {}
 
@@ -612,6 +612,7 @@ function M.open()
   end
 
   require("custom.explorer.win").ensure_hl()
+  require("custom.explorer.ui").ensure_hl()
 
   -- ── Buffer ──────────────────────────────────────────────────────────
   local buf = api.nvim_create_buf(false, true)
@@ -636,11 +637,13 @@ function M.open()
   api.nvim_buf_set_lines(buf, 0, -1, false, { ICON_PREFIX })
 
   -- ── Floating window (centred) ────────────────────────────────────────
-  local ui = api.nvim_list_uis()[1]
-  local width = math.min(72, ui.width - 8)
-  local height = math.min(26, ui.height - 6)
-  local row = math.floor((ui.height - height) / 2)
-  local col = math.floor((ui.width - width) / 2)
+  local editor = api.nvim_list_uis()[1]
+  local editor_width = editor and editor.width or vim.o.columns
+  local editor_height = editor and editor.height or vim.o.lines
+  local width = math.min(72, editor_width - 8)
+  local height = math.min(26, editor_height - 6)
+  local row = math.floor((editor_height - height) / 2)
+  local col = math.floor((editor_width - width) / 2)
 
   local win = api.nvim_open_win(buf, true, {
     relative = "editor",
@@ -652,6 +655,8 @@ function M.open()
     border = "rounded",
     title = " 󰉋 Projects ",
     title_pos = "center",
+    footer = " <Enter> open   P pin   D forget   <Esc> close ",
+    footer_pos = "center",
   })
   P.win = win
 
@@ -660,7 +665,12 @@ function M.open()
   vim.wo[win].number = false
   vim.wo[win].relativenumber = false
   vim.wo[win].signcolumn = "no"
-  vim.wo[win].winhl = "Normal:ExplorerNormal,FloatBorder:ExplorerSearchBorderActive,FloatTitle:ExplorerDirectory"
+  vim.wo[win].winhl = table.concat({
+    "Normal:ExplorerNormal",
+    "FloatBorder:ExplorerPopupBorder",
+    "FloatTitle:ExplorerPopupTitle",
+    "FloatFooter:ExplorerPopupFooter",
+  }, ",")
 
   -- ── Autocmds ────────────────────────────────────────────────────────
 

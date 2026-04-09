@@ -26,6 +26,10 @@ local ICON_PREFIX = render.ICON_PREFIX
 local M = {}
 local _rebuild_scheduled = false
 
+local function set_buf_modifiable(buf, value)
+  api.nvim_set_option_value("modifiable", value, { buf = buf })
+end
+
 -- ── Helpers ───────────────────────────────────────────────────────────────
 
 local function strip_prefix(raw)
@@ -98,6 +102,7 @@ function M.activate()
   if not (S.win and api.nvim_win_is_valid(S.win)) then
     return
   end
+  require("custom.explorer.win").apply_window_options(S.win)
 
   -- If already active, just move the cursor to the end of the filter text
   if S.search_active then
@@ -113,7 +118,7 @@ function M.activate()
   local filter_text = S.filter or ""
   local line_text = ICON_PREFIX .. filter_text
 
-  api.nvim_buf_set_option(S.buf, "modifiable", true)
+  set_buf_modifiable(S.buf, true)
   api.nvim_buf_set_lines(S.buf, 0, 1, false, { line_text })
 
   -- paint_header picks up search_active=true and switches to the active bg/icon
@@ -139,7 +144,10 @@ local function deactivate(clear_filter)
   restore_completion(S.buf)
 
   if S.buf and api.nvim_buf_is_valid(S.buf) then
-    api.nvim_buf_set_option(S.buf, "modifiable", false)
+    set_buf_modifiable(S.buf, false)
+  end
+  if S.win and api.nvim_win_is_valid(S.win) then
+    require("custom.explorer.win").apply_window_options(S.win)
   end
 
   render.render()
@@ -288,7 +296,7 @@ function M.close()
   if S.search_active then
     S.search_active = false
     if S.buf and api.nvim_buf_is_valid(S.buf) then
-      pcall(api.nvim_buf_set_option, S.buf, "modifiable", false)
+      pcall(api.nvim_set_option_value, "modifiable", false, { buf = S.buf })
     end
   end
 end
@@ -297,7 +305,7 @@ function M.clear()
   S.filter = nil
   S.search_active = false
   if S.buf and api.nvim_buf_is_valid(S.buf) then
-    pcall(api.nvim_buf_set_option, S.buf, "modifiable", false)
+    pcall(api.nvim_set_option_value, "modifiable", false, { buf = S.buf })
   end
   render.render()
 end

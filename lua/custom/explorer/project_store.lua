@@ -1,6 +1,6 @@
 local cfg = require("custom.explorer.config")
 local fn = vim.fn
-local uv = vim.uv or vim.loop
+local uv = vim.uv
 
 local M = {}
 

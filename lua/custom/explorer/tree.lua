@@ -5,7 +5,7 @@ local S = require 'custom.explorer.state'
 local cfg = require 'custom.explorer.config'
 
 local M = {}
-local uv = vim.uv or vim.loop
+local uv = vim.uv
 
 -- ── Path helpers ──────────────────────────────────────────────────────────
 

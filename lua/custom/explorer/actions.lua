@@ -5,88 +5,25 @@ local render = require("custom.explorer.render")
 local git = require("custom.explorer.git")
 local marks = require("custom.explorer.marks")
 local store = require("custom.explorer.project_store")
-local nvim_utils = require("utils.nvim")
+local ui = require("custom.explorer.ui")
 
 local api = vim.api
 local fn = vim.fn
 
 local A = {}
 
-local function open_float_input(opts, on_submit)
-  opts = opts or {}
-  local default = opts.default or ""
-  local prompt = opts.prompt or ""
-  local title = opts.title or " Input "
-
-  pcall(api.nvim_set_hl, 0, "ExplorerInputNormal", { bg = "none" })
-  pcall(api.nvim_set_hl, 0, "ExplorerInputBorder", { bg = "none" })
-  pcall(api.nvim_set_hl, 0, "ExplorerInputTitle", { bg = "none", bold = true })
-
-  local width = math.max(42, math.min(vim.o.columns - 8, math.max(#default + 6, #prompt + 10)))
-  local row = math.max(1, math.floor((vim.o.lines - 4) / 2) - 1)
-  local col = math.max(0, math.floor((vim.o.columns - width) / 2))
-
-  local buf = api.nvim_create_buf(false, true)
-  vim.bo[buf].buftype = "prompt"
-  vim.bo[buf].bufhidden = "wipe"
-  vim.bo[buf].swapfile = false
-  vim.bo[buf].modifiable = true
-  vim.bo[buf].filetype = "explorer-input"
-
-  fn.prompt_setprompt(buf, prompt)
-
-  local win = api.nvim_open_win(buf, true, {
-    relative = "editor",
-    style = "minimal",
-    border = "rounded",
-    title = title,
-    title_pos = "center",
-    width = width,
-    height = 1,
-    row = row,
-    col = col,
-    zindex = 250,
-  })
-
-  vim.wo[win].winhighlight = table.concat({
-    "Normal:ExplorerInputNormal",
-    "FloatBorder:ExplorerInputBorder",
-    "FloatTitle:ExplorerInputTitle",
-  }, ",")
-  pcall(api.nvim_set_option_value, "winblend", 100, { win = win })
-
-  local closed = false
-  local function close()
-    if closed then
-      return
-    end
-    closed = true
-    if api.nvim_win_is_valid(win) then
-      pcall(api.nvim_win_close, win, true)
-    elseif api.nvim_buf_is_valid(buf) then
-      pcall(api.nvim_buf_delete, buf, { force = true })
-    end
+local function rel_to_root(path)
+  if not S.root or not path then
+    return path
   end
-
-  fn.prompt_setcallback(buf, function(text)
-    close()
-    vim.schedule(function()
-      on_submit(text)
-    end)
-  end)
-
-  vim.keymap.set({ "i", "n" }, "<Esc>", close, { buffer = buf, silent = true, nowait = true })
-  vim.keymap.set({ "i", "n" }, "<C-c>", close, { buffer = buf, silent = true, nowait = true })
-
-  vim.schedule(function()
-    if api.nvim_win_is_valid(win) then
-      vim.cmd("startinsert!")
-      if default ~= "" then
-        local keys = api.nvim_replace_termcodes(default, true, false, true)
-        api.nvim_feedkeys(keys, "i", false)
-      end
-    end
-  end)
+  if path == S.root then
+    return ""
+  end
+  local prefix = S.root .. "/"
+  if vim.startswith(path, prefix) then
+    return path:sub(#prefix + 1)
+  end
+  return path
 end
 
 function A.current_item()
@@ -202,7 +139,7 @@ function A.expand_all(max_depth)
     if depth > max_depth then
       return
     end
-    local uv = vim.uv or vim.loop
+    local uv = vim.uv
     local handle = uv.fs_scandir(path)
     if not handle then
       return
@@ -243,83 +180,20 @@ function A.tab_open()
   end
 end
 
-local function open_float_confirmation(opts, on_confirm)
-  opts = opts or {}
-  local prompt = opts.prompt or "Confirm?"
-  local title = opts.title or " Confirmation "
-
-  pcall(api.nvim_set_hl, 0, "ExplorerInputNormal", { bg = "none" })
-  pcall(api.nvim_set_hl, 0, "ExplorerInputBorder", { bg = "none" })
-  pcall(api.nvim_set_hl, 0, "ExplorerInputTitle", { bg = "none", bold = true })
-
-  local width = math.max(42, math.min(vim.o.columns - 8, #prompt + 10))
-  local row = math.max(1, math.floor((vim.o.lines - 4) / 2) - 1)
-  local col = math.max(0, math.floor((vim.o.columns - width) / 2))
-
-  local buf = api.nvim_create_buf(false, true)
-  vim.bo[buf].buftype = "prompt"
-  vim.bo[buf].bufhidden = "wipe"
-  vim.bo[buf].swapfile = false
-  vim.bo[buf].modifiable = true
-  vim.bo[buf].filetype = "explorer-confirm"
-
-  api.nvim_buf_set_lines(buf, 0, -1, false, { "y" })
-  fn.prompt_setprompt(buf, prompt .. " (y/N): ")
-
-  local win = api.nvim_open_win(buf, true, {
-    relative = "editor",
-    style = "minimal",
-    border = "rounded",
-    title = title,
-    title_pos = "center",
-    width = width,
-    height = 1,
-    row = row,
-    col = col,
-    zindex = 250,
-  })
-
-  vim.wo[win].winhighlight = table.concat({
-    "Normal:ExplorerInputNormal",
-    "FloatBorder:ExplorerInputBorder",
-    "FloatTitle:ExplorerInputTitle",
-  }, ",")
-
-  local closed = false
-  local function close()
-    if closed then
-      return
-    end
-    closed = true
-    if api.nvim_win_is_valid(win) then
-      pcall(api.nvim_win_close, win, true)
-    elseif api.nvim_buf_is_valid(buf) then
-      pcall(api.nvim_buf_delete, buf, { force = true })
-    end
-  end
-
-  fn.prompt_setcallback(buf, function(text)
-    close()
-    vim.schedule(function()
-      on_confirm(text and text:lower() == "y")
-    end)
-  end)
-
-  vim.keymap.set({ "i", "n" }, "<Esc>", close, { buffer = buf, silent = true, nowait = true })
-  vim.keymap.set({ "i", "n" }, "<C-c>", close, { buffer = buf, silent = true, nowait = true })
-
-  vim.schedule(function()
-    if api.nvim_win_is_valid(win) then
-      pcall(api.nvim_win_set_cursor, win, { 1, 1 })
-      vim.cmd("startinsert!")
-    end
-  end)
-end
-
 function A.add()
   local item = A.current_item()
   local dir = item and (item.is_dir and item.path or tree.parent(item.path)) or S.root
-  vim.ui.input({ prompt = "New (end with / for dir): ", default = dir .. "/" }, function(name)
+  local default = rel_to_root(dir)
+  if default ~= "" then
+    default = default .. "/"
+  end
+  ui.rooted_path_input({
+    title = " New Entry ",
+    prompt = "Create: ",
+    root = S.root,
+    default = default,
+    footer = " finish with / for a directory ",
+  }, function(name)
     if not name or name == "" then
       return
     end
@@ -372,16 +246,18 @@ function A.delete()
     or fn.fnamemodify(paths[1], ":t") .. (item and item.is_dir and "/" or "")
 
   -- Use popup confirmation instead of vim.ui.input
-  open_float_confirmation({
+  ui.confirm({
     prompt = "Delete " .. label,
     title = " Delete Confirmation ",
+    footer = " y delete   <Esc> cancel ",
+    danger = true,
   }, function(confirmed)
     if not confirmed then
       return
     end
 
     for _, p in ipairs(paths) do
-      local stat = (vim.uv or vim.loop).fs_stat(p)
+      local stat = vim.uv.fs_stat(p)
       if stat then
         local flags = stat.type == "directory" and "rf" or ""
         local ok = fn.delete(p, flags)
@@ -400,11 +276,11 @@ function A.rename()
   if not item then
     return
   end
-  open_float_input({
+  ui.rooted_path_input({
     title = " Rename / Move ",
     prompt = "Rename to: ",
+    root = S.root,
     default = item.path,
-    path = item.path,
   }, function(dest)
     if not dest or dest == "" or dest == item.path then
       return
@@ -444,13 +320,18 @@ function A.copy()
     return
   end
   if #paths == 1 then
-    vim.ui.input({ prompt = "Copy to: ", default = paths[1] }, function(dest)
+    ui.rooted_path_input({
+      title = " Copy Entry ",
+      prompt = "Copy to: ",
+      root = S.root,
+      default = paths[1],
+    }, function(dest)
       if not dest or dest == "" or dest == paths[1] then
         return
       end
       dest = tree.norm(dest)
       fn.mkdir(tree.parent(dest), "p")
-      local is_dir = (vim.uv or vim.loop).fs_stat(paths[1])
+      local is_dir = vim.uv.fs_stat(paths[1])
       local cmd = (is_dir and is_dir.type == "directory") and { "cp", "-r", paths[1], dest } or { "cp", paths[1], dest }
       vim.system(cmd, {}, function(out)
         vim.schedule(function()
@@ -463,7 +344,12 @@ function A.copy()
       end)
     end)
   else
-    vim.ui.input({ prompt = "Copy " .. #paths .. " files to dir: " }, function(dest)
+    ui.rooted_path_input({
+      title = " Copy Marked Entries ",
+      prompt = "Copy " .. #paths .. " items to: ",
+      root = S.root,
+      default = "",
+    }, function(dest)
       if not dest or dest == "" then
         return
       end
@@ -554,94 +440,7 @@ function A.file_info()
   if not item then
     return
   end
-  local uv = vim.uv or vim.loop
-  local stat = uv.fs_stat(item.path)
-  local ls = uv.fs_lstat(item.path)
-  if not stat then
-    vim.notify("[explorer] stat failed: " .. item.path, vim.log.levels.WARN)
-    return
-  end
-
-  local function fmt_size(n)
-    if n < 1024 then
-      return n .. " B"
-    elseif n < 1024 ^ 2 then
-      return string.format("%.1f KiB", n / 1024)
-    elseif n < 1024 ^ 3 then
-      return string.format("%.1f MiB", n / 1024 ^ 2)
-    else
-      return string.format("%.1f GiB", n / 1024 ^ 3)
-    end
-  end
-  local function fmt_time(s)
-    return s and os.date("%Y-%m-%d  %H:%M:%S", s) or "—"
-  end
-  local function fmt_perm(mode)
-    if not mode then
-      return "—"
-    end
-    local bits = { "r", "w", "x", "r", "w", "x", "r", "w", "x" }
-    local s = ""
-    for i = 8, 0, -1 do
-      s = s .. (bit.band(mode, 2 ^ i) ~= 0 and bits[9 - i] or "-")
-    end
-    return string.format("%o  (%s)", bit.band(mode, 0x1ff), s)
-  end
-
-  local lines = { "  " .. fn.fnamemodify(item.path, ":~"), "  " .. string.rep("─", 42) }
-  local function row(l, v)
-    lines[#lines + 1] = ("  %-14s  %s"):format(l, tostring(v))
-  end
-  row("Type", stat.type .. (ls and ls.type == "link" and "  (symlink)" or ""))
-  row("Size", item.is_dir and "—" or fmt_size(stat.size))
-  row("Modified", fmt_time(stat.mtime and stat.mtime.sec))
-  row("Created", fmt_time(stat.birthtime and stat.birthtime.sec))
-  row("Accessed", fmt_time(stat.atime and stat.atime.sec))
-  if fn.has("win32") == 0 then
-    row("Permissions", fmt_perm(stat.mode))
-    row("Owner UID", stat.uid)
-    row("Group GID", stat.gid)
-    row("Hard links", stat.nlink)
-  end
-  if ls and ls.type == "link" then
-    row("→ target", uv.fs_readlink(item.path) or "?")
-  end
-  local ch = S.git[item.path]
-  if ch then
-    local lbl = {
-      M = "Modified",
-      A = "Added (staged)",
-      D = "Deleted",
-      R = "Renamed",
-      ["?"] = "Untracked",
-      U = "Conflict",
-      I = "Ignored",
-    }
-    row("Git status", lbl[ch] or ch)
-  end
-  lines[#lines + 1] = ""
-  lines[#lines + 1] = "  q / <Esc> / <CR> to close"
-
-  local buf = api.nvim_create_buf(false, true)
-  api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-  vim.bo[buf].modifiable = false
-  local w = math.max(50, math.min(70, vim.o.columns - 10))
-  local h = #lines
-  local iw = api.nvim_open_win(buf, true, {
-    relative = "editor",
-    style = "minimal",
-    border = "rounded",
-    title = " " .. fn.fnamemodify(item.path, ":t") .. " ",
-    title_pos = "center",
-    width = w,
-    height = h,
-    row = math.floor((vim.o.lines - h) / 2),
-    col = math.floor((vim.o.columns - w) / 2),
-  })
-  local ns = api.nvim_create_namespace("explorer_info")
-  api.nvim_buf_add_highlight(buf, ns, "Title", 0, 0, -1)
-  api.nvim_buf_add_highlight(buf, ns, "NonText", 1, 0, -1)
-  nvim_utils.bind_close_keys(buf, iw, { "q", "<Esc>", "<CR>" }, { silent = true })
+  ui.file_info(item)
 end
 
 function A.toggle_hidden()
@@ -700,95 +499,7 @@ function A.add_project()
 end
 
 function A.show_help()
-  local km = cfg.get().keymaps
-  local function k(key)
-    return type(key) == "table" and table.concat(key, "/") or (key or "—")
-  end
-  local rows = {
-    {
-      "─── Navigation ─────────────────────────────────",
-      "",
-    },
-    { k(km.open), "open file / expand-collapse dir" },
-    { k(km.close_dir), "collapse dir / jump to parent" },
-    { k(km.go_up), "go up one level (re-root)" },
-    { k(km.expand_all), "expand all dirs (depth 1)" },
-    { k(km.collapse_all), "collapse all dirs" },
-    { "", "" },
-    {
-      "─── Opening ────────────────────────────────────",
-      "",
-    },
-    { k(km.vsplit), "open in vertical split" },
-    { k(km.split), "open in horizontal split" },
-    { k(km.tab), "open in new tab" },
-    { "", "" },
-    {
-      "─── File ops ───────────────────────────────────",
-      "",
-    },
-    { k(km.add), "add file (end with / = directory)" },
-    { k(km.delete), "delete  (respects marks)" },
-    { k(km.rename), "rename / move" },
-    { k(km.copy), "copy    (respects marks)" },
-    { "", "" },
-    {
-      "─── Search & marks ─────────────────────────────",
-      "",
-    },
-    { k(km.search), "type to filter files live" },
-    { k(km.projects), "open project finder" },
-    { "<CR> in search", "confirm filter, keep active" },
-    { "<Esc> in search", "clear filter" },
-    { k(km.mark), "toggle mark on file" },
-    { "", "" },
-    {
-      "─── Git ────────────────────────────────────────",
-      "",
-    },
-    { k(km.git_stage), "git add (stage)" },
-    { k(km.git_restore), "git restore (unstage / discard)" },
-    { "", "" },
-    {
-      "─── Misc ───────────────────────────────────────",
-      "",
-    },
-    { k(km.add_project), "pin current root to project finder" },
-    { k(km.file_info), "file info popup" },
-    { k(km.copy_path), "copy path to clipboard" },
-    { k(km.toggle_hidden), "toggle hidden files" },
-    { k(km.refresh), "refresh tree + git" },
-    { k(km.quit), "close explorer" },
-    { k(km.help), "this help" },
-  }
-  local lines = {}
-  for _, r in ipairs(rows) do
-    lines[#lines + 1] = r[2] == "" and "  " .. r[1] or ("  %-16s  %s"):format(r[1], r[2])
-  end
-  lines[#lines + 1] = ""
-  lines[#lines + 1] = "  q / ? / <Esc> to close"
-  local buf = api.nvim_create_buf(false, true)
-  api.nvim_buf_set_lines(buf, 0, -1, false, lines)
-  vim.bo[buf].modifiable = false
-  local w, h = 60, #lines
-  local hw = api.nvim_open_win(buf, true, {
-    relative = "editor",
-    style = "minimal",
-    border = "rounded",
-    title = " 󰍉 Explorer Help ",
-    title_pos = "center",
-    width = w,
-    height = h,
-    row = math.floor((vim.o.lines - h) / 2),
-    col = math.floor((vim.o.columns - w) / 2),
-  })
-  local ns = api.nvim_create_namespace("explorer_help")
-  for i, r in ipairs(rows) do
-    if r[2] == "" and r[1] ~= "" then
-      api.nvim_buf_add_highlight(buf, ns, "Comment", i - 1, 0, -1)
-    end
-  end
-  nvim_utils.bind_close_keys(buf, hw, { "q", "?", "<CR>", "<Esc>" }, { silent = true })
+  ui.help()
 end
 
 return A

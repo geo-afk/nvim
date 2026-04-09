@@ -31,7 +31,7 @@ local function watch_start()
         end)
         _watcher = nil
     end
-    local uv = vim.uv or vim.loop
+    local uv = vim.uv
     local w = uv.new_fs_event()
     if not w then
         return
@@ -188,6 +188,8 @@ function M.open(opts)
 
     if not (S.win and api.nvim_win_is_valid(S.win)) then
         S.win = win.make_win(S.buf)
+    else
+        win.update_winbar()
     end
 
     -- Always schedule a render so the tree is populated.

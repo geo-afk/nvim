@@ -41,6 +41,10 @@ local icons = require 'custom.explorer.icons'
 local api = vim.api
 local M = {}
 
+local function set_buf_modifiable(buf, value)
+  api.nvim_set_option_value('modifiable', value, { buf = buf })
+end
+
 -- ── Search bar constants ───────────────────────────────────────────────────
 --
 -- The icon is painted as an OVERLAY on top of ICON_PREFIX spaces, keeping
@@ -302,14 +306,17 @@ function M._paint()
   local all_lines = { header_text }
   vim.list_extend(all_lines, item_lines)
 
-  api.nvim_buf_set_option(buf, 'modifiable', true)
+  set_buf_modifiable(buf, true)
   api.nvim_buf_set_lines(buf, 0, -1, false, all_lines)
   api.nvim_buf_clear_namespace(buf, S.ns, 0, -1)
   for _, h in ipairs(hls) do
-    -- h[1] is 1-based item index; 0-based row = h[1]
-    pcall(api.nvim_buf_add_highlight, buf, S.ns, h[4], h[1], h[2], h[3])
+    pcall(api.nvim_buf_set_extmark, buf, S.ns, h[1], h[2], {
+      end_col = h[3],
+      hl_group = h[4],
+      priority = 10,
+    })
   end
-  api.nvim_buf_set_option(buf, 'modifiable', false)
+  set_buf_modifiable(buf, false)
 
   M.paint_header()
 
@@ -347,18 +354,22 @@ function M._paint_items_only()
 
   local item_lines, hls = build_item_lines()
 
-  api.nvim_buf_set_option(buf, 'modifiable', true)
+  set_buf_modifiable(buf, true)
   api.nvim_buf_set_lines(buf, 1, -1, false, item_lines)
 
   api.nvim_buf_clear_namespace(buf, S.ns, 1, -1)
   for _, h in ipairs(hls) do
-    pcall(api.nvim_buf_add_highlight, buf, S.ns, h[4], h[1], h[2], h[3])
+    pcall(api.nvim_buf_set_extmark, buf, S.ns, h[1], h[2], {
+      end_col = h[3],
+      hl_group = h[4],
+      priority = 10,
+    })
   end
 
   -- CRITICAL: do NOT lock the buffer if the user is still typing.
   -- The buffer is re-locked by deactivate() when InsertLeave fires.
   if not S.search_active then
-    api.nvim_buf_set_option(buf, 'modifiable', false)
+    set_buf_modifiable(buf, false)
   end
 
   git.apply()
