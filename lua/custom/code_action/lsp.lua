@@ -88,7 +88,7 @@ end
 ---and warns if the server has marked the action as disabled.
 ---@param item table  { action: table, client: table|nil }
 function M.apply(item)
-  local action = item.action
+  local action = item.preview_action or item.action
   local client = item.client
 
   if action.disabled then
@@ -116,6 +116,43 @@ function M.apply(item)
   end
 
   do_apply(action, client)
+end
+
+---Resolve a code action for preview without applying it.
+---@param item table
+---@param callback fun(err:string|nil, action:table|nil)
+function M.resolve_for_preview(item, callback)
+  if item.preview_action then
+    callback(nil, item.preview_action)
+    return
+  end
+
+  local action = item.action
+  local client = item.client
+
+  if action.edit or action.command or action.disabled then
+    item.preview_action = action
+    callback(nil, action)
+    return
+  end
+
+  if not client or not client.supports_method("codeAction/resolve") then
+    item.preview_action = action
+    callback(nil, action)
+    return
+  end
+
+  client.request("codeAction/resolve", action, function(err, resolved)
+    vim.schedule(function()
+      if err then
+        callback("Failed to resolve action: " .. tostring(err.message or err), nil)
+        return
+      end
+
+      item.preview_action = resolved or action
+      callback(nil, item.preview_action)
+    end)
+  end)
 end
 
 -- ── Request ──────────────────────────────────────────────────────────────────

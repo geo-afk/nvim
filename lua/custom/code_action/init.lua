@@ -5,8 +5,8 @@
 --
 --   require("code_action").setup()
 --
--- This sets up highlight groups, registers the <leader>ca keymap,
--- and creates the :CodeActionMenu user command.
+-- This sets up highlight groups, registers the code action keymaps,
+-- and creates the :CodeActionMenu user commands.
 --
 -- Module structure
 -- ────────────────
@@ -14,9 +14,7 @@
 --   highlights.lua  ← HL group definitions & per-source colour palette
 --   kinds.lua       ← LSP kind → icon / badge mapping
 --   lsp.lua         ← async code-action request & action application
---   layout.lua      ← window geometry, title, and footer construction
---   renderer.lua    ← line builder, highlight applicator, virtual scrollbar
---   window.lua      ← float creation, keymaps, and lifecycle management
+--   window.lua      ← grouped picker + preview float lifecycle
 
 local M = {}
 
@@ -94,18 +92,23 @@ function M.open(opts)
   end
 
   local range = use_visual and get_visual_range() or nil
-  local vstart, vend = use_visual and get_visual_marks() or nil, nil
+  local vstart, vend = nil, nil
+  if use_visual then
+    vstart, vend = get_visual_marks()
+  end
   local visual_marks = (vstart and vend) and { vstart, vend } or nil
 
   local lsp = require("custom.code_action.lsp")
   local window = require("custom.code_action.window")
 
   lsp.request(source_buf, source_win, range, visual_marks, function(items)
-    window.open(items, source_win, source_buf, source_cursor)
+    window.open(items, source_win, source_buf, source_cursor, {
+      open_preview = opts.open_preview == true,
+    })
   end)
 end
 
----One-time setup: register highlight groups, the default keymap, and the
+---One-time setup: register highlight groups, the default keymaps, and the
 ---:CodeActionMenu user command.
 ---Call this once from your init.lua or plugin spec setup() hook.
 ---
@@ -123,11 +126,28 @@ function M.setup(user_opts)
     silent = true,
   })
 
+  vim.keymap.set("n", "<leader>cA", function()
+    vim.cmd("CodeActionMenuPreview")
+  end, {
+    desc = "LSP: Code Action Preview",
+    silent = true,
+  })
+
   -- User command (:CodeActionMenu, range-aware for visual-mode invocation).
   vim.api.nvim_create_user_command("CodeActionMenu", function(cmd_opts)
     M.open({ use_visual_range = cmd_opts.range > 0 })
   end, {
     desc = "Open a floating, cursor-navigable code action picker",
+    range = true,
+  })
+
+  vim.api.nvim_create_user_command("CodeActionMenuPreview", function(cmd_opts)
+    M.open({
+      use_visual_range = cmd_opts.range > 0,
+      open_preview = true,
+    })
+  end, {
+    desc = "Open the code action picker with preview enabled",
     range = true,
   })
 end

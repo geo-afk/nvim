@@ -18,9 +18,13 @@ M.HL = {
   TitleBg = "CodeActionMenuTitleBg",
   Footer = "CodeActionMenuFooter",
   CursorLine = "CodeActionMenuCursorLine",
+  Header = "CodeActionMenuHeader",
+  HeaderCount = "CodeActionMenuHeaderCount",
   Kind = "CodeActionMenuKind",
   Preferred = "CodeActionMenuPreferred",
   Disabled = "CodeActionMenuDisabled",
+  PreviewLabel = "CodeActionMenuPreviewLabel",
+  PreviewValue = "CodeActionMenuPreviewValue",
   Scrollbar = "CodeActionMenuScrollbar",
   ScrollTrack = "CodeActionMenuScrollTrack",
 }
@@ -56,7 +60,7 @@ function M.source_hl(client_name)
   end
 
   _source_hl_idx = (_source_hl_idx % #SOURCE_PALETTE) + 1
-  local hl_name = "CodeActionMenuSource" .. _source_hl_idx
+  local hl_name = "CodeActionMenuSource" .. client_name:gsub("[^%w]", "_")
   local fg = SOURCE_PALETTE[_source_hl_idx]
 
   -- Intentionally not `default = true` so user colourscheme changes mid-session
@@ -102,9 +106,13 @@ function M.setup()
 
   vim.api.nvim_set_hl(0, M.HL.Footer, { link = "FloatFooter", default = true })
   vim.api.nvim_set_hl(0, M.HL.CursorLine, { link = "PmenuSel", default = true })
+  vim.api.nvim_set_hl(0, M.HL.Header, { link = "Directory", default = true })
+  vim.api.nvim_set_hl(0, M.HL.HeaderCount, { link = "Comment", default = true })
   vim.api.nvim_set_hl(0, M.HL.Kind, { link = "Special", default = true })
   vim.api.nvim_set_hl(0, M.HL.Preferred, { link = "DiagnosticHint", default = true })
   vim.api.nvim_set_hl(0, M.HL.Disabled, { link = "Comment", default = true })
+  vim.api.nvim_set_hl(0, M.HL.PreviewLabel, { link = "Identifier", default = true })
+  vim.api.nvim_set_hl(0, M.HL.PreviewValue, { link = "Normal", default = true })
   vim.api.nvim_set_hl(0, M.HL.Scrollbar, { link = "PmenuThumb", default = true })
   vim.api.nvim_set_hl(0, M.HL.ScrollTrack, { link = "PmenuSbar", default = true })
 
