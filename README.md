@@ -38,6 +38,8 @@ modules** that replace or extend the stock editor experience.
   - the config has Windows-oriented shell setup and will prefer `nu`, then `pwsh`
 - `lazygit`
   - required for `<leader>vg`
+- `chafa`
+  - optional image preview backend used by `<leader>vi` / `:ChafaImage`
 
 ### Optional but used by specific features
 
@@ -131,6 +133,7 @@ Inside Neovim:
     ├── custom/
     │   ├── autoclose.lua
     │   ├── glow.lua
+    │   ├── image_view.lua
     │   ├── lazygit.lua
     │   ├── codelenjqjs.lua
     │   ├── cmdline/
@@ -164,9 +167,21 @@ Inside Neovim:
    - `custom.statusline`
    - `custom.tabline`
    - `custom.autoclose`
+   - `custom.image_view`
 
 That means this config is not just “plugins plus some mappings”. A large amount
 of the editor behavior is defined in local Lua modules under `lua/custom`.
+
+## Image Preview
+
+The Chafa-backed image preview lives in [`lua/custom/image_view.lua`](./lua/custom/image_view.lua).
+
+- `<leader>vi`
+  - preview the current image buffer, or an image path under the cursor
+- `<leader>vI`
+  - prompt for an image path and preview it
+- `:ChafaImage [path]`
+  - preview an explicit file path
 
 ## Core Editor Behavior
 
