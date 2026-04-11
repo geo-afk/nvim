@@ -107,6 +107,7 @@ vim.api.nvim_create_autocmd("FileType", {
 -- =============================================================================
 --  Floating Terminal (lazy-loaded, configured only once per session)
 -- =============================================================================
+
 local float_term_mod = nil
 local _float_term_setup = false
 
@@ -114,11 +115,13 @@ local function get_float_term()
   if float_term_mod then
     return float_term_mod
   end
+
   local ok, mod = pcall(require, "custom.float_term.term")
   if not ok then
     vim.notify("[go.lua] Failed to load float_term module: " .. tostring(mod), vim.log.levels.ERROR)
     return nil
   end
+
   float_term_mod = mod
   return mod
 end
