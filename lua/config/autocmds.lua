@@ -322,23 +322,24 @@ autocmd("VimEnter", {
 })
 
 -- =============================================================================
---  BUSY STATUS  (0.12-new)
+--  BUSY STATUS  (0.12)
 -- =============================================================================
--- [0.12-new] 'busy' is a buffer option that marks it as busy (e.g. a running
---  terminal).  The default statusline shows ◐ when busy = true.
---  Mark terminal buffers as busy while the job is running.
+-- 'busy' is a *number* option in 0.12 (not boolean).
+-- 1 = busy, 0 = idle.  The default statusline shows ◐ when busy = 1.
 autocmd("TermOpen", {
   group = G,
   callback = function(ev)
-    vim.bo[ev.buf].busy = true
+    if vim.api.nvim_buf_is_valid(ev.buf) then
+      vim.bo[ev.buf].busy = 1
+    end
   end,
 })
+
 autocmd("TermClose", {
   group = G,
   callback = function(ev)
-    -- Guard: buffer may already be invalid on close
     if vim.api.nvim_buf_is_valid(ev.buf) then
-      vim.bo[ev.buf].busy = false
+      vim.bo[ev.buf].busy = 0
     end
   end,
 })
