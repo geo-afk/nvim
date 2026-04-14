@@ -7,6 +7,17 @@ local fn = vim.fn
 
 local M = {}
 
+local function paste_from_clipboard()
+  local text = fn.getreg("+")
+  if text == nil or text == "" then
+    text = fn.getreg("*")
+  end
+  if text == nil or text == "" then
+    return
+  end
+  api.nvim_paste(text, true, -1)
+end
+
 local function set_buf_option(buf, name, value)
   api.nvim_set_option_value(name, value, { buf = buf })
 end
@@ -149,6 +160,8 @@ local function prompt_float(opts)
 
   vim.keymap.set({ "i", "n" }, "<Esc>", close, { buffer = buf, silent = true, nowait = true })
   vim.keymap.set({ "i", "n" }, "<C-c>", close, { buffer = buf, silent = true, nowait = true })
+  vim.keymap.set("i", "<C-v>", paste_from_clipboard, { buffer = buf, silent = true })
+  vim.keymap.set("i", "<S-Insert>", paste_from_clipboard, { buffer = buf, silent = true })
 
   vim.schedule(function()
     if not api.nvim_win_is_valid(win) then

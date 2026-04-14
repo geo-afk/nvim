@@ -16,6 +16,33 @@ local api = vim.api
 local fn = vim.fn
 local M = {}
 
+local function is_regular_edit_window(winid)
+    if not (winid and api.nvim_win_is_valid(winid)) then
+        return false
+    end
+    if S.win and winid == S.win then
+        return false
+    end
+    if api.nvim_win_get_config(winid).relative ~= "" then
+        return false
+    end
+    local buf = api.nvim_win_get_buf(winid)
+    if not (buf and api.nvim_buf_is_valid(buf)) then
+        return false
+    end
+    if vim.bo[buf].buftype ~= "" then
+        return false
+    end
+    local ft = vim.bo[buf].filetype
+    if ft == "explorer" or ft == "explorer_projects" or ft == "explorer_prompt" or ft == "explorer_popup" then
+        return false
+    end
+    if vim.wo[winid].previewwindow then
+        return false
+    end
+    return true
+end
+
 -- ── File watcher ──────────────────────────────────────────────────────────
 -- Debounce set to 500ms to prevent visual flicker from rapid file-system events.
 
@@ -154,7 +181,7 @@ end
 function M.open(opts)
     opts = opts or {}
     local cw = api.nvim_get_current_win()
-    if cw ~= S.win then
+    if is_regular_edit_window(cw) then
         S.prev_win = cw
     end
 
@@ -324,6 +351,16 @@ function M.setup(opts)
             end,
         })
     end
+
+    nvim_utils.autocmd({ "WinEnter", "BufWinEnter" }, {
+        desc = "explorer: track previous edit window",
+        callback = function()
+            local winid = api.nvim_get_current_win()
+            if is_regular_edit_window(winid) then
+                S.prev_win = winid
+            end
+        end,
+    })
 
     nvim_utils.autocmd("WinClosed", {
         desc = "explorer: cleanup on close",

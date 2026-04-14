@@ -12,6 +12,14 @@ local fn = vim.fn
 
 local A = {}
 
+local function is_explorer_like_buffer(buf)
+  if not (buf and api.nvim_buf_is_valid(buf)) then
+    return false
+  end
+  local ft = vim.bo[buf].filetype
+  return ft == "explorer" or ft == "explorer_projects" or ft == "explorer_prompt" or ft == "explorer_popup"
+end
+
 local function rel_to_root(path)
   if not S.root or not path then
     return path
@@ -24,6 +32,76 @@ local function rel_to_root(path)
     return path:sub(#prefix + 1)
   end
   return path
+end
+
+local function copy_file(src, dest)
+  local parent = tree.parent(dest)
+  if parent and parent ~= "" then
+    fn.mkdir(parent, "p")
+  end
+
+  local ok, err = vim.uv.fs_copyfile(src, dest)
+  if ok then
+    return true
+  end
+
+  local in_f = io.open(src, "rb")
+  if not in_f then
+    return false, err or ("failed to open source: " .. src)
+  end
+
+  local data = in_f:read("*a")
+  in_f:close()
+
+  local out_f = io.open(dest, "wb")
+  if not out_f then
+    return false, "failed to open destination: " .. dest
+  end
+  out_f:write(data)
+  out_f:close()
+  return true
+end
+
+local function copy_dir_recursive(src, dest)
+  fn.mkdir(dest, "p")
+  local handle = vim.uv.fs_scandir(src)
+  if not handle then
+    return false, "failed to scan directory: " .. src
+  end
+
+  while true do
+    local name, entry_type = vim.uv.fs_scandir_next(handle)
+    if not name then
+      break
+    end
+
+    local from = tree.join(src, name)
+    local to = tree.join(dest, name)
+    if entry_type == "directory" then
+      local ok, err = copy_dir_recursive(from, to)
+      if not ok then
+        return false, err
+      end
+    else
+      local ok, err = copy_file(from, to)
+      if not ok then
+        return false, err
+      end
+    end
+  end
+
+  return true
+end
+
+local function copy_path(src, dest)
+  local stat = vim.uv.fs_stat(src)
+  if not stat then
+    return false, "missing source: " .. src
+  end
+  if stat.type == "directory" then
+    return copy_dir_recursive(src, dest)
+  end
+  return copy_file(src, dest)
 end
 
 function A.current_item()
@@ -49,11 +127,27 @@ end
 
 local function target_win()
   local function usable(w)
+    if not (w and api.nvim_win_is_valid(w)) then
+      return false
+    end
     if w == S.win then
       return false
     end
-    local bt = vim.bo[api.nvim_win_get_buf(w)].buftype
-    return bt == "" or bt == "nowrite"
+    if api.nvim_win_get_config(w).relative ~= "" then
+      return false
+    end
+    local buf = api.nvim_win_get_buf(w)
+    if is_explorer_like_buffer(buf) then
+      return false
+    end
+    local bt = vim.bo[buf].buftype
+    if bt ~= "" then
+      return false
+    end
+    if vim.wo[w].previewwindow then
+      return false
+    end
+    return true
   end
   if S.prev_win and api.nvim_win_is_valid(S.prev_win) and usable(S.prev_win) then
     return S.prev_win
@@ -71,6 +165,10 @@ local function open_in(path, cmd)
     api.nvim_set_current_win(tw)
   else
     vim.cmd((cfg.get().side == "right" and "aboveleft" or "belowright") .. " vsplit")
+    tw = api.nvim_get_current_win()
+  end
+  if tw and api.nvim_win_is_valid(tw) then
+    S.prev_win = tw
   end
   vim.cmd(cmd .. " " .. fn.fnameescape(path))
 end
@@ -85,6 +183,13 @@ function A.open_or_toggle()
     render.render()
   else
     open_in(item.path, "edit")
+    if S.win and api.nvim_win_is_valid(S.win) then
+      vim.schedule(function()
+        if S.win and api.nvim_win_is_valid(S.win) and A.current_item() == nil and #S.items > 0 then
+          pcall(api.nvim_win_set_cursor, S.win, { 2, 0 })
+        end
+      end)
+    end
     if cfg.get().auto_close then
       require("custom.explorer").close()
     end
@@ -330,18 +435,12 @@ function A.copy()
         return
       end
       dest = tree.norm(dest)
-      fn.mkdir(tree.parent(dest), "p")
-      local is_dir = vim.uv.fs_stat(paths[1])
-      local cmd = (is_dir and is_dir.type == "directory") and { "cp", "-r", paths[1], dest } or { "cp", paths[1], dest }
-      vim.system(cmd, {}, function(out)
-        vim.schedule(function()
-          if out.code ~= 0 then
-            vim.notify("[explorer] copy failed: " .. (out.stderr or ""), vim.log.levels.ERROR)
-          else
-            A.refresh()
-          end
-        end)
-      end)
+      local ok, err = copy_path(paths[1], dest)
+      if not ok then
+        vim.notify("[explorer] copy failed: " .. tostring(err), vim.log.levels.ERROR)
+        return
+      end
+      A.refresh()
     end)
   else
     ui.rooted_path_input({
@@ -355,23 +454,16 @@ function A.copy()
       end
       dest = tree.norm(dest)
       fn.mkdir(dest, "p")
-      local cmds = {}
       for _, p in ipairs(paths) do
-        cmds[#cmds + 1] = { "cp", "-r", p, dest }
-      end
-      local function run(i)
-        if i > #cmds then
-          marks.clear()
-          A.refresh()
+        local target = tree.join(dest, fn.fnamemodify(p, ":t"))
+        local ok, err = copy_path(p, target)
+        if not ok then
+          vim.notify("[explorer] copy failed: " .. tostring(err), vim.log.levels.ERROR)
           return
         end
-        vim.system(cmds[i], {}, function()
-          vim.schedule(function()
-            run(i + 1)
-          end)
-        end)
       end
-      run(1)
+      marks.clear()
+      A.refresh()
     end)
   end
 end

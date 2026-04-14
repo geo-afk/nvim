@@ -55,6 +55,17 @@ local PLACEHOLDER = "jump to project…"
 local EMPTY_GUIDE = "Add config.projects.dirs or config.projects.roots to populate this picker."
 local is_git
 
+local function paste_from_clipboard()
+  local text = fn.getreg("+")
+  if text == nil or text == "" then
+    text = fn.getreg("*")
+  end
+  if text == nil or text == "" then
+    return
+  end
+  api.nvim_paste(text, true, -1)
+end
+
 local SOURCE_PRIORITY = {
   pinned = 1,
   recent = 2,
@@ -787,6 +798,8 @@ function M.open()
   end
   vim.keymap.set("i", "<Home>", to_filter_start, bopts)
   vim.keymap.set("i", "<C-a>", to_filter_start, bopts)
+  vim.keymap.set("i", "<C-v>", paste_from_clipboard, bopts)
+  vim.keymap.set("i", "<S-Insert>", paste_from_clipboard, bopts)
 
   -- Block completion popups
   for _, k in ipairs({

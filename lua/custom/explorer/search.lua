@@ -26,6 +26,17 @@ local ICON_PREFIX = render.ICON_PREFIX
 local M = {}
 local _rebuild_scheduled = false
 
+local function paste_from_clipboard()
+  local text = vim.fn.getreg("+")
+  if text == nil or text == "" then
+    text = vim.fn.getreg("*")
+  end
+  if text == nil or text == "" then
+    return
+  end
+  api.nvim_paste(text, true, -1)
+end
+
 local function set_buf_modifiable(buf, value)
   api.nvim_set_option_value("modifiable", value, { buf = buf })
 end
@@ -288,6 +299,8 @@ function M.setup(buf)
   end
   vim.keymap.set("i", "<Home>", to_filter_start, bopts)
   vim.keymap.set("i", "<C-a>", to_filter_start, bopts)
+  vim.keymap.set("i", "<C-v>", paste_from_clipboard, bopts)
+  vim.keymap.set("i", "<S-Insert>", paste_from_clipboard, bopts)
 end
 
 -- ── close / clear (called externally) ────────────────────────────────────
