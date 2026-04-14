@@ -74,7 +74,7 @@ M.registry = {
     handler = "vim.lsp.buf.rename()",
     fn = vim.lsp.buf.rename,
     modes = { "n" },
-    suggested = "<leader>rn",
+    suggested = "<leader>cr",
   },
   codeActionProvider = {
     label = "Code Action",
@@ -94,7 +94,7 @@ M.registry = {
       vim.lsp.buf.format({ async = true })
     end,
     modes = { "n" },
-    suggested = "<leader>f",
+    suggested = "<leader>ff",
   },
   documentRangeFormattingProvider = {
     label = "Format Range",
@@ -104,7 +104,7 @@ M.registry = {
       vim.lsp.buf.format({ async = true })
     end,
     modes = { "v" },
-    suggested = "<leader>f",
+    suggested = "<leader>ff",
   },
   documentSymbolProvider = {
     label = "Document Symbols",
@@ -112,7 +112,7 @@ M.registry = {
     handler = "vim.lsp.buf.document_symbol()",
     fn = vim.lsp.buf.document_symbol,
     modes = { "n" },
-    suggested = "<leader>ds",
+    suggested = "<leader>xs",
   },
   workspaceSymbolProvider = {
     label = "Workspace Symbols",
@@ -146,7 +146,7 @@ M.registry = {
     handler = "vim.lsp.codelens.run()",
     fn = vim.lsp.codelens.run,
     modes = { "n" },
-    suggested = "<leader>cl",
+    suggested = "<leader>ci",
   },
   callHierarchyProvider = {
     label = "Incoming Calls",
@@ -164,7 +164,7 @@ M.registry = {
       vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled())
     end,
     modes = { "n" },
-    suggested = "<leader>ih",
+    suggested = "<leader>ch",
   },
   diagnosticProvider = {
     label = "Diagnostics",
@@ -172,7 +172,7 @@ M.registry = {
     handler = "vim.diagnostic.open_float()",
     fn = vim.diagnostic.open_float,
     modes = { "n" },
-    suggested = "<leader>e",
+    suggested = "<leader>df",
   },
   selectionRangeProvider = {
     label = "Expand Selection",

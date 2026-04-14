@@ -14,7 +14,7 @@
 ---   auto_open_on_first_attach = false,
 ---
 ---   --- Global key to open the browser manually (set to false to disable).
----   open_keymap  = "<leader>lk",
+---   open_keymap  = "<leader>ck",
 ---
 ---   --- Filter function: receives (cap_key, def) and returns true to include.
 ---   --- Useful to hide capabilities you never want to map.
@@ -62,7 +62,7 @@ local DEFAULT_OPTS = {
   auto_apply = true,
   persist = true,
   auto_open_on_first_attach = false,
-  open_keymap = '<leader>lk',
+  open_keymap = '<leader>ck',
   filter = nil,
 }
 
@@ -144,15 +144,7 @@ function M.setup(user_opts)
     desc = 'lsp-keymapper: re-apply saved keymaps and optionally open browser',
   })
 
-  -- Global key to open the browser for the current buffer's first active client
-  if _opts.open_keymap then
-    nvim_utils.map('n', _opts.open_keymap, function()
-      M.open()
-    end, {
-      desc = 'LSP Keymapper: open capability browser',
-      silent = true,
-    })
-  end
+  -- Global key to open the browser is now centralized in lua/config/keymaps.lua.
 
   -- User commands
   nvim_utils.command('LspKeymapBrowse', function()
