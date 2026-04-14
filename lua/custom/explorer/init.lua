@@ -260,21 +260,6 @@ function M.setup(opts)
         require("custom.explorer.projects").open()
     end, { desc = "Open project switcher" })
 
-    if km.toggle and km.toggle ~= "" then
-        nvim_utils.map("n", km.toggle, M.toggle, { silent = true, desc = "Toggle explorer" })
-    end
-    if km.reveal and km.reveal ~= "" then
-        nvim_utils.map("n", km.reveal, function()
-            if not (S.win and api.nvim_win_is_valid(S.win)) then
-                M.open()
-            end
-            M.reveal(api.nvim_buf_get_name(0))
-            if S.win and api.nvim_win_is_valid(S.win) then
-                api.nvim_set_current_win(S.win)
-            end
-        end, { silent = true, desc = "Reveal file in explorer" })
-    end
-
     nvim_utils.autocmd("ColorScheme", {
         desc = "explorer: refresh highlights",
         callback = function()
