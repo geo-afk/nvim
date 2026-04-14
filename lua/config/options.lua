@@ -22,6 +22,27 @@ opt.guicursor = { -- from old: fine‑tuned cursor shapes
   "o-r:hor50",
 }
 
+opt.statuscolumn = "%l%s"
+opt.shortmess = table.concat({ -- Use abbreviations and short messages in command menu line.
+  "f", -- Use "(3 of 5)" instead of "(file 3 of 5)".
+  "i", -- Use "[noeol]" instead of "[Incomplete last line]".
+  "l", -- Use "999L, 888C" instead of "999 lines, 888 characters".
+  "m", -- Use "[+]" instead of "[Modified]".
+  "n", -- Use "[New]" instead of "[New File]".
+  "r", -- Use "[RO]" instead of "[readonly]".
+  "w", -- Use "[w]", "[a]" instead of "written", "appended".
+  "x", -- Use "[dos]", "[unix]", "[mac]" instead of "[dos format]", "[unix format]", "[mac format]".
+  "o", -- Overwrite message for writing a file with subsequent message.
+  "O", -- Message for reading a file overwrites any previous message.
+  "s", -- Disable "search hit BOTTOM, continuing at TOP" such messages.
+  "t", -- Truncate file message at the start if it is too long.
+  "T", -- Truncate other messages in the middle if they are too long.
+  "I", -- Don't give the :intro message when starting.
+  "c", -- Don't give ins-completion-menu messages.
+  "F", -- Don't give the file info when editing a file.
+  "W", -- Don't give "written" or "[w]" when writing a file.
+})
+
 -- [0.12-new] 'pumborder' adds a border around the completion popup menu.
 opt.pumborder = "rounded"
 opt.pummaxwidth = 50
