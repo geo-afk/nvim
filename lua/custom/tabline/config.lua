@@ -24,52 +24,52 @@ local M = {}
 ---@field persist          TablinePersistConfig  Buffer persistence / restore settings
 
 M.defaults = {
-	max_buffers = 20,
-	max_name_length = 24,
-	padding = 1,
-	close_icon = "✘",
-	separator = "", -- between tabs; "" = none, "│" = thin bar, etc.
-	show_close = true,
-	focus_on_close = "left", -- "left" | "right" | "previous"
+  max_buffers = 20,
+  max_name_length = 24,
+  padding = 1,
+  close_icon = "✘",
+  separator = "", -- between tabs; "" = none, "│" = thin bar, etc.
+  show_close = true,
+  focus_on_close = "left", -- "left" | "right" | "previous"
 
-	keymaps = {
-		next = "<Tab>",
-		prev = "<S-Tab>",
-		close = "<A-c>",
-		move_left = "<leader>b<",
-		move_right = "<leader>b>",
-	},
+  keymaps = {
+    next = "<Tab>",
+    prev = "<S-Tab>",
+    close = "<A-c>",
+    -- move_left = "<leader>b<",
+    -- move_right = "<leader>b>",
+  },
 
-	-- ── Buffer persistence ──────────────────────────────────────────────────
-	persist = {
-		-- Master switch.  Set to false to disable the entire feature.
-		enabled = true,
+  -- ── Buffer persistence ──────────────────────────────────────────────────
+  persist = {
+    -- Master switch.  Set to false to disable the entire feature.
+    enabled = true,
 
-		-- Where per-directory session JSON files are written.
-		-- Each file is named after the sanitised working directory path.
-		data_dir = vim.fn.stdpath("data") .. "/tabline/sessions",
+    -- Where per-directory session JSON files are written.
+    -- Each file is named after the sanitised working directory path.
+    data_dir = vim.fn.stdpath("data") .. "/tabline/sessions",
 
-		-- Restore the previous buffer list when Neovim is opened with no file
-		-- arguments in a directory that has a saved session.
-		restore_on_startup = true,
+    -- Restore the previous buffer list when Neovim is opened with no file
+    -- arguments in a directory that has a saved session.
+    restore_on_startup = true,
 
-		-- Automatically save the buffer list on exit.
-		-- Covers both :qa / :wqa (VimLeavePre) and terminal-close (UILeave).
-		save_on_exit = true,
+    -- Automatically save the buffer list on exit.
+    -- Covers both :qa / :wqa (VimLeavePre) and terminal-close (UILeave).
+    save_on_exit = true,
 
-		-- Filetypes to exclude from the saved list.
-		-- Buffers whose 'filetype' is in this list are silently skipped.
-		skip_filetypes = { "gitcommit", "gitrebase", "hgcommit", "svn", "fugitive" },
+    -- Filetypes to exclude from the saved list.
+    -- Buffers whose 'filetype' is in this list are silently skipped.
+    skip_filetypes = { "gitcommit", "gitrebase", "hgcommit", "svn", "fugitive" },
 
-		-- Directories where sessions should never be saved or restored.
-		-- Paths are resolved to absolute form before comparison.
-		-- The home directory and filesystem root are skipped by default to
-		-- avoid accidentally restoring hundreds of unrelated buffers.
-		skip_dirs = {
-			vim.fn.expand("~"),
-			"/",
-		},
-	},
+    -- Directories where sessions should never be saved or restored.
+    -- Paths are resolved to absolute form before comparison.
+    -- The home directory and filesystem root are skipped by default to
+    -- avoid accidentally restoring hundreds of unrelated buffers.
+    skip_dirs = {
+      vim.fn.expand("~"),
+      "/",
+    },
+  },
 }
 
 --- Deep-merge user config over defaults.
@@ -77,7 +77,7 @@ M.defaults = {
 ---@param user_config table|nil
 ---@return TablineConfig
 function M.apply(user_config)
-	return vim.tbl_deep_extend("force", M.defaults, user_config or {})
+  return vim.tbl_deep_extend("force", M.defaults, user_config or {})
 end
 
 return M
