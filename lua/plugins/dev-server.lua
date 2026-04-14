@@ -18,10 +18,10 @@ dev_server.setup({
     size = 15,
   },
   keymaps = {
-    toggle = "<leader>dt",
-    restart = "<leader>dr",
-    stop = "<leader>ds",
-    status = "<leader>dS",
+    toggle = "<leader>rt",
+    restart = "<leader>rr",
+    stop = "<leader>rs",
+    status = "<leader>rS",
   },
   auto_start = false,
   notifications = {
@@ -44,4 +44,4 @@ dev_server.setup({
   },
 })
 
-vim.keymap.set("n", "<leader>gi", "<cmd>DevServerStatus<CR>", { desc = "Dev server: show all" })
+vim.keymap.set("n", "<leader>ri", "<cmd>DevServerStatus<CR>", { desc = "Dev server: show all" })

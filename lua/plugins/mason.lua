@@ -164,7 +164,3 @@ if mti_ok then
   })
 end
 
--- ── 5. Keymaps ────────────────────────────────────────────────────────────────
-vim.keymap.set("n", "<leader>cm", "<cmd>Mason<CR>", { desc = "Mason UI" })
-vim.keymap.set("n", "<leader>mu", "<cmd>MasonUpdate<CR>", { desc = "Mason: update registry" })
-vim.keymap.set("n", "<leader>ml", "<cmd>MasonLog<CR>", { desc = "Mason: log" })

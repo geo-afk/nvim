@@ -55,10 +55,3 @@ conform.setup({
   },
 })
 
--- Manual format keymap (all modes so it works in visual for range-format)
-vim.keymap.set({ "n", "v" }, "<leader>lf", function()
-  conform.format({ async = true, lsp_format = "fallback" })
-end, { desc = "Format buffer / range" })
-
--- :ConformInfo for troubleshooting
-vim.keymap.set("n", "<leader>cf", "<cmd>ConformInfo<CR>", { desc = "Conform info" })

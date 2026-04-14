@@ -15,7 +15,7 @@ vim.api.nvim_create_autocmd("LspAttach", {
   group    = vim.api.nvim_create_augroup("plugins_lsp_inlay", { clear = true }),
   once     = true,
   callback = function()
-    -- [0.11+] Global inlay hints – toggle per-buffer with <leader>lh
+    -- [0.11+] Global inlay hints – toggle per-buffer with <leader>ch
     pcall(vim.lsp.inlay_hint.enable, true)
   end,
 })
