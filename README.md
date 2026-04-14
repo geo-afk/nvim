@@ -436,6 +436,28 @@ Keymap:
 
 - `<leader>gg` open LazyGit in a floating terminal
 
+### `custom.terminal`
+
+A VS Code-style managed terminal panel with:
+
+- a sidebar terminal list plus terminal pane
+- colored terminal state indicators and a titled winbar
+- `?` help inside the sidebar
+- profile-based terminal creation with per-profile shell, args, env, cwd, icon, and color
+- default and automation-profile support
+- recovery when one side of the panel is closed externally
+
+Keymaps and commands:
+
+- `<leader>zt` toggle the managed terminal panel
+- `<leader>zn` create a managed terminal
+- `<leader>zp` create a managed terminal from a selected profile
+- `<leader>zT` focus the terminal sidebar
+- visual `<leader>zs` send selection to the active managed terminal
+- `:TerminalNew [name]`
+- `:TerminalProfiles`
+- `:TerminalAutomation [name]`
+
 ### `custom.autoclose`
 
 Local auto-pair / auto-close behavior implemented in Lua rather than via a
