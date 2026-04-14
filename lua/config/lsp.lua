@@ -13,7 +13,14 @@ local function setup_diagnostics()
       --   return d.message:sub(1, 80)
       -- end,
     },
-    signs = true,
+    signs = {
+      text = {
+        [vim.diagnostic.severity.ERROR] = "󰅚 ",
+        [vim.diagnostic.severity.WARN] = "󰀪 ",
+        [vim.diagnostic.severity.HINT] = "󰠠 ",
+        [vim.diagnostic.severity.INFO] = "󰋼 ",
+      },
+    },
     underline = true,
     update_in_insert = false,
     severity_sort = true,
@@ -23,13 +30,14 @@ local function setup_diagnostics()
       --  press gf inside the float to jump to the referenced location.
       focusable = true,
     },
+    jump = {
+      on_jump = function(diagnostic, bufnr)
+        if diagnostic then
+          vim.diagnostic.open_float({ bufnr = bufnr, scope = "cursor" })
+        end
+      end,
+    },
   })
-
-  local signs = { Error = "󰅚 ", Warn = "󰀪 ", Hint = "󰠠 ", Info = "󰋼 " }
-  for type, icon in pairs(signs) do
-    local hl = "DiagnosticSign" .. type
-    vim.fn.sign_define(hl, { text = icon, texthl = hl, numhl = "" })
-  end
 end
 
 -- ── Shared LspAttach handler ──────────────────────────────────────────────────
@@ -54,7 +62,7 @@ local function setup_attach()
       vim.keymap.set("n", "gd", vim.lsp.buf.definition, opts("LSP: Definition"))
       vim.keymap.set("n", "gD", vim.lsp.buf.declaration, opts("LSP: Declaration"))
       vim.keymap.set("n", "gs", vim.lsp.buf.signature_help, opts("LSP: Signature help"))
-      vim.keymap.set("n", "<leader>cr", rename.rename, opts("LSP: Rename All instances"))
+      vim.keymap.set("n", "<leader>cr", rename.rename, opts("LSP: Rename all instances"))
 
       vim.keymap.set("n", "<S-j>", function()
         require("utils.peek").peek_definition()
@@ -80,7 +88,7 @@ local function setup_attach()
 
       -- Inlay hints toggle
       if client:supports_method("textDocument/inlayHint") then
-        vim.keymap.set("n", "<leader>lh", function()
+        vim.keymap.set("n", "<leader>ch", function()
           local enabled = vim.lsp.inlay_hint.is_enabled({ bufnr = buf })
           vim.lsp.inlay_hint.enable(not enabled, { bufnr = buf })
         end, opts("[0.12] Toggle inlay hints"))
@@ -112,7 +120,7 @@ local function setup_attach()
 
       -- Corrected linked editing range toggle
       if client:supports_method("textDocument/linkedEditingRange") then
-        vim.keymap.set("n", "<leader>le", function()
+        vim.keymap.set("n", "<leader>ce", function()
           local enabled = vim.lsp.linked_editing_range.is_enabled({ bufnr = buf })
           vim.lsp.linked_editing_range.enable(not enabled, { bufnr = buf })
           vim.notify("Linked Editing " .. (not enabled and "enabled" or "disabled"), vim.log.levels.INFO)
