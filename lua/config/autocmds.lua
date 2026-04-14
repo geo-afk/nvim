@@ -37,7 +37,7 @@ autocmd("InsertLeave", { command = "set relativenumber", pattern = "*" })
 autocmd("InsertEnter", { command = "set norelativenumber", pattern = "*" })
 
 -- Enable spell checking  certain file types
-vim.api.nvim_create_autocmd(
+autocmd(
   { "BufRead", "BufNewFile" },
   -- { pattern = { "*.txt", "*.md", "*.tex" }, command = [[setlocal spell<cr> setlocal spelllang=en,de<cr>]] }
   {
@@ -191,7 +191,7 @@ autocmd("TabClosedPre", {
 autocmd("CmdlineLeavePre", {
   group = G,
   desc = "[0.12] CmdlineLeavePre – pre-leave hook example",
-  callback = function(_ev)
+  callback = function(_)
     -- Could be used to validate cmdline content before it executes.
     -- ev.data.cmdline = the current cmdline text
   end,
@@ -202,7 +202,7 @@ autocmd("CmdlineLeavePre", {
 autocmd("CmdlineLeave", {
   group = G,
   desc = "[0.12] Track cmdline exit character via v:char",
-  callback = function(_ev)
+  callback = function(_)
     -- v:char is now populated:
     -- vim.notify("CmdlineLeave via: " .. vim.v.char)
     -- (commented to avoid noise; enable for debugging)
