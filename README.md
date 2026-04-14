@@ -290,6 +290,9 @@ A custom file explorer with:
 - follow-current-file behavior
 - hidden-file toggle
 - project pinning / recent roots support
+- safer target-window selection when opening files from the tree
+- popup inputs for create / rename / copy support clipboard paste
+- file copy operations implemented in Lua for Windows-friendly behavior
 
 Default top-level keymaps from [`lua/custom/explorer/config.lua`](./lua/custom/explorer/config.lua):
 
