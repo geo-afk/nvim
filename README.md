@@ -37,9 +37,9 @@ modules** that replace or extend the stock editor experience.
 - `pwsh` or `nu`
   - the config has Windows-oriented shell setup and will prefer `nu`, then `pwsh`
 - `lazygit`
-  - required for `<leader>vg`
+  - required for `<leader>gg`
 - `chafa`
-  - optional image preview backend used by `<leader>vi` / `:ChafaImage`
+  - optional image preview backend used by `<leader>ii` / `:ChafaImage`
 
 ### Optional but used by specific features
 
@@ -176,9 +176,9 @@ of the editor behavior is defined in local Lua modules under `lua/custom`.
 
 The Chafa-backed image preview lives in [`lua/custom/image_view.lua`](./lua/custom/image_view.lua).
 
-- `<leader>vi`
+- `<leader>ii`
   - preview the current image buffer, or an image path under the cursor
-- `<leader>vI`
+- `<leader>iI`
   - prompt for an image path and preview it
 - `:ChafaImage [path]`
   - preview an explicit file path
@@ -371,7 +371,7 @@ Commands:
 
 Default keymap:
 
-- `<leader>lk`
+- `<leader>ck`
 
 ### `custom.statusline`
 
@@ -431,7 +431,7 @@ Floating terminal wrapper used by:
 
 Keymap:
 
-- `<leader>vg` open LazyGit in a floating terminal
+- `<leader>gg` open LazyGit in a floating terminal
 
 ### `custom.autoclose`
 
@@ -522,8 +522,7 @@ Enabled for most filetypes, disabled for `c` and `cpp`.
 
 ### Manual formatting
 
-- `<leader>lf` format buffer or range
-- `<leader>cf` open `:ConformInfo`
+- `<leader>fi` open `:ConformInfo`
 
 ### Configured formatters
 
@@ -603,15 +602,14 @@ Configured keymaps include:
 - `<leader>sh` help tags
 - `<leader>sn` search Neovim config files
 - `<leader>si` search hidden files
-- `<leader>/` list open buffers
 - `<leader><leader>` fuzzy search current buffer
 
 ### Trouble
 
 - `<leader>xx` diagnostics
 - `<leader>xX` buffer diagnostics
-- `<leader>cs` document symbols
-- `<leader>cl` LSP references / definitions
+- `<leader>xs` document symbols
+- `<leader>xl` LSP references / definitions
 - `<leader>xL` location list
 - `<leader>xQ` quickfix list
 
@@ -666,18 +664,11 @@ Currently documented server preset:
 
 Configured dev-server keymaps in the plugin file:
 
-- `<leader>dt` toggle server window
-- `<leader>dr` restart
-- `<leader>ds` stop
-- `<leader>dS` status
-- `<leader>gi` `:DevServerStatus`
-
-Important note:
-
-- In the current load order, `<leader>dt` is later remapped to Neovim's built-in
-  `:DiffTool`, and `<leader>ds` is later remapped to the diagnostic status
-  helper. So the dev-server plugin config still declares those bindings, but
-  they are not the final effective global mappings.
+- `<leader>rt` toggle server window
+- `<leader>rr` restart
+- `<leader>rs` stop
+- `<leader>rS` status
+- `<leader>ri` `:DevServerStatus`
 
 ## Language-Specific Workflow
 
@@ -774,20 +765,25 @@ Angular-specific behavior appears in multiple places:
 
 From [`lua/config/keymaps.lua`](./lua/config/keymaps.lua) and plugin modules:
 
-- `<leader>w` save
-- `<leader>W` `:wall ++p`
+- `<leader>ww` save
+- `<leader>wa` `:wall ++p`
 - `<C-h> <C-j> <C-k> <C-l>` window navigation
 - `<C-Up> <C-Down> <C-Left> <C-Right>` resize windows
 - `<leader>pu` update all plugins with `vim.pack.update()`
-- `<leader>u` open built-in undo tree
-- `<leader>dt` open built-in DiffTool
-- `<leader>R` restart Neovim
+- `<leader>pm` open Mason
+- `<leader>uu` open built-in undo tree
+- `<leader>nd` open built-in DiffTool
+- `<leader>nr` restart Neovim
 - `<leader>df` diagnostic float
 - `[d` / `]d` previous / next diagnostic
 - `<leader>dq` diagnostics to quickfix
 - `<leader>ds` diagnostic summary
 - `<leader>dw` workspace diagnostics
-- `<leader>lh` toggle inlay hints
+- `<leader>ch` toggle inlay hints
+- `<leader>ck` open the LSP keymapper
+- `<leader>gg` open LazyGit
+- `<leader>ii` preview the current image
+- `<leader>rt` toggle the dev server
 - `<leader>?` show buffer-local which-key popup
 
 ## Useful Demo Commands for Neovim 0.12 APIs
