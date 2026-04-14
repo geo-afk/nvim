@@ -29,6 +29,16 @@ local DEFAULT = { icon = "󰌶", badge = "CA" } -- lightbulb
 ---The menu falls back to two-character ASCII badges in that case.
 M.use_icons = true
 
+-- ── Setup ─────────────────────────────────────────────────────────────────────
+
+---Configure kinds options.  Called automatically by code_action.setup().
+---@param opts table|nil  { use_icons: boolean }
+function M.setup(opts)
+  if opts and opts.use_icons ~= nil then
+    M.use_icons = opts.use_icons
+  end
+end
+
 -- ── Public API ───────────────────────────────────────────────────────────────
 
 ---Return the display symbol for a given LSP kind string.

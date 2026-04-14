@@ -1,22 +1,80 @@
--- lua/code_action/init.lua
+-- lua/custom/code_action/init.lua
 -- Public API for the code_action plugin.
 --
 -- Usage (in init.lua / lazy.nvim spec):
 --
---   require("code_action").setup()
---
--- This sets up highlight groups, registers the code action keymaps,
--- and creates the :CodeActionMenu user commands.
+--   require("custom.code_action").setup()          -- all defaults
+--   require("custom.code_action").setup({           -- custom config
+--     auto_apply_single = true,
+--     picker = { winblend = 8 },
+--     keymaps = { filter = "<C-f>" },
+--   })
 --
 -- Module structure
 -- ────────────────
 --   init.lua        ← you are here (public API + setup)
---   highlights.lua  ← HL group definitions & per-source colour palette
+--   highlight.lua   ← HL group definitions & per-source colour palette
 --   kinds.lua       ← LSP kind → icon / badge mapping
 --   lsp.lua         ← async code-action request & action application
 --   window.lua      ← grouped picker + preview float lifecycle
 
 local M = {}
+
+-- ── Default config ────────────────────────────────────────────────────────────
+
+---@class CodeActionConfig
+M.config = {
+  ---Milliseconds to wait for all LSP clients before giving up.
+  timeout_ms = 1500,
+
+  ---When true, skip the picker and apply immediately if only one action exists.
+  auto_apply_single = false,
+
+  picker = {
+    ---Maximum picker width as a fraction of &columns.
+    max_width_pct = 0.50,
+    ---Minimum picker width in columns.
+    min_width = 48,
+    ---Maximum picker height as a fraction of &lines.
+    max_height_pct = 0.45,
+    ---Window transparency (0 = opaque).
+    winblend = 0,
+  },
+
+  preview = {
+    ---Preview width as a fraction of &columns.
+    width_pct = 0.36,
+    ---Minimum preview width in columns.
+    min_width = 38,
+    ---Maximum preview width in columns.
+    max_width = 72,
+    ---Window transparency (0 = opaque).
+    winblend = 0,
+    ---When true, start in diff mode when a workspace edit is available.
+    show_diff = false,
+  },
+
+  ---@type { use_icons: boolean }
+  kinds = {
+    ---Set false if your terminal lacks Nerd Font support.
+    use_icons = true,
+  },
+
+  ---All picker keymaps.  Each value is a string or a list of strings.
+  keymaps = {
+    apply = "<CR>",
+    close = { "<Esc>", "q" },
+    preview = { "K", "p" },
+    diff_mode = "d",
+    nav_down = { "j", "<Down>", "<C-n>", "<Tab>" },
+    nav_up = { "k", "<Up>", "<C-p>", "<S-Tab>" },
+    go_first = "gg",
+    go_last = "G",
+    page_down = "<C-d>",
+    page_up = "<C-u>",
+    filter = "/",
+  },
+}
 
 -- ── Visual-range helpers ────────────────────────────────────────────────────
 
@@ -70,6 +128,7 @@ end
 ---@param opts table|nil
 ---  opts.use_visual_range  boolean   force visual-range mode (default: auto-detect)
 ---  opts.bufnr             integer   buffer to query (default: current)
+---  opts.open_preview      boolean   open preview pane immediately
 function M.open(opts)
   opts = opts or {}
 
@@ -101,39 +160,49 @@ function M.open(opts)
   local lsp = require("custom.code_action.lsp")
   local window = require("custom.code_action.window")
 
-  lsp.request(source_buf, source_win, range, visual_marks, function(items)
+  lsp.request(source_buf, source_win, range, visual_marks, M.config.timeout_ms, function(items)
+    -- Auto-apply when there is exactly one action and the user has opted in.
+    if M.config.auto_apply_single and #items == 1 then
+      lsp.apply(items[1])
+      return
+    end
+
     window.open(items, source_win, source_buf, source_cursor, {
       open_preview = opts.open_preview == true,
+      config = M.config,
     })
   end)
 end
 
----One-time setup: register highlight groups, the default keymaps, and the
----:CodeActionMenu user command.
----Call this once from your init.lua or plugin spec setup() hook.
----
----@param user_opts table|nil  (reserved for future per-user config)
-function M.setup(user_opts)
-  _ = user_opts -- reserved
+---Reset the internal `is_open` guard in case an unhandled error left it stuck.
+---Run `:CodeActionMenuReset` or call this from your own error-recovery code.
+function M.reset()
+  require("custom.code_action.window").reset()
+end
 
+---One-time setup: merge user options, configure sub-modules, register
+---highlight groups, default keymaps, and user commands.
+---Safe to call multiple times (later calls perform a deep-merge).
+---
+---@param user_opts CodeActionConfig|nil
+function M.setup(user_opts)
+  if user_opts then
+    -- Deep-merge so callers can pass partial tables (e.g. just `picker` opts).
+    M.config = vim.tbl_deep_extend("force", M.config, user_opts)
+  end
+
+  -- Propagate icon preference to the kinds module.
+  require("custom.code_action.kinds").setup(M.config.kinds)
+
+  -- Register / refresh highlight groups.
   require("custom.code_action.highlight").setup()
 
-  -- Default keymap (<leader>ca works in both normal and visual mode).
-  vim.keymap.set({ "n", "x" }, "<leader>ca", function()
-    M.open()
-  end, {
-    desc = "LSP: Code Action",
-    silent = true,
-  })
+  -- ── Default keymaps ──────────────────────────────────────────────────────
 
-  vim.keymap.set("n", "<leader>cA", function()
-    vim.cmd("CodeActionMenuPreview")
-  end, {
-    desc = "LSP: Code Action Preview",
-    silent = true,
-  })
+  -- Mappings are now centralized in lua/config/keymaps.lua.
 
-  -- User command (:CodeActionMenu, range-aware for visual-mode invocation).
+  -- ── User commands ────────────────────────────────────────────────────────
+
   vim.api.nvim_create_user_command("CodeActionMenu", function(cmd_opts)
     M.open({ use_visual_range = cmd_opts.range > 0 })
   end, {
@@ -147,8 +216,15 @@ function M.setup(user_opts)
       open_preview = true,
     })
   end, {
-    desc = "Open the code action picker with preview enabled",
+    desc = "Open the code action picker with preview pane open",
     range = true,
+  })
+
+  vim.api.nvim_create_user_command("CodeActionMenuReset", function()
+    M.reset()
+    vim.notify("Code action menu state reset", vim.log.levels.INFO, { title = "Code Actions" })
+  end, {
+    desc = "Reset code action menu state (use if the menu gets stuck)",
   })
 end
 

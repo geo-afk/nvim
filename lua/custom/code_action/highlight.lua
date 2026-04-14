@@ -1,7 +1,7 @@
--- highlights.lua
+-- highlight.lua
 -- Highlight group definitions and per-source colour assignment for code_action_menu.
--- Each unique LSP client is lazily assigned a colour from the SOURCE_PALETTE cycle,
--- so actions from different servers are always visually distinguishable.
+-- Each unique LSP client is lazily assigned a colour from the SOURCE_PALETTE
+-- cycle, so actions from different servers are always visually distinguishable.
 
 local M = {}
 
@@ -27,6 +27,7 @@ M.HL = {
   PreviewValue = "CodeActionMenuPreviewValue",
   Scrollbar = "CodeActionMenuScrollbar",
   ScrollTrack = "CodeActionMenuScrollTrack",
+  FilterMatch = "CodeActionMenuFilterMatch",
 }
 
 -- ── Per-source colour palette ─────────────────────────────────────────────
@@ -87,7 +88,6 @@ end
 ---`default = true` lets the user's colourscheme win; only our fallback is set here.
 function M.setup()
   -- Window body: link to Normal so the float blends with the editor background.
-  -- This deliberately avoids NormalFloat, which many themes shade differently.
   vim.api.nvim_set_hl(0, M.HL.Normal, { link = "Normal", default = true })
 
   -- Inherit FloatBorder's foreground colour but strip any background so the
@@ -115,12 +115,41 @@ function M.setup()
   vim.api.nvim_set_hl(0, M.HL.PreviewValue, { link = "Normal", default = true })
   vim.api.nvim_set_hl(0, M.HL.Scrollbar, { link = "PmenuThumb", default = true })
   vim.api.nvim_set_hl(0, M.HL.ScrollTrack, { link = "PmenuSbar", default = true })
+  -- Filter match highlight: bold+underline so matched items stand out.
+  vim.api.nvim_set_hl(0, M.HL.FilterMatch, { link = "Search", default = true })
 
   -- Pre-register the six palette groups so they exist even before any client
   -- has been seen (prevents "unknown highlight group" warnings from winhighlight).
   for i, fg in ipairs(SOURCE_PALETTE) do
     vim.api.nvim_set_hl(0, "CodeActionMenuSource" .. i, { fg = fg, default = true })
   end
+
+  -- Re-apply any already-registered per-source groups so their colours survive
+  -- a mid-session colorscheme swap (those were set without `default = true`).
+  for client_name, hl_name in pairs(_source_hl_map) do
+    local idx = 0
+    for i, entry in ipairs(SOURCE_PALETTE) do
+      if ("CodeActionMenuSource" .. client_name:gsub("[^%w]", "_")) == hl_name then
+        idx = i
+        break
+      end
+      _ = entry
+    end
+    if idx > 0 then
+      vim.api.nvim_set_hl(0, hl_name, { fg = SOURCE_PALETTE[idx] })
+    end
+  end
 end
+
+-- ── ColorScheme refresh ───────────────────────────────────────────────────────
+
+-- Re-register all groups whenever the colorscheme changes so our highlights
+-- are never silently clobbered by a new theme.
+vim.api.nvim_create_autocmd("ColorScheme", {
+  group = vim.api.nvim_create_augroup("CodeActionMenuHighlights", { clear = true }),
+  callback = function()
+    M.setup()
+  end,
+})
 
 return M

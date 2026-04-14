@@ -1,21 +1,10 @@
 -- lsp.lua
 -- All LSP-facing logic: fetching code actions from attached clients and
 -- applying the chosen action (including codeAction/resolve support).
+--
+-- Requires Neovim 0.10+ (vim.lsp.get_clients).
 
 local M = {}
-
--- ── Compatibility shim ───────────────────────────────────────────────────────
-
----Neovim 0.10 renamed `get_active_clients` → `get_clients`.
----@param opts table
----@return table[]
-local function lsp_get_clients(opts)
-  if vim.lsp.get_clients then
-    return vim.lsp.get_clients(opts)
-  end
-  ---@diagnostic disable-next-line: deprecated
-  return vim.lsp.get_active_clients(opts)
-end
 
 -- ── Parameter helpers ────────────────────────────────────────────────────────
 
@@ -97,7 +86,7 @@ function M.apply(item)
     return
   end
 
-  -- If neither edit nor command is present, we need a resolve round-trip first.
+  -- If neither edit nor command is present, attempt a resolve round-trip first.
   if not action.edit and not action.command then
     if client and client.supports_method("codeAction/resolve") then
       client.request("codeAction/resolve", action, function(err, resolved)
@@ -148,7 +137,6 @@ function M.resolve_for_preview(item, callback)
         callback("Failed to resolve action: " .. tostring(err.message or err), nil)
         return
       end
-
       item.preview_action = resolved or action
       callback(nil, item.preview_action)
     end)
@@ -158,14 +146,16 @@ end
 -- ── Request ──────────────────────────────────────────────────────────────────
 
 ---Asynchronously fetch code actions from all attached LSP clients.
----All responses are gathered (with a 1.5 s timeout) before `callback` fires.
+---All responses are gathered (with a configurable timeout) before `callback`
+---fires.
 ---@param bufnr        integer
 ---@param winid        integer      source window
 ---@param range        table|nil    explicit LSP Range (visual selection)
 ---@param visual_marks table|nil    { {row,col}, {row,col} } 1-indexed
+---@param timeout_ms   integer      milliseconds before giving up (default 1500)
 ---@param callback     function     called with { { action, client }[] }
-function M.request(bufnr, winid, range, visual_marks, callback)
-  local clients = lsp_get_clients({ bufnr = bufnr, method = "textDocument/codeAction" })
+function M.request(bufnr, winid, range, visual_marks, timeout_ms, callback)
+  local clients = vim.lsp.get_clients({ bufnr = bufnr, method = "textDocument/codeAction" })
 
   if vim.tbl_isempty(clients) then
     vim.notify("No LSP clients support code actions", vim.log.levels.INFO, { title = "Code Actions" })
@@ -198,8 +188,8 @@ function M.request(bufnr, winid, range, visual_marks, callback)
     end)
   end
 
-  -- 1.5 s hard timeout so a stalled server never blocks the UI.
-  timer:start(1500, 0, finish)
+  -- Hard timeout so a stalled server never blocks the UI.
+  timer:start(timeout_ms or 1500, 0, finish)
 
   for _, client in ipairs(clients) do
     local params = build_params(client, bufnr, winid, range, visual_marks)
