@@ -16,8 +16,8 @@ M.config = {
   title = " Chafa Preview ",
   title_pos = "center",
   keymaps = {
-    preview_current = "<leader>vi",
-    preview_path = "<leader>vI",
+    preview_current = "<leader>ii",
+    preview_path = "<leader>iI",
   },
   chafa = {
     format = "symbols",
