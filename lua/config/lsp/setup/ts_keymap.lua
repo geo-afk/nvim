@@ -68,7 +68,7 @@ function M.setup(bufnr, client)
   local opts = { buffer = bufnr, silent = true }
 
   if client:supports_method("workspace/executeCommand", bufnr) then
-    vim.keymap.set("n", "<leader>tto", function()
+    vim.keymap.set("n", "<leader>cto", function()
       local file = current_file(bufnr)
       if not file then
         return
@@ -76,7 +76,7 @@ function M.setup(bufnr, client)
       exec_command(client, bufnr, "typescript.organizeImports", { file })
     end, vim.tbl_extend("force", opts, { desc = "TypeScript: Organize Imports" }))
 
-    vim.keymap.set("n", "<leader>ttS", function()
+    vim.keymap.set("n", "<leader>ctS", function()
       local file = current_file(bufnr)
       if not file then
         return
@@ -84,7 +84,7 @@ function M.setup(bufnr, client)
       exec_command(client, bufnr, "typescript.sortImports", { file })
     end, vim.tbl_extend("force", opts, { desc = "TypeScript: Sort Imports" }))
 
-    vim.keymap.set("n", "<leader>ttu", function()
+    vim.keymap.set("n", "<leader>ctu", function()
       local file = current_file(bufnr)
       if not file then
         return
@@ -92,17 +92,17 @@ function M.setup(bufnr, client)
       exec_command(client, bufnr, "typescript.removeUnusedImports", { file })
     end, vim.tbl_extend("force", opts, { desc = "TypeScript: Remove Unused Imports" }))
 
-    vim.keymap.set("n", "<leader>ttV", function()
+    vim.keymap.set("n", "<leader>ctV", function()
       exec_command(client, bufnr, "typescript.selectTypeScriptVersion")
     end, vim.tbl_extend("force", opts, { desc = "TypeScript: Select TS Version" }))
   end
 
   if client:supports_method("textDocument/codeAction", bufnr) then
-    vim.keymap.set("n", "<leader>ttM", function()
+    vim.keymap.set("n", "<leader>ctM", function()
       run_source_action(client, bufnr, "source.addMissingImports.ts")
     end, vim.tbl_extend("force", opts, { desc = "TypeScript: Add Missing Imports" }))
 
-    vim.keymap.set("n", "<leader>ttD", function()
+    vim.keymap.set("n", "<leader>ctD", function()
       run_source_action(client, bufnr, "source.fixAll.ts")
     end, vim.tbl_extend("force", opts, { desc = "TypeScript: Fix All Diagnostics" }))
   end
