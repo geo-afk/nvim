@@ -35,20 +35,48 @@ local ok_ui2 = pcall(function()
     msg = {
       -- "cmd" = messages appear in cmdline area (default, less intrusive)
       -- "msg" = messages appear in a separate ephemeral floating window
-      targets = "msg",
+      -- targets = "msg",
+      targets = {
+        [""] = "msg",
+        empty = "cmd",
+        bufwrite = "msg",
+        confirm = "cmd",
+        emsg = "pager",
+        echo = "msg",
+        echomsg = "msg",
+        echoerr = "pager",
+        completion = "cmd",
+        list_cmd = "pager",
+        lua_error = "pager",
+        lua_print = "msg",
+        progress = "pager",
+        rpc_error = "pager",
+        quickfix = "msg",
+        search_cmd = "cmd",
+        search_count = "cmd",
+        shell_cmd = "pager",
+        shell_err = "pager",
+        shell_out = "pager",
+        shell_ret = "msg",
+        undo = "msg",
+        verbose = "pager",
+        wildlist = "cmd",
+        wmsg = "msg",
+        typed_cmd = "cmd",
+      },
       cmd = {
         -- Maximum height of the expanded cmdline message area (fraction of win)
         height = 0.1,
       },
       dialog = {
-        height = 0.5, -- dialog boxes
+        height = 0.4, -- dialog boxes
       },
       msg = {
-        height = 0.4,
-        timeout = 3500, -- ms before the ephemeral message disappears
+        height = 0.3,
+        timeout = 5000, -- ms before the ephemeral message disappears
       },
       pager = {
-        height = 0.6, -- pager buffer height when viewing long output
+        height = 0.4, -- pager buffer height when viewing long output
       },
     },
   })
