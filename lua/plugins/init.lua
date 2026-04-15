@@ -67,9 +67,6 @@ load("plugins.flash") -- flash.nvim (jump / search)
 -- ── Git ───────────────────────────────────────────────────────────────────────
 load("plugins.gitsigns") -- gutter signs + hunk operations
 
--- ── Terminal ─────────────────────────────────────────────────────────────────
-load("plugins.toggleterm") -- toggleterm.nvim
-
 -- ── Eye candy ────────────────────────────────────────────────────────────────
 load("plugins.smear") -- smear-cursor
 load("plugins.color-highlight") -- inline colour swatches

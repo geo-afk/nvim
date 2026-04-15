@@ -25,7 +25,7 @@ wk.setup({
     { "<leader>p", group = "Packages / Plugins", icon = { icon = "󰏖 ", hl = "MiniIconsGreen" } },
     { "<leader>r", group = "Run / Server", icon = { icon = "󱂬 ", hl = "MiniIconsOrange" } },
     { "<leader>s", group = "Search / Find", icon = { icon = "󰍉 ", hl = "MiniIconsYellow" } },
-    { "<leader>t", group = "Terminal", icon = { icon = "󰆍 ", hl = "MiniIconsGrey" } },
+    { "<leader>z", group = "Terminal", icon = { icon = "󰆍 ", hl = "MiniIconsGrey" } },
     { "<leader>u", group = "Utility / Undo", icon = { icon = "󰕌 ", hl = "MiniIconsPurple" } },
     { "<leader>w", group = "Save", icon = { icon = "󰆓 ", hl = "MiniIconsBlue" } },
     { "<leader>x", group = "Trouble / Lists", icon = { icon = "󱨧 ", hl = "MiniIconsRed" } },
@@ -54,7 +54,7 @@ wk.setup({
     { "<leader>uu", icon = { icon = "󰕌 ", hl = "MiniIconsPurple" } },
     { "<leader>wa", icon = { icon = "󰆓 ", hl = "MiniIconsBlue" } },
     { "<leader>ww", icon = { icon = "󰆓 ", hl = "MiniIconsBlue" } },
-    { "<leader>tt", icon = { icon = "󰚈 ", hl = "MiniIconsGrey" } },
+    -- { "<leader>tt", icon = { icon = "󰚈 ", hl = "MiniIconsGrey" } },
 
     -- ── Root level groups ────────────────────────────────────────────────────
     { "g", group = "Goto", icon = { icon = "󰜉 ", hl = "MiniIconsBlue" } },
