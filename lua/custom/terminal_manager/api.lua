@@ -1,5 +1,5 @@
 --------------------------------------------------------------------------------
--- terminal_manager/api.lua
+-- custom.terminal_manager/api.lua
 -- Public API functions exposed on the main M table.
 -- All functions that need the panel, sidebar, or terminal modules use lazy
 -- requires (inside function bodies) to avoid circular-require issues.

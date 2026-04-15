@@ -1,5 +1,5 @@
 --------------------------------------------------------------------------------
--- terminal_manager/panel.lua
+-- custom.terminal_manager/panel.lua
 -- Builds the two-pane layout (sidebar + terminal window) and wires up all
 -- sidebar buffer-local keymaps.
 --------------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 --------------------------------------------------------------------------------
--- terminal_manager/terminal.lua
+-- custom.terminal_manager/terminal.lua
 -- Spawning terminal jobs and switching the visible terminal in the pane.
 --------------------------------------------------------------------------------
 

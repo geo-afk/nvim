@@ -1,5 +1,5 @@
 --------------------------------------------------------------------------------
--- terminal_manager/init.lua  v3 (modular)
+-- custom.terminal_manager/init.lua  v3 (modular)
 -- VS Code-style multi-terminal panel for Neovim >= 0.10
 --
 -- Layout:
@@ -50,7 +50,7 @@
 --   :TerminalAutomation [name]    open terminal with automation profile
 --
 -- Configuration (override after require):
---   local tm = require("terminal_manager")
+--   local tm = require("custom.terminal_manager")
 --   tm.config.sidebar_width = 30
 --   tm.config.profiles = {
 --     { name = "zsh", shell = "zsh", args = {"-l"}, icon = "%", color = "green" },
@@ -80,7 +80,7 @@ local M = {}
 M.config = vim.deepcopy(require("custom.terminal_manager.config").defaults)
 
 -- ── Highlight groups ──────────────────────────────────────────────────────────
-local highlights = require("custom.terminal_manager.highlight")
+local highlights = require("custom.terminal_manager.highlights")
 highlights.setup()
 
 -- Re-apply after :colorscheme so linked groups are recalculated.
@@ -91,7 +91,7 @@ vim.api.nvim_create_autocmd("ColorScheme", {
 
 -- ── Public API ─────────────────────────────────────────────────────────────────
 -- Proxy every api.lua function onto M so callers can do:
---   require("terminal_manager").toggle()
+--   require("custom.terminal_manager").toggle()
 local api = require("custom.terminal_manager.api")
 M.open = api.open
 M.close = api.close
@@ -107,7 +107,7 @@ M.send_selection = api.send_selection
 
 -- ── Autocommands & keymaps ────────────────────────────────────────────────────
 require("custom.terminal_manager.autocmds").setup()
-require("custom.terminal_manager.keymappings").setup()
+require("custom.terminal_manager.keymaps").setup()
 
 -- ── Startup validation ────────────────────────────────────────────────────────
 -- Deferred so Neovim is fully initialised before we probe executables.

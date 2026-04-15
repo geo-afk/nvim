@@ -1,5 +1,5 @@
 --------------------------------------------------------------------------------
--- terminal_manager/profiles.lua
+-- custom.terminal_manager/profiles.lua
 -- All profile-related helpers: lookup, validation, command/env building.
 --------------------------------------------------------------------------------
 

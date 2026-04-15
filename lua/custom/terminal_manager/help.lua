@@ -1,5 +1,5 @@
 --------------------------------------------------------------------------------
--- terminal_manager/help.lua
+-- custom.terminal_manager/help.lua
 -- Floating help window (toggled by pressing ? in the sidebar).
 --------------------------------------------------------------------------------
 

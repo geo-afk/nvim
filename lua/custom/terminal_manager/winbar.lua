@@ -1,5 +1,5 @@
 --------------------------------------------------------------------------------
--- terminal_manager/winbar.lua
+-- custom.terminal_manager/winbar.lua
 -- Manages the status winbar shown above the terminal pane.
 --------------------------------------------------------------------------------
 

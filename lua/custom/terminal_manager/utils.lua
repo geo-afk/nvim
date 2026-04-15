@@ -1,5 +1,5 @@
 --------------------------------------------------------------------------------
--- terminal_manager/utils.lua
+-- custom.terminal_manager/utils.lua
 -- Pure helper functions shared across all other modules.
 -- Accesses M.config lazily (inside function bodies) to avoid circular deps.
 --------------------------------------------------------------------------------

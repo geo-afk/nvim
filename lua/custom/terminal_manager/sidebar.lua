@@ -1,15 +1,15 @@
 --------------------------------------------------------------------------------
--- terminal_manager/sidebar.lua
+-- custom.terminal_manager/sidebar.lua
 -- Renders the sidebar buffer and handles all sidebar keyboard actions.
 --
 -- All calls back into the public API (new_term, delete_term, close, …) use
--- lazy `require("terminal_manager")` inside function bodies so this module
--- can be required before terminal_manager/init.lua finishes loading.
+-- lazy `require("custom.terminal_manager")` inside function bodies so this module
+-- can be required before custom.terminal_manager/init.lua finishes loading.
 --------------------------------------------------------------------------------
 
 local state = require("custom.terminal_manager.state")
 local utils = require("custom.terminal_manager.utils")
-local hl_mod = require("custom.terminal_manager.highlight")
+local hl_mod = require("custom.terminal_manager.highlights")
 
 local M = {}
 

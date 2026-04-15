@@ -1,5 +1,5 @@
 --------------------------------------------------------------------------------
--- terminal_manager/autocmds.lua
+-- custom.terminal_manager/autocmds.lua
 -- All plugin autocommands, set up once during init.
 --------------------------------------------------------------------------------
 
