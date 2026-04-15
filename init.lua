@@ -41,5 +41,4 @@ require("custom.glow").setup()
 require("custom.image_view").setup()
 
 --terminal_manager
--- require("custom.terminal")
 require("custom.terminal_manager")
