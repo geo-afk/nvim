@@ -674,11 +674,6 @@ Features:
 
 Keymaps:
 
-- `<leader>tt` toggle default terminal
-- `<leader>t1` to `<leader>t5` open numbered terminals
-- `<leader>ts` open Scooter
-- visual `<leader>tr` search selected text in Scooter
-
 ### Dev server plugin
 
 Configured in [`lua/plugins/dev-server.lua`](./lua/plugins/dev-server.lua).
@@ -773,8 +768,8 @@ Examples:
 - `tt` toggle task state
 - `tl` smart list conversion
 - `<leader>tc` mark all tasks done
-- `<leader>tu` mark all tasks undone
-- `<leader>h1` through `<leader>h6` toggle heading levels
+  <!-- - `<leader>tu` mark all tasks undone -->
+  <!-- - `<leader>h1` through `<leader>h6` toggle heading levels -->
 
 ### Angular
 
