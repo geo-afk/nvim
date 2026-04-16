@@ -1,5 +1,5 @@
 --------------------------------------------------------------------------------
--- custom.terminal_manager/profile_manager.lua
+-- terminal_manager/profile_manager.lua
 -- Floating window that lists all profiles, shows their keymaps, and lets the
 -- user create / edit / delete / set-as-default profiles.
 --

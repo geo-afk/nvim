@@ -1,8 +1,8 @@
 --------------------------------------------------------------------------------
--- custom.terminal_manager/profile_store.lua
+-- terminal_manager/profile_store.lua
 -- Persist user-created profiles to a JSON file in stdpath("data").
 --
--- Storage path:  {stdpath("data")}/custom.terminal_manager/profiles.json
+-- Storage path:  {stdpath("data")}/terminal_manager/profiles.json
 --
 -- On startup: persisted profiles are merged with config.profiles.
 -- On save:    all profiles (config + user-created) are written to disk.
@@ -10,7 +10,7 @@
 
 local M = {}
 
-local store_dir = vim.fn.stdpath("data") .. "/custom.terminal_manager"
+local store_dir = vim.fn.stdpath("data") .. "/custom_terminal_manager"
 local store_path = store_dir .. "/profiles.json"
 
 -- ── JSON helpers (Neovim 0.10+ ships vim.json) ────────────────────────────────

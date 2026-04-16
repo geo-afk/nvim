@@ -1,38 +1,59 @@
 --------------------------------------------------------------------------------
--- custom.terminal_manager/keymaps.lua
+-- custom/terminal_manager/keymaps.lua
 -- Global keymaps and :Terminal* user commands.
--- All references to the main module are lazy (inside function bodies) so this
--- module can be required early during init without circular-dep issues.
 --------------------------------------------------------------------------------
 
 local M = {}
 
 function M.setup()
-  -- ── Normal-mode global keys ───────────────────────────────────────────────
+  -- ── Panel ─────────────────────────────────────────────────────────────────
   vim.keymap.set("n", "<leader>zt", function()
     require("custom.terminal_manager").toggle()
   end, { desc = "terminal: toggle panel" })
-
+  vim.keymap.set("n", "<leader>zh", function()
+    require("custom.terminal_manager").hide()
+  end, { desc = "terminal: hide panel" })
+  vim.keymap.set("n", "<leader>zT", function()
+    require("custom.terminal_manager").focus_sidebar()
+  end, { desc = "terminal: focus sidebar" })
   vim.keymap.set("n", "<leader>zn", function()
     require("custom.terminal_manager").new_term()
   end, { desc = "terminal: new terminal" })
 
-  vim.keymap.set("n", "<leader>zT", function()
-    require("custom.terminal_manager").focus_sidebar()
-  end, { desc = "terminal: focus sidebar" })
-
+  -- ── Profile ───────────────────────────────────────────────────────────────
   vim.keymap.set("n", "<leader>zp", function()
-    require("custom.terminal_manager").pick_profile(function(profile)
-      require("custom.terminal_manager").new_term(nil, profile.name)
+    require("custom.terminal_manager").pick_profile(function(p)
+      require("custom.terminal_manager").new_term(nil, p.name)
     end, "New terminal profile:")
   end, { desc = "terminal: new from profile" })
 
-  -- ── Visual-mode: pipe selection into the active terminal ──────────────────
+  vim.keymap.set("n", "<leader>zP", function()
+    require("custom.terminal_manager.profile_manager").open()
+  end, { desc = "terminal: profile manager" })
+
+  -- ── Split ─────────────────────────────────────────────────────────────────
+  vim.keymap.set("n", "<leader>z|", function()
+    require("custom.terminal_manager.split").toggle()
+  end, { desc = "terminal: toggle split pane" })
+
+  vim.keymap.set("n", "<leader>z<", function()
+    require("custom.terminal_manager.split").focus(1)
+  end, { desc = "terminal: focus primary pane" })
+
+  vim.keymap.set("n", "<leader>z>", function()
+    require("custom.terminal_manager.split").focus(2)
+  end, { desc = "terminal: focus secondary pane" })
+
+  vim.keymap.set("n", "<leader>zx", function()
+    require("custom.terminal_manager.split").swap()
+  end, { desc = "terminal: swap split terminals" })
+
+  -- ── Send selection ────────────────────────────────────────────────────────
   vim.keymap.set("x", "<leader>zs", function()
     require("custom.terminal_manager").send_selection()
   end, { desc = "terminal: send selection" })
 
-  -- ── <leader>z1 … <leader>z9: jump directly to the Nth managed terminal ───
+  -- ── Jump to #N ────────────────────────────────────────────────────────────
   for i = 1, 9 do
     vim.keymap.set("n", "<leader>z" .. i, function()
       local st = require("custom.terminal_manager.state")
@@ -40,29 +61,63 @@ function M.setup()
         vim.notify(string.format("TermManager: no terminal #%d", i), vim.log.levels.INFO)
         return
       end
-      local tm = require("custom.terminal_manager")
       if not require("custom.terminal_manager.utils").panel_open() then
-        tm.open()
+        require("custom.terminal_manager").open()
       end
       require("custom.terminal_manager.terminal").show(st.terminals[i])
     end, { desc = string.format("terminal: switch to #%d", i) })
   end
 
-  -- ── User commands ─────────────────────────────────────────────────────────
-
+  -- ── Commands ──────────────────────────────────────────────────────────────
   vim.api.nvim_create_user_command("TerminalNew", function(opts)
-    local name = opts.args ~= "" and opts.args or nil
-    require("custom.terminal_manager").new_term(name)
+    require("custom.terminal_manager").new_term(opts.args ~= "" and opts.args or nil)
   end, { nargs = "?", desc = "Open a managed terminal" })
 
   vim.api.nvim_create_user_command("TerminalProfiles", function()
-    require("custom.terminal_manager").show_profiles()
-  end, { desc = "Show configured terminal profiles" })
+    require("custom.terminal_manager.profile_manager").open()
+  end, { desc = "Open profile manager" })
+
+  vim.api.nvim_create_user_command("TerminalProfileNew", function()
+    require("custom.terminal_manager.profile_wizard").open(nil, function(p)
+      local cfg = require("custom.terminal_manager").config
+      for _, ep in ipairs(cfg.profiles) do
+        if ep.name == p.name then
+          vim.notify("TermManager: profile '" .. p.name .. "' already exists", vim.log.levels.WARN)
+          return
+        end
+      end
+      table.insert(cfg.profiles, p)
+      require("custom.terminal_manager.profiles").register_profile_keymaps()
+      require("custom.terminal_manager.profile_store").save_all()
+      vim.notify("TermManager: profile '" .. p.name .. "' created", vim.log.levels.INFO)
+    end)
+  end, { desc = "Create a new terminal profile" })
 
   vim.api.nvim_create_user_command("TerminalAutomation", function(opts)
-    local name = opts.args ~= "" and opts.args or nil
-    require("custom.terminal_manager").new_automation_term(name)
-  end, { nargs = "?", desc = "Open a managed terminal using the automation profile" })
+    require("custom.terminal_manager").new_automation_term(opts.args ~= "" and opts.args or nil)
+  end, { nargs = "?", desc = "Open terminal with automation profile" })
+
+  vim.api.nvim_create_user_command("TerminalSplit", function()
+    require("custom.terminal_manager.split").toggle()
+  end, { desc = "Toggle split terminal pane" })
+
+  vim.api.nvim_create_user_command("TerminalHide", function()
+    require("custom.terminal_manager").hide()
+  end, { desc = "Hide the terminal panel" })
+
+  vim.api.nvim_create_user_command("TerminalSearch", function()
+    local st = require("custom.terminal_manager.state")
+    local t = require("custom.terminal_manager.utils").find_term(st.active_id)
+    if t and t.buf then
+      local win = st.ui.term_win
+      require("custom.terminal_manager.search").open(t.buf, win)
+    else
+      vim.notify("TermManager: no active terminal", vim.log.levels.WARN)
+    end
+  end, { desc = "Search in active terminal" })
+
+  -- Register per-profile keymaps
+  require("custom.terminal_manager.profiles").register_profile_keymaps()
 end
 
 return M

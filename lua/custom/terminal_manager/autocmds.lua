@@ -1,6 +1,6 @@
 --------------------------------------------------------------------------------
--- custom.terminal_manager/autocmds.lua
--- All plugin autocommands, set up once during init.
+-- custom/terminal_manager/autocmds.lua
+-- All plugin autocommands.
 --------------------------------------------------------------------------------
 
 local state = require("custom.terminal_manager.state")
@@ -11,8 +11,7 @@ local M = {}
 function M.setup()
   local aug = vim.api.nvim_create_augroup("TermManager", { clear = true })
 
-  -- ── Apply navigation keymaps to every interactive terminal we open ─────────
-  -- Skips buffers matching config.skip_patterns (foreign plugin terminals).
+  -- Apply keymaps + link detection to every interactive terminal we open.
   vim.api.nvim_create_autocmd("TermOpen", {
     group = aug,
     callback = function(ev)
@@ -28,24 +27,38 @@ function M.setup()
         return { buffer = ev.buf, silent = true, desc = desc }
       end
 
-      -- <Esc><Esc>: leave terminal mode without the raw <C-\><C-n> chord.
       vim.keymap.set("t", "<Esc><Esc>", [[<C-\><C-n>]], ko("exit terminal mode"))
+      vim.keymap.set("t", "<C-h>", [[<Cmd>wincmd h<CR>]], ko("go left"))
+      vim.keymap.set("t", "<C-j>", [[<Cmd>wincmd j<CR>]], ko("go down"))
+      vim.keymap.set("t", "<C-k>", [[<Cmd>wincmd k<CR>]], ko("go up"))
+      vim.keymap.set("t", "<C-l>", [[<Cmd>wincmd l<CR>]], ko("go right"))
 
-      -- Window navigation from terminal insert mode.
-      vim.keymap.set("t", "<C-h>", [[<Cmd>wincmd h<CR>]], ko("go to left window"))
-      vim.keymap.set("t", "<C-j>", [[<Cmd>wincmd j<CR>]], ko("go to lower window"))
-      vim.keymap.set("t", "<C-k>", [[<Cmd>wincmd k<CR>]], ko("go to upper window"))
-      vim.keymap.set("t", "<C-l>", [[<Cmd>wincmd l<CR>]], ko("go to right window"))
+      -- Search keybinding in insert mode → escape first, then open search
+      vim.keymap.set("t", "<C-f>", function()
+        local keys = vim.api.nvim_replace_termcodes([[<C-\><C-n>]], true, false, true)
+        vim.api.nvim_feedkeys(keys, "n", false)
+        vim.schedule(function()
+          local buf = ev.buf
+          local win = vim.api.nvim_get_current_win()
+          require("custom.terminal_manager.search").open(buf, win)
+        end)
+      end, ko("search in terminal"))
 
-      -- From normal mode inside a terminal: jump to the sidebar.
+      vim.keymap.set("n", "<C-f>", function()
+        local buf = ev.buf
+        local win = vim.api.nvim_get_current_win()
+        require("custom.terminal_manager.search").open(buf, win)
+      end, ko("search in terminal"))
+
       vim.keymap.set("n", "<leader>zT", function()
         require("custom.terminal_manager").focus_sidebar()
       end, ko("focus sidebar"))
+
+      -- Link navigation (gx/gf/gl) is wired by links.attach()
     end,
   })
 
-  -- ── Keep ui.* handles consistent when windows are closed externally ────────
-  -- (e.g. :q, :close, ZZ, another plugin closing the window)
+  -- Sync ui.* handles when windows are closed externally.
   vim.api.nvim_create_autocmd("WinClosed", {
     group = aug,
     callback = function(ev)
@@ -57,7 +70,11 @@ function M.setup()
         if closed == state.ui.term_win and not utils.win_ok(state.ui.term_win) then
           state.ui.term_win = nil
         end
-        -- If help window was closed externally, clear its handle too.
+        if closed == state.ui.term_win2 and not utils.win_ok(state.ui.term_win2) then
+          state.ui.term_win2 = nil
+          state.split_mode = false
+          state.active_id2 = nil
+        end
         if closed == state.help_win_h and not utils.win_ok(state.help_win_h) then
           state.help_win_h = nil
         end
@@ -68,11 +85,10 @@ function M.setup()
     end,
   })
 
-  -- ── Track buffers deleted externally (:bd, another plugin, etc.) ──────────
+  -- Track buffers deleted externally.
   vim.api.nvim_create_autocmd({ "BufUnload", "BufDelete" }, {
     group = aug,
     callback = function(ev)
-      -- Sidebar buffer deleted externally → close the sidebar window too.
       if ev.buf == state.ui.sidebar_buf then
         state.ui.sidebar_buf = nil
         if utils.win_ok(state.ui.sidebar_win) then
@@ -81,15 +97,13 @@ function M.setup()
         end
         return
       end
-
-      -- Terminal buffer deleted externally → clear the slot so the next
-      -- show() creates a fresh buffer and shell.
       for _, t in ipairs(state.terminals) do
         if t.buf == ev.buf then
           t.buf = nil
+          t.venv = nil
           vim.schedule(function()
             require("custom.terminal_manager.sidebar").render()
-            require("custom.terminal_manager.winbar").update()
+            require("custom.terminal_manager.winbar").update_all()
           end)
           break
         end
@@ -97,7 +111,7 @@ function M.setup()
     end,
   })
 
-  -- ── Refresh alive/dead indicators whenever a window receives focus ─────────
+  -- Refresh sidebar alive/dead indicators on focus change.
   vim.api.nvim_create_autocmd("WinEnter", {
     group = aug,
     callback = function()
@@ -106,6 +120,14 @@ function M.setup()
           require("custom.terminal_manager.sidebar").render()
         end)
       end
+    end,
+  })
+
+  -- Invalidate venv cache when cwd changes (DirChanged).
+  vim.api.nvim_create_autocmd("DirChanged", {
+    group = aug,
+    callback = function()
+      require("custom.terminal_manager.venv").invalidate()
     end,
   })
 end

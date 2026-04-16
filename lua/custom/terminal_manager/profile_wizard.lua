@@ -1,5 +1,5 @@
 --------------------------------------------------------------------------------
--- custom.terminal_manager/profile_wizard.lua
+-- terminal_manager/profile_wizard.lua
 -- Step-by-step floating-window wizard for creating or editing a profile.
 --
 -- Each "field" is a row in a scratch buffer.  The user navigates with j/k,

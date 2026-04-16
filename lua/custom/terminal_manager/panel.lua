@@ -1,7 +1,7 @@
 --------------------------------------------------------------------------------
--- custom.terminal_manager/panel.lua
--- Builds the two-pane layout (sidebar + terminal window) and wires up all
--- sidebar buffer-local keymaps.
+-- custom/terminal_manager/panel.lua
+-- Build / ensure the panel layout.
+-- Supports: normal, split, hidden states.
 --------------------------------------------------------------------------------
 
 local state = require("custom.terminal_manager.state")
@@ -9,8 +9,27 @@ local utils = require("custom.terminal_manager.utils")
 
 local M = {}
 
---- Build the panel from scratch.
---- Must only be called when the panel is fully closed.
+local function apply_sidebar_opts(win, buf)
+  utils.buf_opt(buf, "filetype", "TermManagerSidebar")
+  vim.api.nvim_win_set_buf(win, buf)
+  utils.win_opt(win, "number", false)
+  utils.win_opt(win, "relativenumber", false)
+  utils.win_opt(win, "signcolumn", "no")
+  utils.win_opt(win, "wrap", false)
+  utils.win_opt(win, "cursorline", true)
+  utils.win_opt(
+    win,
+    "winhighlight",
+    "Normal:NormalFloat,CursorLine:Visual,SignColumn:NormalFloat,FloatBorder:FloatBorder"
+  )
+end
+
+local function apply_term_opts(win)
+  utils.win_opt(win, "number", false)
+  utils.win_opt(win, "relativenumber", false)
+  utils.win_opt(win, "signcolumn", "no")
+end
+
 M.build = function()
   local cfg = require("custom.terminal_manager").config
   local h = utils.panel_height()
@@ -18,53 +37,36 @@ M.build = function()
     error("not enough screen space to open the terminal panel")
   end
 
-  -- 1. Full-width horizontal split pinned to the bottom.
   vim.cmd("botright " .. h .. "split")
   local right_win = vim.api.nvim_get_current_win()
 
-  -- 2. Narrow sidebar split on the LEFT of that new window.
-  --    After `leftabove vsplit` the left window (sidebar) is current.
   vim.cmd("leftabove " .. cfg.sidebar_width .. "vsplit")
   state.ui.sidebar_win = vim.api.nvim_get_current_win()
   state.ui.term_win = right_win
 
-  -- 3. Sidebar scratch buffer.
   state.ui.sidebar_buf = vim.api.nvim_create_buf(false, true)
-  utils.buf_opt(state.ui.sidebar_buf, "filetype", "TermManagerSidebar")
-  vim.api.nvim_win_set_buf(state.ui.sidebar_win, state.ui.sidebar_buf)
+  apply_sidebar_opts(state.ui.sidebar_win, state.ui.sidebar_buf)
+  apply_term_opts(state.ui.term_win)
 
-  -- 4. Sidebar window appearance.
-  utils.win_opt(state.ui.sidebar_win, "number", false)
-  utils.win_opt(state.ui.sidebar_win, "relativenumber", false)
-  utils.win_opt(state.ui.sidebar_win, "signcolumn", "no")
-  utils.win_opt(state.ui.sidebar_win, "wrap", false)
-  utils.win_opt(state.ui.sidebar_win, "cursorline", true)
-  utils.win_opt(
-    state.ui.sidebar_win,
-    "winhighlight",
-    "Normal:NormalFloat,CursorLine:Visual,SignColumn:NormalFloat,FloatBorder:FloatBorder"
-  )
-
-  -- 5. Terminal window appearance (minimal decorations).
-  utils.win_opt(state.ui.term_win, "number", false)
-  utils.win_opt(state.ui.term_win, "relativenumber", false)
-  utils.win_opt(state.ui.term_win, "signcolumn", "no")
-
-  -- 6. Buffer-local sidebar keymaps (automatically cleared with the buffer).
   local sb = state.ui.sidebar_buf
   local opt = function(desc)
     return { buffer = sb, nowait = true, silent = true, desc = desc }
   end
 
-  -- Lazy-load the action modules to avoid circular deps at this require point.
   local function sidebar()
     return require("custom.terminal_manager.sidebar")
   end
-  local function help_mod()
+  local function help_m()
     return require("custom.terminal_manager.help")
+  end
+  local function prof_m()
+    return require("custom.terminal_manager.profile_manager")
   end
   local function tm()
     return require("custom.terminal_manager")
+  end
+  local function sp()
+    return require("custom.terminal_manager.split")
   end
 
   vim.keymap.set("n", "<CR>", function()
@@ -91,39 +93,49 @@ M.build = function()
   vim.keymap.set("n", "R", function()
     sidebar().restart()
   end, opt("restart terminal"))
+  vim.keymap.set("n", "P", function()
+    prof_m().open()
+  end, opt("profile manager"))
+  vim.keymap.set("n", "s", function()
+    sp().toggle()
+  end, opt("toggle split"))
   vim.keymap.set("n", "q", function()
     tm().close()
   end, opt("close panel"))
+  vim.keymap.set("n", "H", function()
+    tm().hide()
+  end, opt("hide panel"))
   vim.keymap.set("n", "?", function()
-    help_mod().open()
+    help_m().open()
   end, opt("toggle help"))
   vim.keymap.set("n", "<Tab>", function()
-    if utils.win_ok(state.ui.term_win) then
+    if state.split_mode and utils.win_ok(state.ui.term_win2) then
+      -- Tab cycles between primary and secondary panes
+      local cur = vim.api.nvim_get_current_win()
+      if cur == state.ui.term_win then
+        vim.api.nvim_set_current_win(state.ui.term_win2)
+      else
+        vim.api.nvim_set_current_win(state.ui.term_win)
+      end
+    elseif utils.win_ok(state.ui.term_win) then
       vim.api.nvim_set_current_win(state.ui.term_win)
-      vim.cmd("startinsert")
     end
-  end, opt("focus terminal"))
+    vim.cmd("startinsert")
+  end, opt("focus / cycle terminal panes"))
 end
 
---- Ensure the panel is fully built.
---- If the panel is partially open (one window closed externally), it is torn
---- down and rebuilt cleanly.
---- Returns true when the panel is ready, false on error.
 function M.ensure()
   if utils.panel_complete() then
     return true
   end
-
   if utils.panel_open() then
     require("custom.terminal_manager").close()
   end
-
   local ok, err = pcall(M.build)
   if not ok then
     vim.notify("TermManager: " .. tostring(err), vim.log.levels.WARN)
     return false
   end
-
   return utils.panel_complete()
 end
 

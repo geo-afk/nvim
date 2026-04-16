@@ -1,100 +1,87 @@
 --------------------------------------------------------------------------------
--- custom.terminal_manager/init.lua  v3 (modular)
--- VS Code-style multi-terminal panel for Neovim >= 0.10
+-- custom/terminal_manager/init.lua  v5
+-- require("custom.terminal_manager")
 --
--- Layout:
---   ┌────────────────────────────────────────────────────────────┐
---   │                    editor windows                          │
---   ├──────────────────────┬─────────────────────────────────────┤
---   │  ▌ TERMINALS (2)     │ ● $ terminal 1  [Default]   <...>  │
---   │                      │                                     │
---   │  ▶ ● $ terminal 1   │   active terminal output            │
---   │    ● ~ python repl  │                                     │
---   │    ○ $ terminal 3   │                                     │
---   │  ────────────────    │                                     │
---   │    + new terminal    │                                     │
---   │    ? help            │                                     │
---   └──────────────────────┴─────────────────────────────────────┘
+-- NEW IN v5
+--   • Panel hide / show (jobs survive, <leader>zh / H in sidebar)
+--   • Side-by-side split panes (<leader>z| / s in sidebar)
+--   • Search within terminal (<C-f> in terminal, :TerminalSearch)
+--   • Link + file:line detection (gx / gf / gl in terminal normal mode)
+--   • Virtual-environment detection (Python venv/conda/poetry/pipenv,
+--     Node nvm, Ruby rbenv/bundler, Go modules, Rust cargo)
+--   • Venv badge in sidebar + winbar
+--   • Module path: custom.terminal_manager
 --
--- Sidebar keys:
---   <CR> / <2-LeftMouse>   select terminal (auto-restarts if dead)
---   j / k                  navigate list (clamped to terminal rows)
---   n                      new terminal → profile picker → name prompt
---   d                      delete terminal under cursor
---   r                      rename terminal under cursor
---   R                      force-restart terminal under cursor
---   <Tab>                  focus the terminal pane (starts insert mode)
---   q                      close the panel
---   ?                      toggle help float
+-- LAYOUT (normal)                    LAYOUT (split)
+--   [sidebar | term_win]               [sidebar | term_win | term_win2]
 --
--- Terminal — terminal-mode keys (applied to every non-plugin terminal):
---   <Esc><Esc>             exit to normal mode
---   <C-h/j/k/l>           navigate Neovim windows
+-- KEYMAPS (sidebar)
+--   <CR>           select terminal     s          toggle split
+--   j/k            navigate            H          hide panel
+--   n              new terminal        P          profile manager
+--   d/r/R          del/rename/restart  ?          toggle help
+--   <Tab>          focus/cycle panes   q          close panel
 --
--- Terminal — normal-mode keys:
---   <leader>zT             focus sidebar
+-- KEYMAPS (global, normal mode)
+--   <leader>zt     toggle panel        <leader>z|   toggle split
+--   <leader>zh     hide panel          <leader>z<   focus pane 1
+--   <leader>zn     new terminal        <leader>z>   focus pane 2
+--   <leader>zT     focus sidebar       <leader>zx   swap panes
+--   <leader>zp     pick profile        <leader>z1-9 jump to #N
+--   <leader>zP     profile manager
 --
--- Global — normal mode:
---   <leader>zt             toggle panel
---   <leader>zn             new terminal
---   <leader>zT             focus sidebar
---   <leader>zp             pick profile for new terminal
---   <leader>z1-9           jump to terminal N
+-- KEYMAPS (terminal, insert mode)
+--   <Esc><Esc>     normal mode         <C-f>  search in terminal
+--   <C-h/j/k/l>   navigate windows
 --
--- Visual mode:
---   <leader>zs             send selection to active terminal
+-- KEYMAPS (terminal, normal mode)
+--   <C-f>  search    gx/gf  open link/file:line    gl  list links
 --
--- User commands:
---   :TerminalNew [name]           open a managed terminal
---   :TerminalProfiles             show configured profiles
---   :TerminalAutomation [name]    open terminal with automation profile
+-- COMMANDS
+--   :TerminalNew [name]   :TerminalProfiles   :TerminalProfileNew
+--   :TerminalAutomation   :TerminalSplit       :TerminalHide
+--   :TerminalSearch
 --
--- Configuration (override after require):
---   local tm = require("custom.terminal_manager")
---   tm.config.sidebar_width = 30
---   tm.config.profiles = {
---     { name = "zsh", shell = "zsh", args = {"-l"}, icon = "%", color = "green" },
---   }
---
--- Module structure:
---   init.lua       ← you are here (public M table + wiring)
---   config.lua     default config values
---   state.lua      shared mutable state (terminals[], ui{}, etc.)
---   highlights.lua highlight group definitions
---   utils.lua      pure helpers (buf_ok, win_ok, term_alive, …)
---   profiles.lua   profile lookup, validation, cmd/env builders
---   panel.lua      layout builder (build_panel + ensure)
---   sidebar.lua    render_sidebar + sidebar action handlers
---   help.lua       floating help window
---   winbar.lua     update_winbar
---   terminal.lua   spawn_in_term_win + show_terminal + restart
---   api.lua        public API (open/close/toggle/new_term/delete_term/…)
---   autocmds.lua   plugin autocommands
---   keymaps.lua    global keymaps + :Terminal* user commands
+-- MODULES
+--   init.lua            entry point
+--   config.lua          default configuration
+--   state.lua           shared mutable state
+--   highlights.lua      highlight group definitions
+--   utils.lua           pure helpers + pane utilities
+--   profiles.lua        profile lookup / cmd / env / keymap registration
+--   profile_store.lua   JSON persistence (~/.local/share/nvim/terminal_manager/)
+--   profile_wizard.lua  interactive profile creation wizard
+--   profile_manager.lua browse / create / edit / delete profiles
+--   panel.lua           layout builder (normal + split)
+--   sidebar.lua         render + action handlers
+--   help.lua            floating help window
+--   winbar.lua          winbar for primary + secondary panes
+--   terminal.lua        spawn + restart + venv inject + link attach
+--   split.lua           second terminal pane management
+--   search.lua          floating search-within-terminal UI
+--   links.lua           URL + file:line detection / navigation
+--   venv.lua            virtual environment detection
+--   api.lua             public API
+--   autocmds.lua        plugin autocommands
+--   keymaps.lua         global keymaps + :Terminal* commands
 --------------------------------------------------------------------------------
 
 local M = {}
 
--- ── Configuration ─────────────────────────────────────────────────────────────
--- Initialised from defaults; users mutate M.config directly after require().
-M.config = vim.deepcopy(require("custom.terminal_manager.config").defaults)
+M.config = require("custom.terminal_manager.config").values
 
--- ── Highlight groups ──────────────────────────────────────────────────────────
 local highlights = require("custom.terminal_manager.highlights")
 highlights.setup()
-
--- Re-apply after :colorscheme so linked groups are recalculated.
 vim.api.nvim_create_autocmd("ColorScheme", {
   group = vim.api.nvim_create_augroup("TermManagerHL", { clear = true }),
   callback = highlights.setup,
 })
 
--- ── Public API ─────────────────────────────────────────────────────────────────
--- Proxy every api.lua function onto M so callers can do:
---   require("custom.terminal_manager").toggle()
 local api = require("custom.terminal_manager.api")
 M.open = api.open
 M.close = api.close
+M.hide = api.hide
+M.show = api.show
 M.toggle = api.toggle
 M.new_term = api.new_term
 M.new_automation_term = api.new_automation_term
@@ -105,13 +92,11 @@ M.show_profiles = api.show_profiles
 M._send_lines = api._send_lines
 M.send_selection = api.send_selection
 
--- ── Autocommands & keymaps ────────────────────────────────────────────────────
 require("custom.terminal_manager.autocmds").setup()
 require("custom.terminal_manager.keymaps").setup()
 
--- ── Startup validation ────────────────────────────────────────────────────────
--- Deferred so Neovim is fully initialised before we probe executables.
 vim.schedule(function()
+  require("custom.terminal_manager.profile_store").merge_into_config()
   require("custom.terminal_manager.profiles").validate_profiles()
 end)
 

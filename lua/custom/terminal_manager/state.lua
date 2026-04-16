@@ -1,36 +1,35 @@
 --------------------------------------------------------------------------------
--- terminal_manager/state.lua
--- Shared mutable state.  All other modules require this; nothing here
--- requires any sibling module (avoids circular dependencies).
+-- custom/terminal_manager/state.lua
 --------------------------------------------------------------------------------
-
 local M = {}
 
--- List of terminal entries.
--- Each entry: { id:int, name:string, buf:int|nil, profile:table }
 M.terminals = {}
-
--- Monotonically increasing terminal ID counter.
 M.next_id = 1
-
--- ID of the terminal currently shown in ui.term_win.
 M.active_id = nil
+M.active_id2 = nil -- terminal in secondary split pane
 
--- Window / buffer handles for the panel.
 M.ui = {
   sidebar_buf = nil,
   sidebar_win = nil,
-  term_win = nil,
+  term_win = nil, -- primary terminal pane
+  term_win2 = nil, -- secondary terminal pane (split mode only)
 }
 
--- Populated by sidebar.render(); consumed by sidebar action handlers.
--- term_rows : { [1-based row] = index into M.terminals }
-M.sidebar_meta = { term_rows = {}, new_row = nil, help_row = nil }
+M.split_mode = false
+M.panel_hidden = false -- set by hide(); cleared by show()
 
--- Extmark namespace shared by sidebar highlights.
-M.ns = vim.api.nvim_create_namespace("TermManager")
+M.sidebar_meta = {
+  term_rows = {},
+  new_row = nil,
+  profiles_row = nil,
+  help_row = nil,
+}
 
--- Handle for the help floating window (nil when closed).
 M.help_win_h = nil
+
+M.ns = vim.api.nvim_create_namespace("TermManager")
+M.link_ns = vim.api.nvim_create_namespace("TermManagerLinks")
+
+M.venv_cache = {} -- { [dir_path] = venv_info table | false }
 
 return M
