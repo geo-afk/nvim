@@ -13,7 +13,6 @@
 --   q / <Esc>      close
 --------------------------------------------------------------------------------
 
-local state = require("custom.terminal_manager.state")
 local utils = require("custom.terminal_manager.utils")
 
 local M = {}
@@ -55,11 +54,6 @@ local function render(buf, cursor_idx)
   lines[#lines + 1] = string.format("  Profiles (%d)   [n]ew  [e]dit  [d]el  [D]efault", #profiles)
   lines[#lines + 1] = "  " .. ("─"):rep(WIDTH - 4)
   lines[#lines + 1] = ""
-
-  local ICON_COL = 2
-  local NAME_COL = 6
-  local SHELL_COL = 28
-  local KEY_COL = 46
 
   -- Column header
   lines[#lines + 1] = string.format("  %-22s %-16s %-14s", "Name", "Shell", "Keymap")

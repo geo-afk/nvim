@@ -53,21 +53,6 @@ function M.setup()
     require("custom.terminal_manager").send_selection()
   end, { desc = "terminal: send selection" })
 
-  -- ── Jump to #N ────────────────────────────────────────────────────────────
-  for i = 1, 9 do
-    vim.keymap.set("n", "<leader>z" .. i, function()
-      local st = require("custom.terminal_manager.state")
-      if not st.terminals[i] then
-        vim.notify(string.format("TermManager: no terminal #%d", i), vim.log.levels.INFO)
-        return
-      end
-      if not require("custom.terminal_manager.utils").panel_open() then
-        require("custom.terminal_manager").open()
-      end
-      require("custom.terminal_manager.terminal").show(st.terminals[i])
-    end, { desc = string.format("terminal: switch to #%d", i) })
-  end
-
   -- ── Commands ──────────────────────────────────────────────────────────────
   vim.api.nvim_create_user_command("TerminalNew", function(opts)
     require("custom.terminal_manager").new_term(opts.args ~= "" and opts.args or nil)
