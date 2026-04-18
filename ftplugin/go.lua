@@ -615,19 +615,15 @@ end
 
 -- =============================================================================
 --  dlv (Delve debugger)
---  Strategy:
---    1. nvim-dap present  → configure adapter once, expose full DAP workflow
---    2. nvim-dap absent   → dlv CLI in a floating terminal (limited but usable)
+--  Terminal-first workflow:
+--    * breakpoints are managed in Lua
+--    * debug sessions are started with the real `dlv` CLI
+--    * saved breakpoints are injected through `dlv --init`
 -- =============================================================================
-local _dap_configured = false
+local dlv_breakpoints = {}
 
---- Configure the Delve DAP adapter and default launch configs.  Idempotent.
----@return boolean success
-local function setup_dap()
-  if _dap_configured then
-    return true
-  end
-
+---@return boolean
+local function ensure_dlv()
   if vim.fn.executable("dlv") == 0 then
     vim.notify(
       "[go.lua] dlv not found.\n  Install: go install github.com/go-delve/delve/cmd/dlv@latest",
@@ -635,233 +631,199 @@ local function setup_dap()
     )
     return false
   end
-
-  local ok, dap = pcall(require, "dap")
-  if not ok then
-    return false
-  end -- nvim-dap not installed; terminal fallback used
-
-  -- ── Adapter ──────────────────────────────────────────────────────────────
-  dap.adapters.delve = function(callback, config)
-    if config.mode == "remote" and config.request == "attach" then
-      callback({
-        type = "server",
-        host = config.host or "127.0.0.1",
-        port = config.port or "38697",
-      })
-    else
-      callback({
-        type = "server",
-        port = "${port}",
-        executable = {
-          command = "dlv",
-          args = { "dap", "-l", "127.0.0.1:${port}", "--log", "--log-output=dap" },
-          detached = vim.fn.has("win32") == 0,
-        },
-      })
-    end
-  end
-  dap.adapters.go = dap.adapters.delve -- legacy alias
-
-  -- ── Launch configurations (add only when none exist yet) ─────────────────
-  if not dap.configurations.go or #dap.configurations.go == 0 then
-    dap.configurations.go = {
-      {
-        type = "delve",
-        name = "Debug (current file)",
-        request = "launch",
-        program = "${file}",
-      },
-      {
-        type = "delve",
-        name = "Debug package (dir)",
-        request = "launch",
-        program = "${fileDirname}",
-      },
-      {
-        type = "delve",
-        name = "Debug test (current file)",
-        request = "launch",
-        mode = "test",
-        program = "${file}",
-      },
-      {
-        type = "delve",
-        name = "Debug test (package)",
-        request = "launch",
-        mode = "test",
-        program = "./${relativeFileDirname}",
-      },
-      {
-        type = "delve",
-        name = "Attach to running process",
-        request = "attach",
-        mode = "local",
-        -- Evaluated lazily at debug time so dap.utils is not required at setup
-        processId = function()
-          local ok_u, utils = pcall(require, "dap.utils")
-          return ok_u and utils.pick_process() or tonumber(vim.fn.input("PID: "))
-        end,
-      },
-      {
-        type = "delve",
-        name = "Remote attach",
-        request = "attach",
-        mode = "remote",
-        host = "127.0.0.1",
-        port = "38697",
-      },
-    }
-  end
-
-  -- ── Auto open/close nvim-dap-ui ───────────────────────────────────────────
-  local has_ui, dapui = pcall(require, "dapui")
-  if has_ui then
-    dap.listeners.after.event_initialized["go_lua_dapui"] = function()
-      dapui.open()
-    end
-    dap.listeners.before.event_terminated["go_lua_dapui"] = function()
-      dapui.close()
-    end
-    dap.listeners.before.event_exited["go_lua_dapui"] = function()
-      dapui.close()
-    end
-  end
-
-  _dap_configured = true
   return true
 end
 
---- Run a function with the dap module.  Emits a warning if nvim-dap is absent.
----@param fn fun(dap: table)
-local function with_dap(fn)
-  if not setup_dap() then
-    return
-  end
-  local ok, dap = pcall(require, "dap")
-  if ok then
-    fn(dap)
-  end
+---@param filepath string
+---@return string
+local function normalize_dlv_path(filepath)
+  return filepath:gsub("\\", "/")
 end
 
--- ── Terminal fallback ─────────────────────────────────────────────────────────
+---@param file string
+---@param line integer
+---@return string
+local function breakpoint_key(file, line)
+  return string.format("%s:%d", normalize_dlv_path(file), line)
+end
 
----@param subcmd  string  e.g. 'debug', 'test', 'connect'
----@param extra?  string  Additional CLI arguments
----@param cwd?    string  Working directory
-local function dlv_terminal(subcmd, extra, cwd)
-  if vim.fn.executable("dlv") == 0 then
-    vim.notify(
-      "[go.lua] dlv not found.\n  Install: go install github.com/go-delve/delve/cmd/dlv@latest",
-      vim.log.levels.ERROR
-    )
+---@return string|nil file
+---@return integer|nil line
+---@return string|nil key
+local function current_breakpoint_location()
+  if not assert_go_file() then
+    return nil, nil, nil
+  end
+  local file = vim.fn.expand("%:p")
+  local line = vim.api.nvim_win_get_cursor(0)[1]
+  return file, line, breakpoint_key(file, line)
+end
+
+---@param cwd string
+---@param file string
+---@param line integer
+---@return string
+local function breakpoint_locspec(cwd, file, line)
+  local abs_cwd = vim.fn.fnamemodify(cwd, ":p"):gsub("[/\\]$", "")
+  local abs_file = vim.fn.fnamemodify(file, ":p")
+  local file_for_dlv = abs_file
+
+  local prefix = abs_cwd .. "\\"
+  if abs_file:sub(1, #prefix):lower() == prefix:lower() then
+    file_for_dlv = abs_file:sub(#prefix + 1)
+  else
+    prefix = abs_cwd .. "/"
+    if abs_file:sub(1, #prefix):lower() == prefix:lower() then
+      file_for_dlv = abs_file:sub(#prefix + 1)
+    end
+  end
+
+  return string.format("%s:%d", normalize_dlv_path(file_for_dlv), line)
+end
+
+---@return table[]
+local function list_dlv_breakpoints()
+  local items = {}
+  for _, bp in pairs(dlv_breakpoints) do
+    table.insert(items, bp)
+  end
+
+  table.sort(items, function(a, b)
+    if a.file == b.file then
+      return a.line < b.line
+    end
+    return a.file < b.file
+  end)
+
+  return items
+end
+
+---@param cwd string
+---@return string
+local function write_dlv_init_file(cwd)
+  local cache_dir = vim.fn.stdpath("cache")
+  vim.fn.mkdir(cache_dir, "p")
+
+  local init_path = cache_dir .. "/go-dlv-init.txt"
+  local lines = { "# Generated by ftplugin/go.lua" }
+
+  for index, bp in ipairs(list_dlv_breakpoints()) do
+    local name = string.format("go_lua_%d", index)
+    local locspec = breakpoint_locspec(cwd, bp.file, bp.line)
+
+    if bp.condition and vim.trim(bp.condition) ~= "" then
+      table.insert(lines, string.format("break %s %s if %s", name, locspec, bp.condition))
+    else
+      table.insert(lines, string.format("break %s %s", name, locspec))
+    end
+  end
+
+  vim.fn.writefile(lines, init_path)
+  return init_path
+end
+
+---@param cwd string
+---@return string
+local function dlv_init_flag(cwd)
+  local init_path = write_dlv_init_file(cwd)
+  return "--init " .. vim.fn.shellescape(init_path)
+end
+
+---@param subcmd string
+---@param target? string
+---@param cwd? string
+---@param extra_flags? string
+local function dlv_terminal(subcmd, target, cwd, extra_flags)
+  if not ensure_dlv() then
     return
   end
-  local cmd = string.format("dlv %s %s", subcmd, extra or "")
-  create_go_terminal(cmd, string.format(" 󰃤 dlv %s ", subcmd), cwd)
+
+  local parts = { "dlv", subcmd }
+  if target and target ~= "" then
+    table.insert(parts, target)
+  end
+  if extra_flags and extra_flags ~= "" then
+    table.insert(parts, extra_flags)
+  end
+
+  create_go_terminal(table.concat(parts, " "), string.format(" 󰃤 dlv %s ", subcmd), cwd)
+  vim.notify(
+    "[go.lua] Delve opened in a terminal. Use commands like continue, next, step, print, locals, bt, and quit inside dlv.",
+    vim.log.levels.INFO
+  )
 end
 
 -- ── Debug entry points ────────────────────────────────────────────────────────
 
 local function dlv_debug()
-  if setup_dap() then
-    with_dap(function(dap)
-      dap.continue()
-    end)
-  else
-    -- Resolve the project root so `dlv debug .` finds main.go
-    local cwd = find_main_go() or vim.fn.expand("%:p:h")
-    dlv_terminal("debug", ".", cwd)
-  end
+  local cwd = find_main_go() or vim.fn.expand("%:p:h")
+  dlv_terminal("debug", ".", cwd, dlv_init_flag(cwd))
 end
 
 local function dlv_debug_test()
-  -- nvim-dap-go gives the best nearest-test detection
-  local ok_go, dap_go = pcall(require, "dap-go")
-  if ok_go then
-    dap_go.debug_test()
-    return
-  end
-
-  if setup_dap() then
-    with_dap(function(dap)
-      dap.run({
-        type = "delve",
-        name = "Debug test (nearest)",
-        request = "launch",
-        mode = "test",
-        program = vim.fn.expand("%:p:h"),
-      })
-    end)
-    return
-  end
-
-  dlv_terminal("test", ".", vim.fn.expand("%:p:h"))
+  local cwd = vim.fn.expand("%:p:h")
+  dlv_terminal("test", ".", cwd, dlv_init_flag(cwd))
 end
 
 local function dlv_toggle_breakpoint()
-  with_dap(function(dap)
-    dap.toggle_breakpoint()
-  end)
+  local file, line, key = current_breakpoint_location()
+  if not key then
+    return
+  end
+
+  if dlv_breakpoints[key] then
+    dlv_breakpoints[key] = nil
+    vim.notify(string.format("[go.lua] Removed Delve breakpoint at %s:%d", vim.fn.fnamemodify(file, ":t"), line))
+    return
+  end
+
+  dlv_breakpoints[key] = { file = file, line = line }
+  vim.notify(string.format("[go.lua] Added Delve breakpoint at %s:%d", vim.fn.fnamemodify(file, ":t"), line))
 end
 
 local function dlv_conditional_breakpoint()
-  with_dap(function(dap)
-    dap.set_breakpoint(vim.fn.input("Breakpoint condition: "))
-  end)
+  local file, line, key = current_breakpoint_location()
+  if not key then
+    return
+  end
+
+  local existing = dlv_breakpoints[key]
+  local default = existing and existing.condition or ""
+  local condition = vim.trim(vim.fn.input("Breakpoint condition: ", default))
+
+  dlv_breakpoints[key] = {
+    file = file,
+    line = line,
+    condition = condition ~= "" and condition or nil,
+  }
+
+  if condition == "" then
+    vim.notify(string.format("[go.lua] Set plain Delve breakpoint at %s:%d", vim.fn.fnamemodify(file, ":t"), line))
+  else
+    vim.notify(
+      string.format("[go.lua] Set conditional Delve breakpoint at %s:%d", vim.fn.fnamemodify(file, ":t"), line)
+    )
+  end
 end
 
 local function dlv_clear_breakpoints()
-  with_dap(function(dap)
-    dap.clear_breakpoints()
-    vim.notify("[go.lua] All breakpoints cleared", vim.log.levels.INFO)
-  end)
+  dlv_breakpoints = {}
+  vim.notify("[go.lua] Cleared all saved Delve breakpoints", vim.log.levels.INFO)
 end
 
-local function dlv_attach_remote()
-  local host = vim.fn.input("Remote host [127.0.0.1]: ")
-  local port = vim.fn.input("Remote port [38697]: ")
-  host = (host == "") and "127.0.0.1" or host
-  port = (port == "") and "38697" or port
-
-  if setup_dap() then
-    with_dap(function(dap)
-      dap.run({
-        type = "delve",
-        name = "Remote attach",
-        request = "attach",
-        mode = "remote",
-        host = host,
-        port = port,
-      })
-    end)
+local function dlv_attach()
+  local target = vim.trim(vim.fn.input("PID or host:port: "))
+  if target == "" then
+    vim.notify("[go.lua] Delve attach cancelled", vim.log.levels.INFO)
     return
   end
-  dlv_terminal("connect", string.format("%s:%s", host, port))
-end
 
-local function dlv_repl()
-  with_dap(function(dap)
-    dap.repl.open()
-  end)
-end
-
-local function dlv_hover()
-  local ok, widgets = pcall(require, "dap.ui.widgets")
-  if ok then
-    widgets.hover()
-  else
-    vim.notify("[go.lua] nvim-dap not available", vim.log.levels.WARN)
+  if target:match("^%d+$") then
+    dlv_terminal("attach", target, vim.fn.getcwd(), dlv_init_flag(vim.fn.getcwd()))
+    return
   end
-end
 
-local function dlv_toggle_ui()
-  local ok, dapui = pcall(require, "dapui")
-  if ok then
-    dapui.toggle()
-  else
-    vim.notify("[go.lua] nvim-dap-ui not installed", vim.log.levels.WARN)
-  end
+  dlv_terminal("connect", target)
 end
 
 -- =============================================================================
@@ -1084,10 +1046,10 @@ end, { nargs = "?", desc = "Run govulncheck on the project" })
 
 vim.api.nvim_create_user_command("GoDlvDebug", function()
   dlv_debug()
-end, { desc = "Start / continue debug session" })
+end, { desc = "Start a Delve debug session for the current package" })
 vim.api.nvim_create_user_command("GoDlvTest", function()
   dlv_debug_test()
-end, { desc = "Debug nearest test" })
+end, { desc = "Start a Delve test debug session for the current package" })
 vim.api.nvim_create_user_command("GoDlvBreakpoint", function()
   dlv_toggle_breakpoint()
 end, { desc = "Toggle breakpoint at current line" })
@@ -1098,35 +1060,8 @@ vim.api.nvim_create_user_command("GoDlvClearBreakpoints", function()
   dlv_clear_breakpoints()
 end, { desc = "Clear all breakpoints" })
 vim.api.nvim_create_user_command("GoDlvAttach", function()
-  setup_dap()
-  dlv_attach_remote()
-end, { desc = "Attach dlv to a remote process" })
-vim.api.nvim_create_user_command("GoDlvRepl", function()
-  dlv_repl()
-end, { desc = "Open nvim-dap REPL" })
-vim.api.nvim_create_user_command("GoDlvStepOver", function()
-  with_dap(function(d)
-    d.step_over()
-  end)
-end, { desc = "Step over" })
-vim.api.nvim_create_user_command("GoDlvStepInto", function()
-  with_dap(function(d)
-    d.step_into()
-  end)
-end, { desc = "Step into" })
-vim.api.nvim_create_user_command("GoDlvStepOut", function()
-  with_dap(function(d)
-    d.step_out()
-  end)
-end, { desc = "Step out" })
-vim.api.nvim_create_user_command("GoDlvTerminate", function()
-  with_dap(function(d)
-    d.terminate()
-  end)
-end, { desc = "Terminate debug session" })
-vim.api.nvim_create_user_command("GoDlvUI", function()
-  dlv_toggle_ui()
-end, { desc = "Toggle nvim-dap-ui" })
+  dlv_attach()
+end, { desc = "Attach to a PID or connect to a headless Delve server" })
 
 -- =============================================================================
 --  which-key Mappings (updated with new features)
@@ -1139,102 +1074,51 @@ end
 
 wk.add({
   -- ── Parent groups ────────────────────────────────────────────────────────
-  { "<leader>g", group = "Go", icon = "󰟓" },
-  { "<leader>gd", group = "Go Debugger", icon = "󰃤" },
+  { "<leader>t", group = "Go", icon = "󰟓" },
+  { "<leader>td", group = "Go Debugger", icon = "󰃤" },
 
   -- ── Code generation ──────────────────────────────────────────────────────
-  { "<leader>gt", ":GoTests -all<CR>", desc = "Generate tests (all)", icon = "󰙨" },
-  { "<leader>gm", ":GoModifyTags -add-tags json<CR>", desc = "Add JSON struct tags", icon = "󰓹" },
-  { "<leader>gr", ":GoModifyTags -remove-tags json<CR>", desc = "Remove JSON struct tags", icon = "󰓹" },
-  { "<leader>ge", ":GoIfErr<CR>", desc = "Insert if-err snippet", icon = "󰈸" },
-  { "<leader>gi", organize_go_imports, desc = "Organize imports (gopls)", icon = "󰒓" },
+  { "<leader>tt", ":GoTests -all<CR>", desc = "Generate tests (all)", icon = "󰙨" },
+  { "<leader>tm", ":GoModifyTags -add-tags json<CR>", desc = "Add JSON struct tags", icon = "󰓹" },
+  { "<leader>tr", ":GoModifyTags -remove-tags json<CR>", desc = "Remove JSON struct tags", icon = "󰓹" },
+  { "<leader>te", ":GoIfErr<CR>", desc = "Insert if-err snippet", icon = "󰈸" },
+  { "<leader>ti", organize_go_imports, desc = "Organize imports (gopls)", icon = "󰒓" },
 
   -- ── Refactoring ──────────────────────────────────────────────────────────
-  { "<leader>gf", run_fillstruct, desc = "Fill struct with defaults", icon = "󰉸" },
-  { "<leader>gw", run_fillswitch, desc = "Fill switch with cases", icon = "󰘬" },
+  { "<leader>tf", run_fillstruct, desc = "Fill struct with defaults", icon = "󰉸" },
+  { "<leader>tw", run_fillswitch, desc = "Fill switch with cases", icon = "󰘬" },
 
   -- ── Run / Test ───────────────────────────────────────────────────────────
-  { "<leader>go", ":GoRun<CR>", desc = "Run Go project", icon = "󰐊" },
-  { "<leader>ga", ":GoTestRun<CR>", desc = "Run tests (pick file)", icon = "󰤑" },
-  { "<leader>gc", ":GoTestRunCurrent<CR>", desc = "Run tests (current file)", icon = "󰤑" },
-  { "<leader>gA", go_alternate, desc = "Alternate test/impl", icon = "󰅂" },
+  { "<leader>to", ":GoRun<CR>", desc = "Run Go project", icon = "󰐊" },
+  { "<leader>ta", ":GoTestRun<CR>", desc = "Run tests (pick file)", icon = "󰤑" },
+  { "<leader>tc", ":GoTestRunCurrent<CR>", desc = "Run tests (current file)", icon = "󰤑" },
+  { "<leader>tA", go_alternate, desc = "Alternate test/impl", icon = "󰅂" },
 
   -- ── Module / Build ───────────────────────────────────────────────────────
-  { "<leader>gT", run_mod_tidy, desc = "go mod tidy", icon = "󰏖" },
-  { "<leader>gg", run_go_generate, desc = "go generate ./...", icon = "󰠱" },
+  { "<leader>tT", run_mod_tidy, desc = "go mod tidy", icon = "󰏖" },
+  { "<leader>tg", run_go_generate, desc = "go generate ./...", icon = "󰠱" },
 
   -- ── Documentation ────────────────────────────────────────────────────────
   {
-    "<leader>gk",
+    "<leader>tk",
     function()
       run_godoc()
     end,
     desc = "Go doc (cursor word)",
     icon = "󰋖",
   },
-  { "<leader>gD", go_doc_browser, desc = "Godoc (browser)", icon = "󰖟" },
+  { "<leader>tD", go_doc_browser, desc = "Godoc (browser)", icon = "󰖟" },
 
   -- ── Security ─────────────────────────────────────────────────────────────
-  { "<leader>gv", ":GoVulnCheck<CR>", desc = "govulncheck ./...", icon = "󰒃" },
+  { "<leader>tv", ":GoVulnCheck<CR>", desc = "govulncheck ./...", icon = "󰒃" },
 
   -- ── Debugger ─────────────────────────────────────────────────────────────
-  { "<leader>gds", dlv_debug, desc = "Start / continue debug", icon = "󰐊" },
-  { "<leader>gdt", dlv_debug_test, desc = "Debug nearest test", icon = "󰙨" },
-  { "<leader>gdb", dlv_toggle_breakpoint, desc = "Toggle breakpoint", icon = "󰝥" },
-  { "<leader>gdB", dlv_conditional_breakpoint, desc = "Conditional breakpoint", icon = "󰝥" },
-  { "<leader>gdx", dlv_clear_breakpoints, desc = "Clear all breakpoints", icon = "󰅙" },
-  {
-    "<leader>gdn",
-    function()
-      with_dap(function(d)
-        d.step_over()
-      end)
-    end,
-    desc = "Step over",
-    icon = "󰆷",
-  },
-  {
-    "<leader>gdi",
-    function()
-      with_dap(function(d)
-        d.step_into()
-      end)
-    end,
-    desc = "Step into",
-    icon = "󰆹",
-  },
-  {
-    "<leader>gdo",
-    function()
-      with_dap(function(d)
-        d.step_out()
-      end)
-    end,
-    desc = "Step out",
-    icon = "󰆸",
-  },
-  {
-    "<leader>gdq",
-    function()
-      with_dap(function(d)
-        d.terminate()
-      end)
-    end,
-    desc = "Terminate",
-    icon = "󰓛",
-  },
-  { "<leader>gdr", dlv_repl, desc = "Open REPL", icon = "󰞇" },
-  {
-    "<leader>gda",
-    function()
-      setup_dap()
-      dlv_attach_remote()
-    end,
-    desc = "Attach to remote",
-    icon = "󰌷",
-  },
-  { "<leader>gdu", dlv_toggle_ui, desc = "Toggle DAP UI", icon = "󰕮" },
-  { "<leader>gdh", dlv_hover, desc = "Hover variable value", icon = "󰠿" },
+  { "<leader>tds", dlv_debug, desc = "Start debug session", icon = "󰐊" },
+  { "<leader>tdt", dlv_debug_test, desc = "Debug tests in current package", icon = "󰙨" },
+  { "<leader>tdb", dlv_toggle_breakpoint, desc = "Toggle breakpoint", icon = "󰝥" },
+  { "<leader>tdB", dlv_conditional_breakpoint, desc = "Conditional breakpoint", icon = "󰝥" },
+  { "<leader>tdx", dlv_clear_breakpoints, desc = "Clear all breakpoints", icon = "󰅙" },
+  { "<leader>tda", dlv_attach, desc = "Attach to PID or connect to server", icon = "󰌷" },
 })
 
 -- =============================================================================
