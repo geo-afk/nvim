@@ -2,18 +2,18 @@
 --  plugins/treesitter.lua  ·  nvim-treesitter
 -- =============================================================================
 
-local utils_ok, utils = pcall(require, "utils")
-utils = utils_ok and utils or {}
-
 vim.pack.add({
   {
     src = "https://github.com/nvim-treesitter/nvim-treesitter",
-    build = ":TSUpdate",
+    version = "master",
+    build = ":tsupdate",
   },
 })
 
-local ok, ts = pcall(require, "nvim-treesitter.configs")
+local ok, ts = pcall(require, "nvim-treesitter.config")
 if not ok then
+  vim.print("Not OK")
+  vim.notify("Not oK", vim.log.levels.DEBUG)
   return
 end
 
@@ -42,8 +42,9 @@ ts.setup({
   auto_install = true,
   highlight = { enable = true, additional_vim_regex_highlighting = false },
   indent = { enable = true, disable = { "ruby" } },
+  install_dir = vim.fn.stdpath("data") .. "/site",
 
-  -- [0.12] incremental_selection also powered by LSP selectionRange (v_an/v_in)
+  -- [0.12] incremental_selection also powered by lsp selectionrange (v_an/v_in)
   incremental_selection = {
     enable = true,
     keymaps = {
@@ -54,52 +55,19 @@ ts.setup({
     },
   },
 })
-local function is_angular_project()
-  if type(utils.is_angular_project) == "function" then
-    return utils.is_angular_project()
-  end
-  return false
-end
-
-local function should_use_angular_parser(path)
-  if not path or type(path) ~= "string" then
-    return false
-  end
-  if not path:match("/src/app/") then
-    return false
-  end
-  return is_angular_project()
-end
-
-vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile" }, {
-  pattern = { "*.component.html", "*.html" },
-  callback = function(args)
-    local buf = args.buf
-    local path = vim.api.nvim_buf_get_name(buf)
-    if should_use_angular_parser(path) then
-      local okay, _ = pcall(vim.treesitter.get_parser, buf, "angular")
-      if okay then
-        pcall(vim.treesitter.start, buf, "angular")
-      else
-        pcall(vim.treesitter.start, buf, "html")
-      end
-    end
-  end,
-  desc = "Apply Angular Treesitter parser or fallback",
-})
 
 vim.api.nvim_create_autocmd("PackChanged", {
-  desc = "Handle nvim-treesitter updates",
+  desc = "handle nvim-treesitter updates",
   group = vim.api.nvim_create_augroup("nvim-treesitter-pack-changed-update-handler", { clear = true }),
   callback = function(event)
     if event.data.kind == "update" and event.data.spec.name == "nvim-treesitter" then
-      vim.notify("nvim-treesitter updated, running TSUpdate...", vim.log.levels.INFO)
+      vim.notify("nvim-treesitter updated, running tsupdate...", vim.log.levels.INFO)
       ---@diagnostic disable-next-line: param-type-mismatch
-      local okay = pcall(vim.cmd, "TSUpdate")
+      local okay = pcall(vim.cmd, "tsupdate")
       if okay then
-        vim.notify("TSUpdate completed successfully!", vim.log.levels.INFO)
+        vim.notify("tsupdate completed successfully!", vim.log.levels.INFO)
       else
-        vim.notify("TSUpdate command not available yet, skipping", vim.log.levels.WARN)
+        vim.notify("tsupdate command not available yet, skipping", vim.log.levels.WARN)
       end
     end
   end,

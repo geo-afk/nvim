@@ -37,45 +37,51 @@ vim.api.nvim_create_autocmd("PackChanged", {
 })
 
 -- ── Core / UI foundation ─────────────────────────────────────────────────────
+-- These must load immediately for visual consistency.
 load("plugins.icons") -- nvim-web-devicons
 load("plugins.colorscheme") -- tokyonight
 
--- ── Keybinding helper (loaded early so other plugins can register groups) ────
-load("plugins.which-key")
+-- ── Deferred Loading ─────────────────────────────────────────────────────────
+-- Everything else is scheduled to load after the initial UI loop to speed up
+-- the first frame and reduce startup blocking.
+vim.schedule(function()
+  -- Keybinding helper
+  load("plugins.which-key")
 
--- ── Syntax / parsing ─────────────────────────────────────────────────────────
-load("plugins.treesitter")
-load("plugins.rainbow") -- rainbow-delimiters
-load("plugins.ts-autotag") -- auto close/rename HTML tags
+  -- Syntax / parsing
+  load("plugins.treesitter")
+  load("plugins.rainbow")
+  load("plugins.ts-autotag")
 
--- ── LSP toolchain ────────────────────────────────────────────────────────────
-load("plugins.mason") -- Mason installer + tool management
-load("plugins.lsp") -- nvim-lspconfig + LspAttach wiring
-load("plugins.lazydev") -- Lua/Neovim type annotations
-load("plugins.completion") -- blink.cmp
-load("plugins.snippets") -- LuaSnip + friendly-snippets
+  -- LSP toolchain
+  load("plugins.mason")
+  load("plugins.lsp")
+  load("plugins.lazydev")
+  load("plugins.completion")
+  load("plugins.snippets")
 
--- ── Formatting / linting ─────────────────────────────────────────────────────
-load("plugins.formatting") -- conform.nvim
-load("plugins.linting") -- nvim-lint
+  -- Formatting / linting
+  load("plugins.formatting")
+  load("plugins.linting")
 
--- ── Diagnostics / navigation ─────────────────────────────────────────────────
-load("plugins.trouble") -- trouble.nvim
-load("plugins.telescope") -- telescope + fzf-native
-load("plugins.flash") -- flash.nvim (jump / search)
+  -- Diagnostics / navigation
+  load("plugins.trouble")
+  load("plugins.telescope")
+  load("plugins.flash")
 
--- ── Git ───────────────────────────────────────────────────────────────────────
-load("plugins.gitsigns") -- gutter signs + hunk operations
+  -- Git
+  load("plugins.gitsigns")
 
--- ── Eye candy ────────────────────────────────────────────────────────────────
-load("plugins.smear") -- smear-cursor
-load("plugins.color-highlight") -- inline colour swatches
+  -- Eye candy
+  load("plugins.smear")
+  load("plugins.color-highlight")
 
--- ── Dev tools ────────────────────────────────────────────────────────────────
-load("plugins.dev-server") -- dev-server.nvim
+  -- Dev tools
+  load("plugins.dev-server")
 
--- ── Activate built-in 0.12 optional plugins ──────────────────────────────────
-for _, pkg in ipairs({ "nvim.undotree", "nvim.difftool", "nvim.tohtml" }) do
-  ---@diagnostic disable-next-line: param-type-mismatch
-  pcall(vim.cmd, "packadd " .. pkg)
-end
+  -- Activate built-in 0.12 optional plugins
+  for _, pkg in ipairs({ "nvim.undotree", "nvim.difftool", "nvim.tohtml" }) do
+    ---@diagnostic disable-next-line: param-type-mismatch
+    pcall(vim.cmd, "packadd " .. pkg)
+  end
+end)
