@@ -2,8 +2,11 @@
 --  plugins/colorscheme.lua  ·  tokyonight
 -- =============================================================================
 vim.pack.add({ { src = "https://github.com/folke/tokyonight.nvim" } })
+vim.pack.add({ { src = "https://github.com/geo-afk/theme.nvim" } })
 
+local c_ok, c_theme = pcall(require, "theme")
 local ok, tokyonight = pcall(require, "tokyonight")
+
 if ok then
   tokyonight.setup({
     style = "night",
@@ -22,6 +25,14 @@ if ok then
   })
 end
 
-if not pcall(vim.cmd, "colorscheme tokyonight-night") then
-  vim.cmd("colorscheme habamax")
+if c_ok then
+  c_theme.setup()
 end
+
+-- if not pcall(vim.cmd, "colorscheme cd-theme") then
+--   vim.cmd("colorscheme catppuccin")
+-- end
+
+-- if not pcall(vim.cmd, "colorscheme tokyonight-night") then
+--   vim.cmd("colorscheme habamax")
+-- end

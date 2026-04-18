@@ -38,6 +38,7 @@ ts.setup({
     "angular",
   },
   auto_install = true,
+  sync_install = true,
   highlight = { enable = true, additional_vim_regex_highlighting = false },
   indent = { enable = true, disable = { "ruby" } },
   install_dir = vim.fn.stdpath("data") .. "/site",
@@ -61,7 +62,7 @@ vim.api.nvim_create_autocmd("PackChanged", {
     if event.data.kind == "update" and event.data.spec.name == "nvim-treesitter" then
       vim.notify("nvim-treesitter updated, running tsupdate...", vim.log.levels.INFO)
       ---@diagnostic disable-next-line: param-type-mismatch
-      local okay = pcall(vim.cmd, "tsupdate")
+      local okay = pcall(vim.cmd, "TSUpdate")
       if okay then
         vim.notify("tsupdate completed successfully!", vim.log.levels.INFO)
       else

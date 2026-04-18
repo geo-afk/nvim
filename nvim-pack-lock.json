@@ -97,6 +97,10 @@
       "rev": "cfb85dcf7f822b79224e9e6aef9e8c794211b20b",
       "src": "https://github.com/nvim-telescope/telescope.nvim"
     },
+    "theme.nvim": {
+      "rev": "8aeff8ef77cbe934f399af42aae6216b3d965f9b",
+      "src": "https://github.com/geo-afk/theme.nvim"
+    },
     "tokyonight.nvim": {
       "rev": "cdc07ac78467a233fd62c493de29a17e0cf2b2b6",
       "src": "https://github.com/folke/tokyonight.nvim"
