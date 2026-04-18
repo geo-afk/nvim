@@ -12,8 +12,6 @@ vim.pack.add({
 
 local ok, ts = pcall(require, "nvim-treesitter.config")
 if not ok then
-  vim.print("Not OK")
-  vim.notify("Not oK", vim.log.levels.DEBUG)
   return
 end
 

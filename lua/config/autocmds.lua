@@ -43,15 +43,9 @@ vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile" }, {
     local buf = args.buf
     local path = vim.api.nvim_buf_get_name(buf)
 
-    vim.print("angular before check ...")
-    vim.notify("before", vim.log.levels.DEBUG)
     if utils.should_use_angular_parser(path) then
-      vim.print("should get angular ...")
-      vim.notify("after", vim.log.levels.DEBUG)
       local okay, _ = pcall(vim.treesitter.get_parser, buf, "angular")
       if okay then
-        vim.print("parser got ...")
-        vim.notify("in okay block", vim.log.levels.DEBUG)
         pcall(vim.treesitter.start, buf, "angular")
       else
         pcall(vim.treesitter.start, buf, "html")
