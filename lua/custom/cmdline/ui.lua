@@ -62,7 +62,7 @@ M.config = {
   -- Set to false for ASCII-only prompts.
   -- When nil, auto-detects via vim.g.have_nerd_font.
   nerd_font = nil,
-  completion = { debounce_ms = 40, auto_open = true, min_length = 1 },
+  completion = { debounce_ms = 80, auto_open = true, min_length = 1 },
   syntax = { enable = true },
   show_hint = true,
   range_preview = { enable = true, context = 2, max_lines = 8 },

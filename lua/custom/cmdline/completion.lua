@@ -499,7 +499,47 @@ function M.get_completions(text)
   return items
 end
 
----Collect words from loaded normal buffers that fuzzy-match `pattern`.
+-- ---------------------------------------------------------------------------
+-- Word Cache for Search Completion
+-- ---------------------------------------------------------------------------
+local _word_cache = {}
+local _last_cache_refresh = 0
+local CACHE_TTL_MS = 5000 -- Refresh cache if older than 5s and requested
+
+local function refresh_word_cache()
+  local now = vim.uv.now()
+  if now - _last_cache_refresh < CACHE_TTL_MS and #_word_cache > 0 then
+    return
+  end
+
+  _word_cache = {}
+  local seen = {}
+  local MAX_WORDS = 500
+  local buffers = vim.api.nvim_list_bufs()
+
+  for _, b in ipairs(buffers) do
+    if #_word_cache >= MAX_WORDS then break end
+    if vim.api.nvim_buf_is_loaded(b) and vim.api.nvim_buf_is_valid(b) then
+      local bt = vim.bo[b].buftype
+      if bt == "" then
+        local nlines = vim.api.nvim_buf_line_count(b)
+        local ls = vim.api.nvim_buf_get_lines(b, 0, math.min(nlines, 500), false)
+        for _, ln in ipairs(ls) do
+          if #_word_cache >= MAX_WORDS then break end
+          for w in ln:gmatch("[%a_][%w_]+") do
+            if #w > 3 and not seen[w] then
+              seen[w] = true
+              _word_cache[#_word_cache + 1] = w
+            end
+          end
+        end
+      end
+    end
+  end
+  _last_cache_refresh = now
+end
+
+---Collect words from cache that fuzzy-match `pattern`.
 ---@param pattern string
 ---@return string[]
 function M.get_buffer_words(pattern)
@@ -507,52 +547,33 @@ function M.get_buffer_words(pattern)
     return {}
   end
 
-  local words = {}
-  local seen = {}
+  refresh_word_cache()
+
+  local matches = {}
   local pl = pattern:lower()
-  local MAX_WORDS = 200
 
-  for _, b in ipairs(vim.api.nvim_list_bufs()) do
-    if #words >= MAX_WORDS then
-      break
+  for _, w in ipairs(_word_cache) do
+    local s = fuzzy_score(w, pl)
+    if s then
+      matches[#matches + 1] = { word = w, score = s }
     end
-    if not vim.api.nvim_buf_is_loaded(b) or not vim.api.nvim_buf_is_valid(b) then
-      goto continue
-    end
-    local ok_bt, bt = pcall(vim.api.nvim_get_option_value, "buftype", { buf = b })
-    if ok_bt and bt ~= "" then
-      goto continue
-    end
-
-    local nlines = vim.api.nvim_buf_line_count(b)
-    local ls = vim.api.nvim_buf_get_lines(b, 0, math.min(nlines, 1000), false)
-    for _, ln in ipairs(ls) do
-      if #words >= MAX_WORDS then
-        break
-      end
-      for w in ln:gmatch("[%a_][%w_]+") do
-        if not seen[w] and (pl == "" or fuzzy_score(w, pl)) then
-          seen[w] = true
-          words[#words + 1] = w
-        end
-      end
-    end
-    ::continue::
   end
 
-  if pl ~= "" and #words > 1 then
-    -- Sort: exact-prefix first, then by fuzzy score descending
-    table.sort(words, function(a, b)
-      local sa = fuzzy_score(a, pl) or 0
-      local sb = fuzzy_score(b, pl) or 0
-      if sa ~= sb then
-        return sa > sb
+  if #matches > 0 then
+    table.sort(matches, function(a, b)
+      if a.score ~= b.score then
+        return a.score > b.score
       end
-      return #a < #b
+      return #a.word < #b.word
     end)
+    local out = {}
+    for i = 1, math.min(#matches, 20) do
+      out[i] = matches[i].word
+    end
+    return out
   end
 
-  return words
+  return {}
 end
 
 function M.lock()
