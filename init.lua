@@ -39,6 +39,7 @@ require("custom.tabline").setup()
 require("custom.autoclose").setup()
 require("custom.glow").setup()
 require("custom.image_view").setup()
+require("custom.pack_manager").setup()
 
 --terminal_manager
 require("custom.terminal_manager")

@@ -1,44 +1,44 @@
 local M = {}
 
 M.git_icons = {
-  added = ' ',
-  modified = ' ',
-  removed = ' ',
+  added = " ",
+  modified = " ",
+  removed = " ",
 }
 
 M.diagnostic_icons = {
-  Error = ' ',
-  Warn = ' ',
-  Info = ' ',
-  Hint = '󰌵 ',
+  Error = " ",
+  Warn = " ",
+  Info = " ",
+  Hint = "󰌵 ",
 }
 
 M.devicons_override = {
   default_icon = {
-    icon = '󰈚',
-    name = 'Default',
-    color = '#E06C75',
+    icon = "󰈚",
+    name = "Default",
+    color = "#E06C75",
   },
   toml = {
-    icon = '',
-    name = 'toml',
-    color = '#61AFEF',
+    icon = "",
+    name = "toml",
+    color = "#61AFEF",
   },
   tsx = {
-    icon = '',
-    name = 'Tsx',
-    color = '#20c2e3',
+    icon = "",
+    name = "Tsx",
+    color = "#20c2e3",
   },
   gleam = {
-    icon = '',
-    name = 'Gleam',
-    color = '#FFAFF3',
+    icon = "",
+    name = "Gleam",
+    color = "#FFAFF3",
   },
   py = {
-    icon = '',
-    color = '#519ABA',
-    cterm_color = '214',
-    name = 'Py',
+    icon = "",
+    color = "#519ABA",
+    cterm_color = "214",
+    name = "Py",
   },
 }
 
@@ -186,8 +186,6 @@ local function find_upward(start_dir, predicate)
   return nil
 end
 
-
-
 -- ============================================================================
 -- Path Utilities
 -- ============================================================================
@@ -196,7 +194,7 @@ end
 --- @param ... string Path segments to join
 --- @return string The joined path
 local function join_path(...)
-  return table.concat({ ... }, '/')
+  return table.concat({ ... }, "/")
 end
 
 --- Get the Mason package installation path
@@ -205,14 +203,14 @@ end
 --- @param rel? string Optional relative path to append
 --- @return string|nil The normalized package path, or nil if not found
 function M.get_mason_pkg_path(pkg_name, rel)
-  rel = rel or ''
+  rel = rel or ""
 
   -- Try mason-registry first (preferred method)
-  local ok, registry = pcall(require, 'mason-registry')
+  local ok, registry = pcall(require, "mason-registry")
   if ok and registry then
     local success, pkg = pcall(registry.get_package, pkg_name)
     if success and pkg and pkg:is_installed() then
-      local install_path = vim.fn.stdpath 'data' .. '/mason/packages/' .. pkg_name
+      local install_path = vim.fn.stdpath("data") .. "/mason/packages/" .. pkg_name
       local final = install_path .. rel
 
       if vim.loop.fs_stat(final) then
@@ -223,15 +221,15 @@ function M.get_mason_pkg_path(pkg_name, rel)
   end
 
   -- Fallback to default mason packages location
-  local data_dir = vim.fn.stdpath 'data'
-  local candidate = join_path(data_dir, 'mason', 'packages', pkg_name) .. rel
+  local data_dir = vim.fn.stdpath("data")
+  local candidate = join_path(data_dir, "mason", "packages", pkg_name) .. rel
 
   if vim.loop.fs_stat(candidate) then
     return vim.fs.normalize(candidate)
   end
 
   -- Some mason packages put node modules under the package dir
-  local alt = join_path(data_dir, 'mason', 'packages', pkg_name, 'node_modules') .. rel
+  local alt = join_path(data_dir, "mason", "packages", pkg_name, "node_modules") .. rel
 
   if vim.loop.fs_stat(alt) then
     return vim.fs.normalize(alt)
@@ -276,14 +274,14 @@ function M.get_angular_version(project_root)
   project_root = project_root or M.find_angular_root()
 
   if not project_root then
-    return ''
+    return ""
   end
 
-  local package_json = project_root .. '/package.json'
+  local package_json = project_root .. "/package.json"
 
   local json = read_json_file(package_json)
   if not json then
-    return ''
+    return ""
   end
 
   local angular_core_version = nil
@@ -294,9 +292,9 @@ function M.get_angular_version(project_root)
     end
   end
 
-  angular_core_version = angular_core_version and angular_core_version:match '%d+%.%d+%.%d+'
+  angular_core_version = angular_core_version and angular_core_version:match("%d+%.%d+%.%d+")
 
-  return angular_core_version or ''
+  return angular_core_version or ""
 end
 
 --- Find project's node_modules directory
@@ -308,13 +306,23 @@ function M.find_node_modules(path)
     return nil
   end
 
-  local node_modules_dir = vim.fs.find('node_modules', { path = root_dir, upward = true })[1]
+  local node_modules_dir = vim.fs.find("node_modules", { path = root_dir, upward = true })[1]
 
   if not node_modules_dir then
     return nil
   end
 
-  return vim.fs.dirname(node_modules_dir) .. '/node_modules'
+  return vim.fs.dirname(node_modules_dir) .. "/node_modules"
+end
+
+function M.should_use_angular_parser(path)
+  if not path or type(path) ~= "string" then
+    return false
+  end
+  if not path:match("/src/app/") then
+    return false
+  end
+  return M.is_angular_project()
 end
 
 return M

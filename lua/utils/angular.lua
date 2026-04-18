@@ -1,4 +1,4 @@
-local utils = require 'utils'
+local utils = require("utils")
 
 -- ============================================================================
 -- Command Completion
@@ -12,7 +12,7 @@ local utils = require 'utils'
 function _G.userCommandCompletion(lead, line, _)
   -- Parse existing arguments
   local values = {}
-  for value in line:gmatch '%S+' do
+  for value in line:gmatch("%S+") do
     table.insert(values, value)
   end
 
@@ -23,16 +23,16 @@ function _G.userCommandCompletion(lead, line, _)
 
   -- Available Angular CLI generate commands
   local commands = {
-    'service',
-    'component',
-    'directive',
-    'pipe',
-    'module',
-    'class',
-    'guard',
-    'interface',
-    'enum',
-    'lib',
+    "service",
+    "component",
+    "directive",
+    "pipe",
+    "module",
+    "class",
+    "guard",
+    "interface",
+    "enum",
+    "lib",
   }
 
   -- Filter commands based on input
@@ -56,21 +56,21 @@ local function setup_ng_command()
     return
   end
 
-  local group = vim.api.nvim_create_augroup('Angular', { clear = true })
+  local group = vim.api.nvim_create_augroup("Angular", { clear = true })
 
-  vim.api.nvim_create_autocmd('BufEnter', {
+  vim.api.nvim_create_autocmd("BufEnter", {
     group = group,
-    pattern = { '*.ts', '*.html', '*.css', '*.scss' },
+    pattern = { "*.ts", "*.html", "*.css", "*.scss" },
     callback = function()
       -- Create :Ng command for Angular CLI generate
-      vim.api.nvim_create_user_command('Ng', function(args)
-        local cmd = 'ng generate ' .. args.args
-        vim.cmd('!' .. cmd)
+      vim.api.nvim_create_user_command("Ng", function(args)
+        local cmd = "ng generate " .. args.args
+        vim.cmd("!" .. cmd)
       end, {
-        nargs = '*',
-        complete = 'customlist,v:lua.userCommandCompletion',
+        nargs = "*",
+        complete = "customlist,v:lua.userCommandCompletion",
         bang = true,
-        desc = 'Execute Angular CLI generate command',
+        desc = "Execute Angular CLI generate command",
       })
     end,
   })
@@ -86,33 +86,32 @@ end
 --- 2. .ts → .html (template file)
 --- 3. .html → .ts (component file)
 function _G.toggle_angular_file()
-  local current_file = vim.fn.expand '%:p'
-  local extension = vim.fn.expand '%:e'
-  local base_name = vim.fn.expand '%:r'
+  local extension = vim.fn.expand("%:e")
+  local base_name = vim.fn.expand("%:r")
   local target_file
 
-  if extension == 'ts' then
+  if extension == "ts" then
     -- Check if current file is a spec file
-    if string.match(base_name, '%.spec$') then
+    if string.match(base_name, "%.spec$") then
       -- Remove .spec from the end to get the component/service file
-      target_file = string.gsub(base_name, '%.spec$', '') .. '.ts'
+      target_file = string.gsub(base_name, "%.spec$", "") .. ".ts"
     else
       -- Regular .ts file, toggle to .html template
-      target_file = base_name .. '.html'
+      target_file = base_name .. ".html"
     end
-  elseif extension == 'html' then
+  elseif extension == "html" then
     -- HTML template, toggle back to .ts component
-    target_file = base_name .. '.ts'
+    target_file = base_name .. ".ts"
   else
-    vim.notify('Not an Angular .ts or .html file', vim.log.levels.WARN)
+    vim.notify("Not an Angular .ts or .html file", vim.log.levels.WARN)
     return
   end
 
   -- Open the target file if it exists
   if vim.fn.filereadable(target_file) == 1 then
-    vim.cmd('edit ' .. target_file)
+    vim.cmd("edit " .. target_file)
   else
-    vim.notify('Target file ' .. target_file .. ' does not exist', vim.log.levels.WARN)
+    vim.notify("Target file " .. target_file .. " does not exist", vim.log.levels.WARN)
   end
 end
 
