@@ -32,17 +32,17 @@
 --   one-line bar pushed tree content down and caused extmark width collisions.
 --   A single separator virt_line is safe — the cursor never lands on it.
 
-local S = require 'custom.explorer.state'
-local cfg = require 'custom.explorer.config'
-local tree = require 'custom.explorer.tree'
-local git = require 'custom.explorer.git'
-local icons = require 'custom.explorer.icons'
+local S = require("custom.explorer.state")
+local cfg = require("custom.explorer.config")
+local tree = require("custom.explorer.tree")
+local git = require("custom.explorer.git")
+local icons = require("custom.explorer.icons")
 
 local api = vim.api
 local M = {}
 
 local function set_buf_modifiable(buf, value)
-  api.nvim_set_option_value('modifiable', value, { buf = buf })
+  api.nvim_set_option_value("modifiable", value, { buf = buf })
 end
 
 -- ── Search bar constants ───────────────────────────────────────────────────
@@ -53,9 +53,9 @@ end
 -- Display layout:  ' 󰍉  '  = 1 sp + icon(2 cols) + 2 sp = 5 display cols
 -- ICON_PREFIX      = 5 plain spaces (one per display col of the overlay)
 --
-local SEARCH_ICON = ' 󰍉  ' -- overlay (5 display cols)
-local ICON_PREFIX = '     ' -- 5 spaces written into the buffer (col 0-4)
-local PLACEHOLDER = 'filter files…'
+local SEARCH_ICON = " 󰍉  " -- overlay (5 display cols)
+local ICON_PREFIX = "     " -- 5 spaces written into the buffer (col 0-4)
+local PLACEHOLDER = "filter files…"
 
 -- Exported so search.lua can mirror the constant.
 M.ICON_PREFIX = ICON_PREFIX
@@ -81,13 +81,13 @@ function M.paint_header()
   api.nvim_buf_clear_namespace(buf, S.hdr_ns, 0, -1)
 
   local is_active = S.search_active
-  local has_filter = S.filter and S.filter ~= ''
-  local line0 = api.nvim_buf_get_lines(buf, 0, 1, false)[1] or ''
+  local has_filter = S.filter and S.filter ~= ""
+  local line0 = api.nvim_buf_get_lines(buf, 0, 1, false)[1] or ""
 
   -- Choose highlight groups for current state
-  local bg_hl = is_active and 'ExplorerSearchBgActive' or 'ExplorerSearchBg'
-  local ico_hl = is_active and 'ExplorerSearchIconActive' or 'ExplorerSearchIcon'
-  local sep_hl = is_active and 'ExplorerSearchBorderActive' or 'ExplorerSearchBorder'
+  local bg_hl = is_active and "ExplorerSearchBgActive" or "ExplorerSearchBg"
+  local ico_hl = is_active and "ExplorerSearchIconActive" or "ExplorerSearchIcon"
+  local sep_hl = is_active and "ExplorerSearchBorderActive" or "ExplorerSearchBorder"
 
   -- 1. Background wash ─────────────────────────────────────────────────────
   pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, 0, 0, {
@@ -100,15 +100,15 @@ function M.paint_header()
   -- 2. Icon overlay ─────────────────────────────────────────────────────────
   pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, 0, 0, {
     virt_text = { { SEARCH_ICON, ico_hl } },
-    virt_text_pos = 'overlay',
+    virt_text_pos = "overlay",
     priority = 100,
   })
 
   -- 3a. Placeholder (idle, no filter) ──────────────────────────────────────
   if line0 == ICON_PREFIX and not is_active then
     pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, 0, #ICON_PREFIX, {
-      virt_text = { { PLACEHOLDER, 'ExplorerSearchPlaceholder' } },
-      virt_text_pos = 'overlay',
+      virt_text = { { PLACEHOLDER, "ExplorerSearchPlaceholder" } },
+      virt_text_pos = "overlay",
       priority = 50,
     })
   end
@@ -118,7 +118,7 @@ function M.paint_header()
     pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, 0, #ICON_PREFIX, {
       end_row = 0,
       end_col = #line0,
-      hl_group = 'ExplorerSearchActiveText',
+      hl_group = "ExplorerSearchActiveText",
       priority = 60,
     })
   end
@@ -126,10 +126,10 @@ function M.paint_header()
   -- 4. Match-count badge (right-aligned, filter set, idle) ─────────────────
   if has_filter and not is_active and cfg.get().search_count then
     local total = #S.items
-    local label = total == 0 and ' no matches ' or (' ' .. total .. (total == 1 and ' match ' or ' matches '))
+    local label = total == 0 and " no matches " or (" " .. total .. (total == 1 and " match " or " matches "))
     pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, 0, 0, {
-      virt_text = { { label, 'ExplorerSearchCount' } },
-      virt_text_pos = 'right_align',
+      virt_text = { { label, "ExplorerSearchCount" } },
+      virt_text_pos = "right_align",
       priority = 70,
     })
   end
@@ -142,7 +142,7 @@ function M.paint_header()
     win_w = api.nvim_win_get_width(S.win)
   end
 
-  local sep_char = is_active and '─' or (has_filter and '─' or '╌')
+  local sep_char = is_active and "─" or (has_filter and "─" or "╌")
   local sep = sep_char:rep(win_w)
 
   pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, 0, 0, {
@@ -169,7 +169,7 @@ function M._reveal_cursor(path)
       -- nvim_win_call temporarily switches to the window and executes the
       -- command without changing which window the user has focused.
       pcall(api.nvim_win_call, S.win, function()
-        vim.cmd 'normal! zz'
+        vim.cmd("normal! zz")
       end)
       return
     end
@@ -231,7 +231,7 @@ local function build_item_lines()
 
   for _, item in ipairs(S.items) do
     -- Tree connector prefix
-    local prefix = ''
+    local prefix = ""
     for _, last in ipairs(item.parents_last) do
       prefix = prefix .. (last and tc.blank or tc.vert)
     end
@@ -241,14 +241,14 @@ local function build_item_lines()
     local icon_raw, icon_hl
     if item.is_dir then
       icon_raw = item.is_open and icons.DIR_OPEN or icons.DIR_CLOSED
-      icon_hl = 'ExplorerDirectory'
+      icon_hl = item.is_open and "ExplorerIconDirOpen" or "ExplorerIconDir"
     else
       icon_raw, icon_hl = ifn(item.path, false)
     end
-    local icon = icon_raw .. ' '
+    local icon = icon_raw .. " "
 
     -- Column positions
-    local sign_ph = '  ' -- 2-col placeholder for git/mark sign
+    local sign_ph = "  " -- 2-col placeholder for git/mark sign
     local name_col = #sign_ph + #prefix + #icon
     local line = sign_ph .. prefix .. icon .. item.name
 
@@ -261,7 +261,7 @@ local function build_item_lines()
     local c0 = #sign_ph
     local c1 = c0 + #prefix
 
-    hls[#hls + 1] = { row, c0, c1, 'ExplorerConnector' }
+    hls[#hls + 1] = { row, c0, c1, "ExplorerConnector" }
     if icon_hl then
       hls[#hls + 1] = { row, c1, c1 + #icon, icon_hl }
     end
@@ -269,7 +269,7 @@ local function build_item_lines()
       row,
       name_col,
       name_col + #item.name,
-      item.is_dir and 'ExplorerDirectory' or 'Normal',
+      item.is_dir and "ExplorerDirectory" or "ExplorerFile",
     }
   end
 
@@ -302,7 +302,7 @@ function M._paint()
   local item_lines, hls = build_item_lines()
 
   -- Assemble full buffer: header line + item lines
-  local header_text = ICON_PREFIX .. (S.filter or '')
+  local header_text = ICON_PREFIX .. (S.filter or "")
   local all_lines = { header_text }
   vim.list_extend(all_lines, item_lines)
 

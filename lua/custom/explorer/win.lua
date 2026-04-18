@@ -93,6 +93,14 @@ function M.ensure_hl()
   local accent = fg_of("Function", "@function", "Special", "Statement") or 0xcba6f7
   local dir_fg = fg_of("Directory", "@namespace", "Special") or 0x89b4fa
   local str_fg = fg_of("String", "@string", "Constant") or 0xa6e3a1
+  local keyword_fg = fg_of("Keyword", "@keyword", "Statement") or 0xf38ba8
+  local number_fg = fg_of("Number", "@number", "Constant") or 0xfab387
+  local type_fg = fg_of("Type", "@type", "StorageClass") or 0x94e2d5
+  local prop_fg = fg_of("Identifier", "@property", "Special") or 0x89dceb
+  local note_fg = fg_of("DiagnosticInfo", "MoreMsg", "Special") or 0x74c7ec
+  local warn_fg = fg_of("DiagnosticWarn", "WarningMsg", "Special") or 0xf9e2af
+  local err_fg = fg_of("DiagnosticError", "ErrorMsg", "Special") or 0xf38ba8
+  local git_fg = fg_of("DiffChange", "GitSignsChange", "Conditional") or 0xf9e2af
 
   -- ── Core sidebar ──────────────────────────────────────────────────
   def("ExplorerNormal", { bg = sidebar_bg, fg = normal_fg })
@@ -102,6 +110,8 @@ function M.ensure_hl()
   def("ExplorerCursorLine", { bg = cursor_bg })
 
   def("ExplorerDirectory", { fg = dir_fg, bold = true })
+  def("ExplorerFile", { fg = blend(normal_fg, sidebar_bg, 0.18) })
+  def("ExplorerFileAccent", { fg = normal_fg, bold = true })
 
   -- Connectors: blend deeply toward bg so they read as "guides" not text
   def("ExplorerConnector", { fg = blend(dim_fg, sidebar_bg, 0.35) })
@@ -143,6 +153,39 @@ function M.ensure_hl()
   -- Match-count badge (right-aligned in the bar)
   def("ExplorerSearchCount", { fg = blend(accent, dim_fg, 0.5), italic = true })
 
+  -- ── Explorer icons ────────────────────────────────────────────────
+  def("ExplorerIconDir", { fg = dir_fg, bold = true })
+  def("ExplorerIconDirOpen", { fg = blend(dir_fg, accent, 0.45), bold = true })
+  def("ExplorerIconLink", { fg = note_fg, italic = true })
+  def("ExplorerIconDefault", { fg = blend(normal_fg, sidebar_bg, 0.12) })
+  def("ExplorerIconLua", { fg = note_fg })
+  def("ExplorerIconVim", { fg = warn_fg })
+  def("ExplorerIconShell", { fg = str_fg })
+  def("ExplorerIconPowerShell", { fg = prop_fg })
+  def("ExplorerIconWeb", { fg = keyword_fg })
+  def("ExplorerIconTypeScript", { fg = prop_fg })
+  def("ExplorerIconData", { fg = number_fg })
+  def("ExplorerIconCompiled", { fg = type_fg })
+  def("ExplorerIconDotnet", { fg = type_fg })
+  def("ExplorerIconJava", { fg = keyword_fg })
+  def("ExplorerIconGo", { fg = note_fg })
+  def("ExplorerIconRust", { fg = number_fg })
+  def("ExplorerIconPython", { fg = warn_fg })
+  def("ExplorerIconRuby", { fg = err_fg })
+  def("ExplorerIconPhp", { fg = keyword_fg })
+  def("ExplorerIconDocs", { fg = blend(str_fg, normal_fg, 0.75) })
+  def("ExplorerIconImage", { fg = blend(keyword_fg, warn_fg, 0.45) })
+  def("ExplorerIconMedia", { fg = blend(prop_fg, accent, 0.35) })
+  def("ExplorerIconArchive", { fg = warn_fg })
+  def("ExplorerIconDatabase", { fg = number_fg })
+  def("ExplorerIconLog", { fg = blend(dim_fg, normal_fg, 0.3) })
+  def("ExplorerIconLock", { fg = err_fg })
+  def("ExplorerIconGit", { fg = git_fg })
+  def("ExplorerIconDocker", { fg = note_fg })
+  def("ExplorerIconPackage", { fg = keyword_fg })
+  def("ExplorerIconEnv", { fg = str_fg })
+  def("ExplorerIconBuild", { fg = warn_fg })
+
   -- ── Winbar ────────────────────────────────────────────────────────
   -- Slightly bolder fg for the root name so it pops over the sidebar bg.
   def("ExplorerWinbar", { bg = sidebar_bg, fg = blend(accent, normal_fg, 0.25) })
@@ -158,6 +201,8 @@ function M.reset_hl()
     "ExplorerNormal",
     "ExplorerCursorLine",
     "ExplorerDirectory",
+    "ExplorerFile",
+    "ExplorerFileAccent",
     "ExplorerConnector",
     "ExplorerSearchBg",
     "ExplorerSearchBgActive",
@@ -194,6 +239,7 @@ function M.reset_hl()
     "ExplorerGitIgnoredLine",
     "ExplorerMark",
   }
+  vim.list_extend(names, icons.GROUPS)
   for _, name in ipairs(names) do
     pcall(api.nvim_set_hl, 0, name, {})
   end
