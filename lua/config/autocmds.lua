@@ -14,6 +14,7 @@ local G = augroup("nvim12_config", { clear = true })
 -- =============================================================================
 --  GENERAL QoL AUTOCMDS
 -- =============================================================================
+
 -- Create an autocmd for both TypeScript and HTML files
 autocmd("FileType", {
   pattern = { "typescript", "html" }, -- both filetypes
@@ -31,6 +32,33 @@ autocmd("FileType", {
       end, { buffer = true, desc = "Toggle Angular .ts <-> .html" })
     end
   end,
+})
+
+local utils_ok, utils = pcall(require, "utils")
+utils = utils_ok and utils or {}
+
+vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile" }, {
+  pattern = { "*.component.html", "*.html" },
+  callback = function(args)
+    local buf = args.buf
+    local path = vim.api.nvim_buf_get_name(buf)
+
+    vim.print("angular before check ...")
+    vim.notify("before", vim.log.levels.DEBUG)
+    if utils.should_use_angular_parser(path) then
+      vim.print("should get angular ...")
+      vim.notify("after", vim.log.levels.DEBUG)
+      local okay, _ = pcall(vim.treesitter.get_parser, buf, "angular")
+      if okay then
+        vim.print("parser got ...")
+        vim.notify("in okay block", vim.log.levels.DEBUG)
+        pcall(vim.treesitter.start, buf, "angular")
+      else
+        pcall(vim.treesitter.start, buf, "html")
+      end
+    end
+  end,
+  desc = "Apply Angular Treesitter parser or fallback",
 })
 
 autocmd("InsertLeave", { command = "set relativenumber", pattern = "*" })
@@ -57,16 +85,26 @@ autocmd("TextYankPost", {
   end,
 })
 
--- Strip trailing whitespace on save (non-binary files)
+-- Strip trailing whitespace on save (non-binary files, < 1MB)
 autocmd("BufWritePre", {
   group = G,
   pattern = "*",
-  callback = function()
-    if not vim.bo.binary then
-      local pos = vim.api.nvim_win_get_cursor(0)
-      vim.cmd([[%s/\s\+$//e]])
-      vim.api.nvim_win_set_cursor(0, pos)
+  callback = function(ev)
+    if vim.bo[ev.buf].binary then
+      return
     end
+
+    -- Performance: skip very large files (e.g. logs, minified js)
+    local stats = vim.uv.fs_stat(vim.api.nvim_buf_get_name(ev.buf))
+    if stats and stats.size > 1024 * 1024 then
+      return
+    end
+
+    local pos = vim.api.nvim_win_get_cursor(0)
+    -- Use :lockmarks to prevent ' and ` marks from moving
+    -- Use :keepjumps to prevent the jump list from being polluted
+    vim.cmd([[silent! lockmarks keepjumps %s/\s\+$//e]])
+    vim.api.nvim_win_set_cursor(0, pos)
   end,
 })
 

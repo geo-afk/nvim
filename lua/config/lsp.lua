@@ -94,16 +94,20 @@ local function setup_attach()
         end, opts("[0.12] Toggle inlay hints"))
       end
 
-      -- [0.12-new] Document colour decorations
-      if client:supports_method("textDocument/documentColor") then
+      -- [0.12-new] Document colour decorations (Restricted for performance)
+      local color_fts = { css = true, scss = true, html = true, typescriptreact = true, javascriptreact = true }
+      if client:supports_method("textDocument/documentColor") and color_fts[vim.bo[buf].filetype] then
         pcall(vim.lsp.document_color.enable, true, buf, { style = "background" })
       end
 
-      -- [0.12-new] Code lens toggle
+      -- [0.12-new] Code lens (Keymapped toggle only, not enabled by default)
       if client:supports_method("textDocument/codeLens") then
         vim.keymap.set("n", "<leader>ci", function()
           local enabled = vim.lsp.codelens.is_enabled({ bufnr = buf })
           vim.lsp.codelens.enable(not enabled, { bufnr = buf })
+          if not enabled then
+            vim.lsp.codelens.enable(true, { bufnr = buf })
+          end
           vim.notify("CodeLens " .. (not enabled and "enabled" or "disabled"), vim.log.levels.INFO)
         end, opts("Toggle CodeLens"))
       end
@@ -148,19 +152,14 @@ M.servers = {
 }
 
 local function get_capabilities()
-  -- local t = { workspace = {
-  --   fileOperations = {
-  --     didRename = true,
-  --     willRename = true,
-  --   },
-  -- } }
   local original_capabilities = vim.lsp.protocol.make_client_capabilities()
-  return vim.tbl_deep_extend(
-    "force",
-    original_capabilities,
-    require("blink.cmp").get_lsp_capabilities(original_capabilities)
-  )
+  local ok, blink = pcall(require, "blink.cmp")
+  if not ok then
+    return original_capabilities
+  end
+  return vim.tbl_deep_extend("force", original_capabilities, blink.get_lsp_capabilities(original_capabilities))
 end
+
 function M.setup_lsps()
   -- Default setup  lsp clients
   vim.lsp.config("*", {
@@ -216,8 +215,10 @@ function M.setup()
   setup_commands()
 end
 
--- Auto-call when required directly by init.lua
-M.setup_lsps()
-M.setup()
+-- Defer setup until plugins are packed and available
+vim.schedule(function()
+  M.setup_lsps()
+  M.setup()
+end)
 
 return M
