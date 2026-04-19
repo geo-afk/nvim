@@ -1,73 +1,172 @@
 -- =============================================================================
---  plugins/treesitter.lua  ·  nvim-treesitter
+-- plugins/treesitter.lua · nvim-treesitter
 -- =============================================================================
+
+local parsers = {
+  "lua",
+  "typescript",
+  "tsx",
+  "javascript",
+  "go",
+  "json",
+  -- "jsonc",
+  "html",
+  "css",
+  "scss",
+  "markdown",
+  "markdown_inline",
+  "regex",
+  "vim",
+  "vimdoc",
+  "query",
+  "toml",
+  "sql",
+  "angular",
+}
+
+local ft_to_lang = {
+  javascriptreact = "tsx",
+  typescriptreact = "tsx",
+}
+
+local handled_filetypes = {
+  angular = true,
+  css = true,
+  go = true,
+  html = true,
+  javascript = true,
+  javascriptreact = true,
+  json = true,
+  -- jsonc = true,
+  lua = true,
+  markdown = true,
+  query = true,
+  regex = true,
+  scss = true,
+  sql = true,
+  toml = true,
+  typescript = true,
+  typescriptreact = true,
+  vim = true,
+}
+
+local ok_utils, utils = pcall(require, "utils")
+utils = ok_utils and utils or {}
+
+local function get_buf_path(bufnr)
+  return vim.api.nvim_buf_get_name(bufnr)
+end
+
+local function should_use_angular(bufnr)
+  local path = get_buf_path(bufnr)
+  if path == "" then
+    return false
+  end
+
+  if type(utils.should_use_angular_parser) ~= "function" then
+    return false
+  end
+
+  local ok, result = pcall(utils.should_use_angular_parser, path)
+  return ok and result or false
+end
+
+local function resolve_lang(bufnr, ft)
+  if ft == "html" and should_use_angular(bufnr) then
+    return "angular"
+  end
+
+  return ft_to_lang[ft] or ft
+end
+
+local function has_query(lang, query_name)
+  local ok, query = pcall(vim.treesitter.query.get, lang, query_name)
+  return ok and query ~= nil
+end
+
+local function start_treesitter(bufnr, lang)
+  if not lang or lang == "" then
+    return
+  end
+
+  local ok_parser = pcall(vim.treesitter.get_parser, bufnr, lang)
+  if not ok_parser then
+    return
+  end
+
+  pcall(vim.treesitter.start, bufnr, lang)
+
+  if has_query(lang, "highlights") then
+    vim.bo[bufnr].syntax = "ON"
+  end
+
+  if has_query(lang, "indents") then
+    vim.bo[bufnr].indentexpr = "v:lua.require'nvim-treesitter'.indentexpr()"
+  end
+end
 
 vim.pack.add({
   {
     src = "https://github.com/nvim-treesitter/nvim-treesitter",
-    version = "master",
-    build = ":tsupdate",
+    version = "main",
   },
 })
 
-local ok, ts = pcall(require, "nvim-treesitter.config")
-if not ok then
+local ok_ts, ts = pcall(require, "nvim-treesitter")
+if not ok_ts then
   return
 end
 
 ts.setup({
-  ensure_installed = {
-    "lua",
-    "typescript",
-    "tsx",
-    "javascript",
-    "go",
-    "json",
-    "jsonc",
-    "html",
-    "css",
-    "scss",
-    "markdown",
-    "markdown_inline",
-    "regex",
-    "vim",
-    "vimdoc",
-    "query",
-    "toml",
-    "sql",
-    "angular",
-  },
-  auto_install = true,
-  sync_install = true,
-  highlight = { enable = true, additional_vim_regex_highlighting = false },
-  indent = { enable = true, disable = { "ruby" } },
-  install_dir = vim.fn.stdpath("data") .. "/site",
-
-  -- [0.12] incremental_selection also powered by lsp selectionrange (v_an/v_in)
-  incremental_selection = {
-    enable = true,
-    keymaps = {
-      init_selection = "gnn",
-      node_incremental = "grn",
-      scope_incremental = "grc",
-      node_decremental = "grm",
-    },
-  },
+  install_dir = vim.fs.joinpath(vim.fn.stdpath("data"), "site"),
 })
 
-vim.api.nvim_create_autocmd("PackChanged", {
-  desc = "handle nvim-treesitter updates",
-  group = vim.api.nvim_create_augroup("nvim-treesitter-pack-changed-update-handler", { clear = true }),
-  callback = function(event)
-    if event.data.kind == "update" and event.data.spec.name == "nvim-treesitter" then
-      vim.notify("nvim-treesitter updated, running tsupdate...", vim.log.levels.INFO)
-      ---@diagnostic disable-next-line: param-type-mismatch
-      local okay = pcall(vim.cmd, "TSUpdate")
-      if okay then
-        vim.notify("tsupdate completed successfully!", vim.log.levels.INFO)
-      else
-        vim.notify("tsupdate command not available yet, skipping", vim.log.levels.WARN)
-      end
-    end
+pcall(ts.install, parsers)
+
+local group = vim.api.nvim_create_augroup("nvim_treesitter_setup", { clear = true })
+
+local function handle_buffer(bufnr)
+  local ft = vim.bo[bufnr].filetype
+  if not handled_filetypes[ft] then
+    return
+  end
+
+  local lang = resolve_lang(bufnr, ft)
+  start_treesitter(bufnr, lang)
+end
+
+vim.api.nvim_create_autocmd("FileType", {
+  group = group,
+  pattern = {
+    "angular",
+    "css",
+    "go",
+    "html",
+    "javascript",
+    "javascriptreact",
+    "json",
+    "jsonc",
+    "lua",
+    "markdown",
+    "query",
+    "regex",
+    "scss",
+    "sql",
+    "toml",
+    "typescript",
+    "typescriptreact",
+    "vim",
+  },
+  callback = function(ev)
+    handle_buffer(ev.buf)
   end,
+})
+
+vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile" }, {
+  group = group,
+  pattern = { "*.component.html", "*.html" },
+  callback = function(ev)
+    handle_buffer(ev.buf)
+  end,
+  desc = "Apply Angular Treesitter parser or fallback",
 })
