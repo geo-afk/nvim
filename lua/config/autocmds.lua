@@ -15,7 +15,7 @@ local G = augroup("nvim12_config", { clear = true })
 --  GENERAL QoL AUTOCMDS
 -- =============================================================================
 
--- Create an autocmd for both TypeScript and HTML files
+-- Create an autocmd to switch between both TypeScript and HTML files in angular
 autocmd("FileType", {
   pattern = { "typescript", "html" }, -- both filetypes
   callback = function()
@@ -32,27 +32,6 @@ autocmd("FileType", {
       end, { buffer = true, desc = "Toggle Angular .ts <-> .html" })
     end
   end,
-})
-
-local utils_ok, utils = pcall(require, "utils")
-utils = utils_ok and utils or {}
-
-vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile" }, {
-  pattern = { "*.component.html", "*.html" },
-  callback = function(args)
-    local buf = args.buf
-    local path = vim.api.nvim_buf_get_name(buf)
-
-    if utils.should_use_angular_parser(path) then
-      local okay, _ = pcall(vim.treesitter.get_parser, buf, "angular")
-      if okay then
-        pcall(vim.treesitter.start, buf, "angular")
-      else
-        pcall(vim.treesitter.start, buf, "html")
-      end
-    end
-  end,
-  desc = "Apply Angular Treesitter parser or fallback",
 })
 
 autocmd("InsertLeave", { command = "set relativenumber", pattern = "*" })
