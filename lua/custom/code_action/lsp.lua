@@ -8,14 +8,12 @@ local M = {}
 
 -- ── Parameter helpers ────────────────────────────────────────────────────────
 
----Build an LSP `textDocument/codeAction` params table for a given client.
----Handles both cursor-position and visual-range invocations.
----@param client        table   LSP client object
----@param bufnr         integer
----@param winid         integer source window (used for make_range_params)
----@param range         table|nil  explicit LSP Range override
----@param visual_marks  table|nil  { start_pos, end_pos } 1-indexed
----@return table LSP params
+---@param client vim.lsp.Client
+---@param bufnr integer
+---@param winid integer
+---@param range? lsp.Range
+---@param visual_marks? {[1]: integer[], [2]: integer[]}
+---@return lsp.CodeActionParams & { [any]: any }
 local function build_params(client, bufnr, winid, range, visual_marks)
   local params
 
@@ -29,16 +27,17 @@ local function build_params(client, bufnr, winid, range, visual_marks)
     params.range = range
   end
 
-  -- Attach diagnostics on the cursor line so servers can offer quick-fixes.
   local line = params.range and params.range.start and params.range.start.line
     or (vim.api.nvim_win_get_cursor(winid)[1] - 1)
 
   local diags = vim.diagnostic.get(bufnr, { lnum = line })
+
+  ---@diagnostic disable-next-line: inject-field
   params.context = {
     diagnostics = vim.tbl_map(function(d)
       return (d.user_data and d.user_data.lsp) or d
     end, diags),
-    triggerKind = (vim.lsp.protocol.CodeActionTriggerKind or {}).Invoked or 1,
+    triggerKind = vim.lsp.protocol.CodeActionTriggerKind.Invoked,
   }
 
   return params
@@ -67,7 +66,11 @@ local function do_apply(action, client)
         end
       end)
     else
-      vim.lsp.buf.execute_command(cmd)
+      -- vim.lsp.buf.execute_command(cmd)
+      local c = vim.lsp.get_clients({ bufnr = 0 })[1]
+      if c then
+        c:exec_cmd(cmd)
+      end
     end
   end
 end
@@ -146,23 +149,23 @@ end
 -- ── Request ──────────────────────────────────────────────────────────────────
 
 ---Asynchronously fetch code actions from all attached LSP clients.
----All responses are gathered (with a configurable timeout) before `callback`
----fires.
----@param bufnr        integer
----@param winid        integer      source window
----@param range        table|nil    explicit LSP Range (visual selection)
----@param visual_marks table|nil    { {row,col}, {row,col} } 1-indexed
----@param timeout_ms   integer      milliseconds before giving up (default 1500)
----@param callback     function     called with { { action, client }[] }
+---All responses are gathered (with a configurable timeout) before `callback` fires.
+---@param bufnr integer
+---@param winid integer source window
+---@param range? lsp.Range explicit LSP Range override
+---@param visual_marks? {[1]: integer[], [2]: integer[]} 1-indexed {start_pos, end_pos}
+---@param timeout_ms? integer milliseconds before giving up (default 1500)
+---@param callback fun(items: {action: lsp.CodeAction, client: vim.lsp.Client}[])
 function M.request(bufnr, winid, range, visual_marks, timeout_ms, callback)
   local clients = vim.lsp.get_clients({ bufnr = bufnr, method = "textDocument/codeAction" })
 
   if vim.tbl_isempty(clients) then
     vim.notify("No LSP clients support code actions", vim.log.levels.INFO, { title = "Code Actions" })
+    callback({}) -- still call callback with empty list
     return
   end
 
-  local items = {}
+  local items = {} -- { {action = lsp.CodeAction, client = vim.lsp.Client} }
   local errors = {}
   local pending = #clients
   local finished = false
@@ -188,13 +191,14 @@ function M.request(bufnr, winid, range, visual_marks, timeout_ms, callback)
     end)
   end
 
-  -- Hard timeout so a stalled server never blocks the UI.
+  -- Hard timeout so a stalled server never blocks the UI
   timer:start(timeout_ms or 1500, 0, finish)
 
   for _, client in ipairs(clients) do
     local params = build_params(client, bufnr, winid, range, visual_marks)
 
-    client.request("textDocument/codeAction", params, function(err, result)
+    -- Correct call: method, params, handler, bufnr
+    client:request("textDocument/codeAction", params, function(err, result)
       if finished then
         return
       end
@@ -215,5 +219,4 @@ function M.request(bufnr, winid, range, visual_marks, timeout_ms, callback)
     end, bufnr)
   end
 end
-
 return M

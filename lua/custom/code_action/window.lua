@@ -317,6 +317,12 @@ local function compute_diff_lines(action, client)
   local encoding = client and client.offset_encoding or "utf-8"
   local result = {}
 
+  -- Configuration options (can be set via vim.g)
+  local config = {
+    max_diff_lines = vim.g.lsp_diff_max_lines or 1000,
+    diff_algorithm = vim.g.lsp_diff_algorithm or "minimal",
+  }
+
   local function diff_uri(uri, text_edits)
     local fname = vim.uri_to_fname(uri)
     local rel = vim.fn.fnamemodify(fname, ":~:.")
@@ -325,22 +331,38 @@ local function compute_diff_lines(action, client)
     local orig = {}
     local existing_buf = vim.fn.bufnr(fname)
     if existing_buf ~= -1 and vim.api.nvim_buf_is_loaded(existing_buf) then
+      -- Check if buffer has unsaved changes using vim.bo
+      if vim.bo[existing_buf].modified then
+        vim.notify("Warning: Buffer " .. fname .. " has unsaved changes", vim.log.levels.WARN)
+      end
       orig = vim.api.nvim_buf_get_lines(existing_buf, 0, -1, false)
     else
       local ok, file_lines = pcall(vim.fn.readfile, fname)
-      if ok then
+      if ok and #file_lines > 0 then
         orig = file_lines
       end
+      -- else: orig remains empty for new files
+    end
+
+    -- Check for large files
+    if #orig > 10000 then
+      vim.notify("Large file detected, diff may be slow", vim.log.levels.INFO)
     end
 
     -- Apply the edits to a throw-away scratch buffer.
     local scratch = vim.api.nvim_create_buf(false, true)
-    vim.api.nvim_buf_set_lines(scratch, 0, -1, false, orig)
-    local ok2 = pcall(vim.lsp.util.apply_text_edits, text_edits, scratch, encoding)
-    if not ok2 then
+    local success = false
+    local ok2 = pcall(function()
+      vim.api.nvim_buf_set_lines(scratch, 0, -1, false, orig)
+      vim.lsp.util.apply_text_edits(text_edits, scratch, encoding)
+      success = true
+    end)
+
+    if not ok2 or not success then
       pcall(vim.api.nvim_buf_delete, scratch, { force = true })
       return
     end
+
     local modified = vim.api.nvim_buf_get_lines(scratch, 0, -1, false)
     pcall(vim.api.nvim_buf_delete, scratch, { force = true })
 
@@ -350,44 +372,70 @@ local function compute_diff_lines(action, client)
       return
     end
 
-    local diff_str = vim.text.diff(a_text, b_text, {
+    local diff_result = vim.text.diff(a_text, b_text, {
       result_type = "unified",
-      algorithm = "minimal",
+      algorithm = config.diff_algorithm,
     })
 
-    if diff_str and diff_str ~= "" then
+    -- Ensure diff_result is a string
+    if diff_result == nil then
+      return
+    end
+
+    local diff_str = tostring(diff_result)
+    if diff_str == "" then
+      return
+    end
+
+    -- Split the diff string into lines
+    local diff_lines = vim.split(diff_str, "\n", { plain = true })
+
+    -- Truncate extremely large diffs
+    if #diff_lines > config.max_diff_lines then
+      vim.notify("Diff truncated due to size", vim.log.levels.WARN)
+      local truncated = {}
+      for i = 1, config.max_diff_lines do
+        truncated[i] = diff_lines[i]
+      end
+      truncated[config.max_diff_lines + 1] = "... (diff truncated)"
+      diff_lines = truncated
+    end
+
+    if #diff_lines > 0 then
       table.insert(result, ("--- a/%s"):format(rel))
       table.insert(result, ("+++ b/%s"):format(rel))
-      for _, line in ipairs(vim.split(diff_str, "\n", { plain = true })) do
+      for _, line in ipairs(diff_lines) do
         table.insert(result, line)
       end
     end
   end
 
-  local edit = action.edit
-  if edit.changes then
-    local uris = vim.tbl_keys(edit.changes)
-    table.sort(uris)
-    for _, uri in ipairs(uris) do
-      diff_uri(uri, edit.changes[uri])
-    end
-  elseif edit.documentChanges then
-    for _, change in ipairs(edit.documentChanges) do
-      if change.textDocument and change.edits then
+  -- Handle documentChanges (preferred) or changes
+  if action.edit.documentChanges then
+    for _, change in ipairs(action.edit.documentChanges) do
+      -- Check for resource operations
+      if change.kind then
+        if change.kind == "rename" then
+          -- Handle file rename
+          local old_name = vim.uri_to_fname(change.oldUri)
+          local new_name = vim.uri_to_fname(change.newUri)
+          local old_rel = vim.fn.fnamemodify(old_name, ":~:.")
+          local new_rel = vim.fn.fnamemodify(new_name, ":~:.")
+          table.insert(result, ("Rename: %s -> %s"):format(old_rel, new_rel))
+        elseif change.kind == "delete" then
+          -- Handle file deletion
+          local fname = vim.uri_to_fname(change.uri)
+          local rel = vim.fn.fnamemodify(fname, ":~:.")
+          table.insert(result, ("Delete: %s"):format(rel))
+        end
+      elseif change.textDocument and change.edits then
+        -- Standard text document edit
         diff_uri(change.textDocument.uri, change.edits)
-      elseif change.kind == "create" then
-        table.insert(result, ("(create) %s"):format(vim.fn.fnamemodify(vim.uri_to_fname(change.uri), ":~:.")))
-      elseif change.kind == "rename" then
-        table.insert(
-          result,
-          ("(rename) %s  →  %s"):format(
-            vim.fn.fnamemodify(vim.uri_to_fname(change.oldUri), ":~:."),
-            vim.fn.fnamemodify(vim.uri_to_fname(change.newUri), ":~:.")
-          )
-        )
-      elseif change.kind == "delete" then
-        table.insert(result, ("(delete) %s"):format(vim.fn.fnamemodify(vim.uri_to_fname(change.uri), ":~:.")))
       end
+    end
+  elseif action.edit.changes then
+    for uri, text_edits in pairs(action.edit.changes) do
+      diff_uri(uri, text_edits)
     end
   end
 
@@ -541,7 +589,8 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
         local title = clean_title(it.action):lower()
         local kind = (it.action.kind or ""):lower()
         local source = (it.client and it.client.name or ""):lower()
-        return title:find(q, 1, true) or kind:find(q, 1, true) or source:find(q, 1, true)
+        -- Convert string.find result to boolean explicitly
+        return title:find(q, 1, true) ~= nil or kind:find(q, 1, true) ~= nil or source:find(q, 1, true) ~= nil
       end, all_items)
       rows, row_item_pos, filtered_count = build_rows(filtered)
     end
@@ -603,7 +652,11 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
       vim.bo[picker_buf].modifiable = true
       vim.api.nvim_buf_set_lines(picker_buf, 0, -1, false, lines)
       vim.bo[picker_buf].modifiable = false
-      vim.api.nvim_buf_add_highlight(picker_buf, NS, HL.Disabled, 0, 0, -1)
+      vim.api.nvim_buf_set_extmark(picker_buf, NS, 0, 0, {
+        end_line = 1,
+        hl_group = HL.Disabled,
+        hl_mode = "replace",
+      })
       return
     end
 
@@ -622,7 +675,12 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
     for idx, row in ipairs(rows) do
       local rownr = idx - 1
       if row.kind == "header" then
-        vim.api.nvim_buf_add_highlight(picker_buf, NS, HL.Header, rownr, 0, -1)
+        local line_length = #(vim.api.nvim_buf_get_lines(picker_buf, rownr, rownr + 1, false)[1] or "")
+        vim.api.nvim_buf_set_extmark(picker_buf, NS, rownr, 0, {
+          end_col = line_length,
+          hl_group = HL.Header,
+          hl_eol = true,
+        })
         vim.api.nvim_buf_set_extmark(picker_buf, NS, rownr, 0, {
           virt_text = { { ("(%d)"):format(row.count), HL.HeaderCount } },
           virt_text_pos = "right_align",
@@ -631,9 +689,15 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
         local icon = kinds.get(row.item.action.kind)
         -- nvim_buf_add_highlight takes byte offsets; #icon gives the correct
         -- byte length of the (possibly multi-byte) UTF-8 glyph.
-        vim.api.nvim_buf_add_highlight(picker_buf, NS, HL.Kind, rownr, 1, 1 + #icon)
+        vim.api.nvim_buf_set_extmark(picker_buf, NS, rownr, 1, {
+          end_col = 1 + #icon,
+          hl_group = HL.Kind,
+        })
         if row.item.action.disabled then
-          vim.api.nvim_buf_add_highlight(picker_buf, NS, HL.Disabled, rownr, 0, -1)
+          vim.api.nvim_buf_set_extmark(picker_buf, NS, rownr, 0, {
+            hl_group = HL.Disabled,
+            hl_eol = true,
+          })
         end
         -- Highlight filter match in item title when a query is active.
         if filter_query ~= "" then
@@ -643,7 +707,10 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
           if ms then
             -- Offset by leading space + icon + space (byte positions).
             local prefix = 1 + #icon + 1
-            vim.api.nvim_buf_add_highlight(picker_buf, NS, HL.FilterMatch, rownr, prefix + ms - 1, prefix + me)
+            vim.api.nvim_buf_set_extmark(picker_buf, NS, rownr, prefix + ms - 1, {
+              end_col = prefix + me,
+              hl_group = HL.FilterMatch,
+            })
           end
         end
         local badges = right_badges(row.item)
@@ -774,10 +841,20 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
     if not ft then
       for _, span in ipairs(spans or {}) do
         if span.file then
-          vim.api.nvim_buf_add_highlight(preview.buf, NS, HL.Header, span.row, 0, -1)
+          vim.api.nvim_buf_set_extmark(preview.buf, NS, span.row, 0, {
+            hl_group = HL.Header,
+            hl_eol = true,
+          })
         elseif span.label_end then
-          vim.api.nvim_buf_add_highlight(preview.buf, NS, HL.PreviewLabel, span.row, 0, span.label_end)
-          vim.api.nvim_buf_add_highlight(preview.buf, NS, HL.PreviewValue, span.row, span.value_start, -1)
+          vim.api.nvim_buf_set_extmark(preview.buf, NS, span.row, 0, {
+            end_col = span.label_end,
+            hl_group = HL.PreviewLabel,
+          })
+
+          vim.api.nvim_buf_set_extmark(preview.buf, NS, span.row, span.value_start, {
+            hl_group = HL.PreviewValue,
+            hl_eol = true,
+          })
         end
       end
     end
