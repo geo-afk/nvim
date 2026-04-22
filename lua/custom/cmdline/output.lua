@@ -182,25 +182,6 @@ local function make_footer_chunks(lines, wrap_enabled, format)
   return chunks
 end
 
-local function set_window_style(win, format)
-  local normal = format.kind == "error" and "NvimCmdlineOutputErrorNormal" or "NvimCmdlineOutputNormal"
-  local border = format.kind == "error" and "NvimCmdlineOutputErrorBorder" or "NvimCmdlineOutputBorder"
-  vim.api.nvim_set_option_value(
-    "winhighlight",
-    ("Normal:%s,FloatBorder:%s,EndOfBuffer:%s"):format(normal, border, normal),
-    { win = win }
-  )
-  vim.api.nvim_set_option_value("wrap", M.config.default_wrap, { win = win })
-  vim.api.nvim_set_option_value("linebreak", true, { win = win })
-  vim.api.nvim_set_option_value("cursorline", false, { win = win })
-  vim.api.nvim_set_option_value("scrolloff", 0, { win = win })
-  vim.api.nvim_set_option_value("number", false, { win = win })
-  vim.api.nvim_set_option_value("relativenumber", false, { win = win })
-  vim.api.nvim_set_option_value("signcolumn", "no", { win = win })
-  vim.api.nvim_set_option_value("foldenable", false, { win = win })
-  vim.api.nvim_set_option_value("spell", false, { win = win })
-end
-
 local function update_chrome(win, lines, format, command)
   if not vim.api.nvim_win_is_valid(win) then
     return
@@ -215,16 +196,88 @@ local function update_chrome(win, lines, format, command)
   })
 end
 
-local function open_split(kind, lines, format)
+local function set_window_style(win, format, is_float)
+  local normal = format.kind == "error" and "NvimCmdlineOutputErrorNormal" or "NvimCmdlineOutputNormal"
+  local border = format.kind == "error" and "NvimCmdlineOutputErrorBorder" or "NvimCmdlineOutputBorder"
+
+  local winhl = ("Normal:%s,EndOfBuffer:%s"):format(normal, normal)
+  if is_float then
+    winhl = winhl .. (",FloatBorder:%s"):format(border)
+  end
+
+  vim.api.nvim_set_option_value("winhighlight", winhl, { win = win })
+  vim.api.nvim_set_option_value("wrap", M.config.default_wrap, { win = win })
+  vim.api.nvim_set_option_value("linebreak", true, { win = win })
+  vim.api.nvim_set_option_value("cursorline", true, { win = win })
+  vim.api.nvim_set_option_value("scrolloff", 0, { win = win })
+  vim.api.nvim_set_option_value("number", false, { win = win })
+  vim.api.nvim_set_option_value("relativenumber", false, { win = win })
+  vim.api.nvim_set_option_value("signcolumn", "no", { win = win })
+  vim.api.nvim_set_option_value("foldenable", false, { win = win })
+  vim.api.nvim_set_option_value("spell", false, { win = win })
+
+  if not is_float and vim.fn.has("nvim-0.8") == 1 then
+    local title = format.title:upper()
+    local badge_hl = format.kind == "error" and "NvimCmdlineOutputTitleBadgeError" or "NvimCmdlineOutputTitleBadge"
+    vim.api.nvim_set_option_value("winbar", "%#WinSeparator# " .. "%#" .. badge_hl .. "# " .. title .. " %* ", { win = win })
+  end
+end
+
+local function apply_mappings(buf, win, lines, format, command, close_fn)
+  local function buf_map(lhs, rhs)
+    vim.keymap.set("n", lhs, rhs, { buffer = buf, noremap = true, silent = true, nowait = true })
+  end
+
+  buf_map("q", close_fn)
+  buf_map("<Esc>", close_fn)
+
+  buf_map("w", function()
+    if not vim.api.nvim_win_is_valid(win) then
+      return
+    end
+    local wrap = vim.api.nvim_get_option_value("wrap", { win = win })
+    vim.api.nvim_set_option_value("wrap", not wrap, { win = win })
+    if vim.api.nvim_win_get_config(win).relative ~= "" then
+      update_chrome(win, lines, format, command)
+    end
+  end)
+
+  buf_map("y", function()
+    local text = table.concat(lines, "\n")
+    vim.fn.setreg('"', text)
+    pcall(vim.fn.setreg, "+", text)
+    vim.notify("[nvim-cmdline] output copied", vim.log.levels.INFO)
+  end)
+end
+
+local function open_split(kind, lines, format, command)
   local cmd = kind == "vsplit" and "botright vsplit" or "botright split"
   vim.cmd(cmd)
-  local target_win = vim.api.nvim_get_current_win()
-  local target_buf = create_buffer(lines, format, M.config.enable_syntax)
-  vim.api.nvim_win_set_buf(target_win, target_buf)
-  vim.api.nvim_set_option_value("wrap", M.config.default_wrap, { win = target_win })
-  vim.api.nvim_set_option_value("linebreak", true, { win = target_win })
-  vim.api.nvim_set_option_value("number", false, { win = target_win })
-  vim.api.nvim_set_option_value("relativenumber", false, { win = target_win })
+  local win = vim.api.nvim_get_current_win()
+  local buf = create_buffer(lines, format, M.config.enable_syntax)
+  vim.api.nvim_win_set_buf(win, buf)
+
+  set_window_style(win, format, false)
+
+  local function close()
+    if vim.api.nvim_win_is_valid(win) then
+      pcall(vim.api.nvim_win_close, win, true)
+    end
+  end
+
+  apply_mappings(buf, win, lines, format, command, close)
+
+  -- Specific split mappings: allow switching back to float or other split
+  vim.keymap.set("n", "s", function()
+    close()
+    open_split("split", lines, format, command)
+  end, { buffer = buf, noremap = true, silent = true })
+  vim.keymap.set("n", "v", function()
+    close()
+    open_split("vsplit", lines, format, command)
+  end, { buffer = buf, noremap = true, silent = true })
+
+  pcall(vim.api.nvim_win_set_cursor, win, { 1, 0 })
 end
 
 local function store_last(spec)
@@ -294,7 +347,7 @@ function M.show(spec)
     focusable = true,
   })
 
-  set_window_style(win, format)
+  set_window_style(win, format, true)
   update_chrome(win, lines, format, spec.command)
   pcall(vim.api.nvim_win_set_cursor, win, { 1, 0 })
 
@@ -304,34 +357,17 @@ function M.show(spec)
     end
   end
 
-  local function buf_map(lhs, rhs)
-    vim.keymap.set("n", lhs, rhs, { buffer = buf, noremap = true, silent = true, nowait = true })
-  end
+  apply_mappings(buf, win, lines, format, spec.command, close)
 
-  buf_map("q", close)
-  buf_map("<Esc>", close)
-  buf_map("w", function()
-    if not vim.api.nvim_win_is_valid(win) then
-      return
-    end
-    local wrap = vim.api.nvim_get_option_value("wrap", { win = win })
-    vim.api.nvim_set_option_value("wrap", not wrap, { win = win })
-    update_chrome(win, lines, format, spec.command)
-  end)
-  buf_map("y", function()
-    local text = table.concat(lines, "\n")
-    vim.fn.setreg('"', text)
-    pcall(vim.fn.setreg, "+", text)
-    vim.notify("[nvim-cmdline] output copied", vim.log.levels.INFO)
-  end)
-  buf_map("s", function()
+  vim.keymap.set("n", "s", function()
     close()
-    open_split("split", lines, format)
-  end)
-  buf_map("v", function()
+    open_split("split", lines, format, spec.command)
+  end, { buffer = buf, noremap = true, silent = true })
+
+  vim.keymap.set("n", "v", function()
     close()
-    open_split("vsplit", lines, format)
-  end)
+    open_split("vsplit", lines, format, spec.command)
+  end, { buffer = buf, noremap = true, silent = true })
 end
 
 function M.show_last()
