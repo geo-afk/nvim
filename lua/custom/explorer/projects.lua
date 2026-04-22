@@ -10,25 +10,25 @@
 --   │    󰊢 another-app     ~/dev/another-app        │
 --   │    󰉋 plain-dir       ~/plain-dir              │
 --   ╰────────────────────────────────────────────── ╯
---
--- Project sources (in priority order):
---   1. config.projects.dirs  – explicit paths, always shown
---   2. S.recent_roots        – directories opened as explorer roots this session
---   3. config.projects.roots – directories scanned one level deep for sub-dirs
---
--- Insert-mode keymaps (active the whole time the window is open):
---   <C-j> / <Down>   move selection down
---   <C-k> / <Up>     move selection up
---   <C-d>            move selection down 5
---   <C-u>            wipe filter text (stay in insert)
---   <CR>             open selected project as new explorer root
---   <Esc>            close without selecting
---   <BS>             blocked at icon-prefix boundary
---   <Tab> / <S-Tab>  blocked (no completion popup)
 
 local S = require("custom.explorer.state")
 local cfg = require("custom.explorer.config")
 local store = require("custom.explorer.project_store")
+-- FIX: was a hard require — crashes if tabline module is absent.
+-- Wrapped in pcall so the explorer works as a standalone plugin.
+local tabline_session
+do
+  local ok, mod = pcall(require, "custom.tabline.session")
+  if ok then
+    tabline_session = mod
+  else
+    tabline_session = {
+      session_file = function() return nil end,
+      save         = function() end,
+      restore      = function() end,
+    }
+  end
+end
 local api = vim.api
 local fn = vim.fn
 local uv = vim.uv
@@ -40,7 +40,7 @@ local M = {}
 local P = {
   buf = nil, -- scratch buffer
   win = nil, -- floating window
-  projects = {}, -- full list  { path, name, is_git, pinned, recent, discovered }
+  projects = {}, -- full list  { path, name, is_git, pinned, recent, discovered, visited, has_session }
   filtered = {}, -- filtered subset
   filter = "", -- current filter string
   cursor = 1, -- 1-based index into P.filtered (the "selected" item)
@@ -54,6 +54,24 @@ local SEARCH_ICON = " 󰉋  " -- project-folder icon, 5-col overlay
 local PLACEHOLDER = "jump to project…"
 local EMPTY_GUIDE = "Add config.projects.dirs or config.projects.roots to populate this picker."
 local is_git
+
+local function fmt_relative_time(ts)
+  if not ts or ts == 0 then
+    return ""
+  end
+  local diff = os.time() - ts
+  if diff < 60 then
+    return "just now"
+  elseif diff < 3600 then
+    return math.floor(diff / 60) .. "m ago"
+  elseif diff < 86400 then
+    return math.floor(diff / 3600) .. "h ago"
+  elseif diff < 604800 then
+    return math.floor(diff / 86400) .. "d ago"
+  else
+    return os.date("%b %d", ts)
+  end
+end
 
 local function paste_from_clipboard()
   local text = fn.getreg("+")
@@ -85,14 +103,14 @@ local function project_source_label(p)
   return "found"
 end
 
-local function ensure_project(out, seen, path, source)
+local function ensure_project(out, seen, path, source, metadata)
   local item = seen[path]
   if item then
     if source == "pinned" then
       item.pinned = true
     elseif source == "recent" then
       item.recent = true
-      item.recent_index = item.recent_index or math.huge
+      item.visited = math.max(item.visited or 0, (metadata and metadata.visited) or 0)
     elseif source == "discovered" then
       item.discovered = true
     end
@@ -107,7 +125,8 @@ local function ensure_project(out, seen, path, source)
     recent = source == "recent",
     discovered = source == "discovered",
     missing = not store.exists(path),
-    recent_index = math.huge,
+    visited = (metadata and metadata.visited) or 0,
+    has_session = tabline_session.session_file(path) ~= nil,
   }
   seen[path] = item
   out[#out + 1] = item
@@ -132,8 +151,8 @@ local function compare_projects(a, b)
   if ar ~= br then
     return ar < br
   end
-  if a.recent and b.recent and a.recent_index ~= b.recent_index then
-    return a.recent_index < b.recent_index
+  if a.visited ~= b.visited then
+    return (a.visited or 0) > (b.visited or 0)
   end
   local an, bn = a.name:lower(), b.name:lower()
   if an ~= bn then
@@ -214,8 +233,8 @@ local function match_project(p, filter_text)
   if p.pinned then
     score = score + 18
   end
-  if p.recent then
-    score = score + math.max(1, 14 - math.min(p.recent_index or 99, 12))
+  if p.visited and p.visited > 0 then
+    score = score + 10
   end
 
   return true, score
@@ -273,20 +292,17 @@ local function collect_projects(on_done)
     end
   end
 
-  -- 2. Recent roots from persisted history + session activity
-  local recent = vim.list_extend(store.get_recent(), S.recent_roots or {})
-  for i, r in ipairs(recent) do
-    if r and r ~= "" then
-      local item = ensure_project(out, seen, r, "recent")
-      item.recent = true
-      item.recent_index = math.min(item.recent_index or math.huge, i)
-    end
+  -- 2. Recent projects from store
+  local recent = store.get_recent()
+  for _, item in ipairs(recent) do
+    ensure_project(out, seen, item.path, "recent", item)
   end
 
   -- 3. Scan configured root directories (one level deep, async)
   local roots = pc.roots or {}
   local pending = #roots
   if pending == 0 then
+    table.sort(out, compare_projects)
     on_done(out)
     return
   end
@@ -390,6 +406,7 @@ local function paint_items()
 
   local lines = {}
   local marks = {}
+  local w = win_width()
 
   if #P.projects == 0 then
     lines[1] = "   No projects discovered yet."
@@ -403,32 +420,26 @@ local function paint_items()
     for idx, p in ipairs(P.filtered) do
       local is_cur = (idx == P.cursor)
       local icon = p.is_git and "󰊢 " or "󰉋 "
-      local short = fn.fnamemodify(p.path, ":~")
-      local badge = "[" .. project_source_label(p) .. "]"
-      local missing = p.missing and "  [missing]" or ""
-      local line = "   " .. icon .. p.name .. "  " .. badge .. missing .. "  " .. short
+      local pin_icon = p.pinned and "󰐃 " or "  "
+      local session_icon = p.has_session and "󱫓 " or "  "
+
+      local line = "   " .. icon .. pin_icon .. p.name
       lines[#lines + 1] = line
 
       local row = idx
       local ico_s = 3
       local ico_e = ico_s + #icon
-      local name_s = ico_e
+      local pin_s = ico_e
+      local pin_e = pin_s + #pin_icon
+      local name_s = pin_e
       local name_e = name_s + #p.name
-      local badge_s = name_e + 2
-      local badge_e = badge_s + #badge
-      local missing_s = badge_e
-      local missing_e = badge_e
-      if p.missing then
-        missing_s = badge_e + 2
-        missing_e = missing_s + #" [missing]"
-      end
-      local path_s = p.missing and (missing_e + 2) or (badge_e + 2)
 
       if is_cur then
         marks[#marks + 1] = { kind = "hl", row = row, cs = 0, ce = -1, hl = "ExplorerCursorLine", eol = true, pri = 10 }
         marks[#marks + 1] = { kind = "vt", row = row, col = 0, vt = { { "► ", "ExplorerDirectory" } }, pri = 30 }
       end
 
+      -- Main Icon
       marks[#marks + 1] = {
         kind = "hl",
         row = row,
@@ -437,6 +448,18 @@ local function paint_items()
         hl = p.is_git and "ExplorerGitAdded" or "ExplorerDirectory",
         pri = 20,
       }
+      -- Pin Icon
+      if p.pinned then
+        marks[#marks + 1] = {
+          kind = "hl",
+          row = row,
+          cs = pin_s,
+          ce = pin_e,
+          hl = "ExplorerSearchActiveText",
+          pri = 20,
+        }
+      end
+      -- Project Name
       marks[#marks + 1] = {
         kind = "hl",
         row = row,
@@ -445,27 +468,35 @@ local function paint_items()
         hl = is_cur and "ExplorerDirectory" or "Normal",
         pri = 20,
       }
-      marks[#marks + 1] = {
-        kind = "hl",
-        row = row,
-        cs = badge_s,
-        ce = badge_e,
-        hl = p.path == S.root and "ExplorerDirectory" or "ExplorerSearchCount",
-        pri = 20,
-      }
+
+      -- Metadata (Right aligned)
+      local vtext = {}
+      local label = project_source_label(p)
+      local badge = " [" .. label .. "] "
+      vtext[#vtext + 1] = { badge, p.path == S.root and "ExplorerDirectory" or "ExplorerSearchCount" }
+
+      if p.has_session then
+        vtext[#vtext + 1] = { session_icon, "ExplorerSearchActiveText" }
+      end
+
+      if p.visited and p.visited > 0 then
+        vtext[#vtext + 1] = { " " .. fmt_relative_time(p.visited) .. " ", "Comment" }
+      end
+
+      local short_path = fn.fnamemodify(p.path, ":~")
       if p.missing then
-        marks[#marks + 1] = {
-          kind = "hl",
-          row = row,
-          cs = missing_s,
-          ce = missing_e,
-          hl = "Comment",
-          pri = 20,
-        }
+        vtext[#vtext + 1] = { " [missing] ", "ExplorerGitDeleted" }
       end
-      if path_s < #line then
-        marks[#marks + 1] = { kind = "hl", row = row, cs = path_s, ce = #line, hl = "Comment", pri = 20 }
-      end
+      vtext[#vtext + 1] = { " " .. short_path, "Comment" }
+
+      marks[#marks + 1] = {
+        kind = "vt",
+        row = row,
+        col = 0,
+        vt = vtext,
+        pos = "right_align",
+        priority = 20,
+      }
     end
   end
 
@@ -477,8 +508,8 @@ local function paint_items()
     if m.kind == "vt" then
       pcall(api.nvim_buf_set_extmark, buf, _ns, m.row, m.col, {
         virt_text = m.vt,
-        virt_text_pos = "overlay",
-        priority = m.pri,
+        virt_text_pos = m.pos or "overlay",
+        priority = m.priority or m.pri,
       })
     elseif m.ce == -1 then
       pcall(api.nvim_buf_set_extmark, buf, _ns, m.row, m.cs, {
@@ -539,25 +570,18 @@ local function open_selected()
     return
   end
 
-  -- Record the old root as a recent before switching
-  if S.root then
-    S.recent_roots = S.recent_roots or {}
-    for i, r in ipairs(S.recent_roots) do
-      if r == S.root then
-        table.remove(S.recent_roots, i)
-        break
-      end
-    end
-    table.insert(S.recent_roots, 1, S.root)
-    while #S.recent_roots > 20 do
-      table.remove(S.recent_roots)
-    end
-    store.push_recent(S.root)
-  end
+  -- Save current session and push to recent
+  local old_cwd = fn.getcwd()
+  tabline_session.save(old_cwd, true)
+  store.push_recent(old_cwd)
 
   -- Open the explorer rooted at the chosen project
   vim.schedule(function()
+    -- Change CWD to the project root so tabline session restores correctly
+    pcall(api.nvim_set_current_dir, p.path)
     require("custom.explorer").open({ root = p.path })
+    -- Restore session using your existing tabline session manager
+    tabline_session.restore(p.path, false)
   end)
 end
 
@@ -585,12 +609,6 @@ local function remove_selected()
     return
   end
   store.remove(p.path)
-  for i, r in ipairs(S.recent_roots or {}) do
-    if r == p.path then
-      table.remove(S.recent_roots, i)
-      break
-    end
-  end
   vim.notify("[explorer] removed project entry: " .. fn.fnamemodify(p.path, ":~"), vim.log.levels.INFO)
   refresh_projects()
 end
@@ -651,7 +669,7 @@ function M.open()
   local editor = api.nvim_list_uis()[1]
   local editor_width = editor and editor.width or vim.o.columns
   local editor_height = editor and editor.height or vim.o.lines
-  local width = math.min(72, editor_width - 8)
+  local width = math.min(84, editor_width - 8)
   local height = math.min(26, editor_height - 6)
   local row = math.floor((editor_height - height) / 2)
   local col = math.floor((editor_width - width) / 2)
@@ -666,7 +684,7 @@ function M.open()
     border = "rounded",
     title = " 󰉋 Projects ",
     title_pos = "center",
-    footer = " <Enter> open   P pin   D forget   <Esc> close ",
+    footer = " <Enter> open   P pin   D forget   S save session   <Esc> close ",
     footer_pos = "center",
   })
   P.win = win
@@ -777,6 +795,14 @@ function M.open()
   vim.keymap.set({ "i", "n" }, "<CR>", open_selected, bopts)
   vim.keymap.set({ "i", "n" }, "P", toggle_pin_selected, bopts)
   vim.keymap.set({ "i", "n" }, "D", remove_selected, bopts)
+  vim.keymap.set({ "i", "n" }, "S", function()
+    local p = current_project()
+    if p then
+      tabline_session.save(p.path, false)
+      vim.notify("[explorer] session saved: " .. p.name, vim.log.levels.INFO)
+      refresh_projects()
+    end
+  end, bopts)
 
   -- Close
   vim.keymap.set({ "i", "n" }, "<Esc>", M.close, bopts)

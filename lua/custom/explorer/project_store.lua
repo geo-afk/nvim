@@ -57,22 +57,53 @@ end
 local function dedupe_paths(items)
   local out = {}
   local seen = {}
-  for _, raw in ipairs(items or {}) do
-    local p = normalized_path(raw)
+  for _, item in ipairs(items or {}) do
+    local p
+    if type(item) == "table" then
+      p = normalized_path(item.path)
+    else
+      p = normalized_path(item)
+    end
+
     if p and not seen[p] then
       seen[p] = true
-      out[#out + 1] = p
+      if type(item) == "table" then
+        item.path = p
+        out[#out + 1] = item
+      else
+        out[#out + 1] = p
+      end
     end
   end
   return out
 end
 
 function M.get_pinned()
-  return dedupe_paths(M.load().pinned)
+  local pinned = M.load().pinned
+  local out = {}
+  for _, item in ipairs(pinned) do
+    if type(item) == "table" then
+      out[#out + 1] = normalized_path(item.path)
+    else
+      out[#out + 1] = normalized_path(item)
+    end
+  end
+  return dedupe_paths(out)
 end
 
 function M.get_recent()
-  return dedupe_paths(M.load().recent)
+  local recent = M.load().recent
+  local out = {}
+  for _, item in ipairs(recent) do
+    if type(item) == "table" then
+      item.path = normalized_path(item.path)
+      out[#out + 1] = item
+    else
+      local p = normalized_path(item)
+      out[#out + 1] = { path = p, visited = os.time() }
+    end
+  end
+  return dedupe_paths(out)
 end
 
 function M.is_pinned(raw)
@@ -109,9 +140,14 @@ function M.remove_pinned(raw)
   local data = M.load()
   local filtered = {}
   for _, item in ipairs(data.pinned) do
-    local current = normalized_path(item)
+    local current
+    if type(item) == "table" then
+      current = normalized_path(item.path)
+    else
+      current = normalized_path(item)
+    end
     if current and current ~= p then
-      filtered[#filtered + 1] = current
+      filtered[#filtered + 1] = item
     end
   end
   data.pinned = filtered
@@ -135,11 +171,21 @@ function M.push_recent(raw)
   end
 
   local data = M.load()
-  local recent = { p }
+  local recent = { { path = p, visited = os.time() } }
   for _, item in ipairs(data.recent) do
-    local current = normalized_path(item)
+    local current
+    if type(item) == "table" then
+      current = normalized_path(item.path)
+    else
+      current = normalized_path(item)
+    end
+
     if current and current ~= p then
-      recent[#recent + 1] = current
+      if type(item) == "table" then
+        recent[#recent + 1] = item
+      else
+        recent[#recent + 1] = { path = current, visited = os.time() }
+      end
     end
     if #recent >= recent_limit() then
       break
@@ -159,9 +205,14 @@ function M.remove(raw)
   local function filter(list)
     local out = {}
     for _, item in ipairs(list) do
-      local current = normalized_path(item)
+      local current
+      if type(item) == "table" then
+        current = normalized_path(item.path)
+      else
+        current = normalized_path(item)
+      end
       if current and current ~= p then
-        out[#out + 1] = current
+        out[#out + 1] = item
       end
     end
     return out
@@ -171,6 +222,7 @@ function M.remove(raw)
   M.save(data)
   return true
 end
+
 
 function M.exists(raw)
   local p = normalized_path(raw)

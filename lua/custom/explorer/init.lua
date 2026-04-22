@@ -16,6 +16,17 @@ local api = vim.api
 local fn = vim.fn
 local M = {}
 
+local ROOT_MARKERS = { ".git", "package.json", "go.mod", "Cargo.toml", "Makefile", "tsconfig.json", "requirements.txt" }
+
+local function find_project_root(path)
+  path = path or api.nvim_buf_get_name(0)
+  if path == "" then
+    path = fn.getcwd()
+  end
+  local root = vim.fs.root(path, ROOT_MARKERS)
+  return root or fn.fnamemodify(path, ":p:h")
+end
+
 local function is_regular_edit_window(winid)
   if not (winid and api.nvim_win_is_valid(winid)) then
     return false
@@ -185,21 +196,11 @@ function M.open(opts)
     S.prev_win = cw
   end
 
-  local requested_root = opts.root or S.root or fn.getcwd()
+  local requested_root = opts.root or S.root or find_project_root()
   local new_root = tree.norm(fn.fnamemodify(requested_root, ":p"))
 
   -- Record the old root as a recent entry before switching
   if S.root and S.root ~= new_root then
-    for i, r in ipairs(S.recent_roots) do
-      if r == S.root then
-        table.remove(S.recent_roots, i)
-        break
-      end
-    end
-    table.insert(S.recent_roots, 1, S.root)
-    while #S.recent_roots > 20 do
-      table.remove(S.recent_roots)
-    end
     store.push_recent(S.root)
   end
 
@@ -270,7 +271,6 @@ function M.setup(opts)
   local c = cfg.current
   local km = c.keymaps
   S.close_fn = M.close
-  S.recent_roots = store.get_recent()
 
   nvim_utils.command("Explorer", function(a)
     M.toggle({ root = a.args ~= "" and a.args or nil })
@@ -287,11 +287,18 @@ function M.setup(opts)
     require("custom.explorer.projects").open()
   end, { desc = "Open project switcher" })
 
+  nvim_utils.command("ExplorerProjectPin", function()
+    local root = find_project_root()
+    store.add_pinned(root)
+    vim.notify("[explorer] pinned project root: " .. fn.fnamemodify(root, ":~"), vim.log.levels.INFO)
+  end, { desc = "Pin current project root" })
+
   nvim_utils.autocmd("ColorScheme", {
     desc = "explorer: refresh highlights",
     callback = function()
       win.reset_hl()
       win.ensure_hl()
+      git.clear_sign_cache()   -- glyph widths may differ across fonts/themes
       S.icon_fn = icons.resolve()
       if S.buf and api.nvim_buf_is_valid(S.buf) then
         render._paint()

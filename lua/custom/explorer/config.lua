@@ -27,35 +27,50 @@ M.defaults = {
   icons = { style = "auto" },
 
   -- 'rounded' | 'sharp' | 'minimal' | 'dots' | leave nil for custom `tree`
-  tree_style = "rounded",
+  tree_style = "sharp",
 
   -- Override individual connector keys (nil = derive from tree_style)
   tree = nil,
 
-  -- Git sign glyphs (1 display-width each)
+  -- ── Git sign column ───────────────────────────────────────────────────
+  --
+  -- git_icons   — Nerd Font glyphs shown as the status icon (preferred).
+  --               Each glyph must render as ≤ 2 display columns; git.lua
+  --               pads automatically with strdisplaywidth() so the sign
+  --               column never shifts regardless of the font in use.
+  --
+  -- git_signs   — Plain-text fallback used when Nerd Fonts are not
+  --               available.  Set use_git_icons = false to force these.
+  --
+  -- use_git_icons — true  → use git_icons glyphs (default)
+  --                 false → use git_signs text
+  --
+  use_git_icons = true,
+
+  git_icons = {
+    modified = " ", -- nf-fa-pencil             (U+F040)
+    added = " ", -- nf-fa-plus               (U+F067)
+    deleted = " ", -- nf-fa-trash-o            (U+F014)
+    renamed = " ", -- nf-fa-arrow-right        (U+F061)
+    untracked = " ", -- nf-fa-question-circle    (U+F059)
+    conflict = " ", -- nf-fa-exclamation-circle (U+F06A)
+    ignored = " ", -- nf-fa-eye-slash          (U+F070)
+  },
+  -- Plain-text fallbacks (used when use_git_icons = false)
   git_signs = {
-    modified = "●",
+    modified = "~",
     added = "+",
-    deleted = "✗",
-    renamed = "»",
+    deleted = "x",
+    renamed = ">",
     untracked = "?",
     conflict = "!",
-    ignored = "◌",
+    ignored = "-",
   },
 
   -- Show a match-count badge in the search bar when a filter is active
   search_count = true,
 
   -- ── Project switcher ──────────────────────────────────────────────────
-  --
-  -- projects.dirs   – explicit directories, always listed (can use ~ expansion)
-  -- projects.roots  – parent directories scanned one level deep for sub-dirs
-  --
-  -- Example:
-  --   projects = {
-  --     dirs  = { '~/work/infra', '~/dotfiles' },
-  --     roots = { '~/dev', '~/work' },
-  --   },
   projects = {
     dirs = {}, -- explicit project paths
     roots = {}, -- parent dirs to scan for projects
@@ -89,8 +104,9 @@ M.defaults = {
     search = "/",
     quit = "q",
     help = "?",
-    projects = "gp", -- open project switcher
-    projects_toggle_pin = "P",
+    projects = "gp",
+    -- Previously "P" — conflicts with add_project.
+    projects_toggle_pin = "<C-p>",
   },
 }
 
@@ -98,10 +114,10 @@ M.current = nil
 
 function M.get()
   local c = M.current or M.defaults
-  -- Lazily resolve tree connector table from style preset
+  -- Lazily resolve tree connector table from style preset.
+  -- Shallow-copy so the original table is never mutated.
   if not c.tree then
     local style = c.tree_style or "rounded"
-    -- shallow-copy to avoid mutating the defaults table
     c = vim.tbl_extend("force", {}, c, {
       tree = M.TREE_STYLES[style] or M.TREE_STYLES.rounded,
     })

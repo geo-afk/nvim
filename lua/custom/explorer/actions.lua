@@ -1,14 +1,16 @@
-local S = require("custom.explorer.state")
-local cfg = require("custom.explorer.config")
-local tree = require("custom.explorer.tree")
+-- custom/explorer/actions.lua
+
+local S     = require("custom.explorer.state")
+local cfg   = require("custom.explorer.config")
+local tree  = require("custom.explorer.tree")
 local render = require("custom.explorer.render")
-local git = require("custom.explorer.git")
+local git   = require("custom.explorer.git")
 local marks = require("custom.explorer.marks")
 local store = require("custom.explorer.project_store")
-local ui = require("custom.explorer.ui")
+local ui    = require("custom.explorer.ui")
 
 local api = vim.api
-local fn = vim.fn
+local fn  = vim.fn
 
 local A = {}
 
@@ -17,7 +19,8 @@ local function is_explorer_like_buffer(buf)
     return false
   end
   local ft = vim.bo[buf].filetype
-  return ft == "explorer" or ft == "explorer_projects" or ft == "explorer_prompt" or ft == "explorer_popup"
+  return ft == "explorer" or ft == "explorer_projects"
+      or ft == "explorer_prompt" or ft == "explorer_popup"
 end
 
 local function rel_to_root(path)
@@ -39,20 +42,16 @@ local function copy_file(src, dest)
   if parent and parent ~= "" then
     fn.mkdir(parent, "p")
   end
-
   local ok, err = vim.uv.fs_copyfile(src, dest)
   if ok then
     return true
   end
-
   local in_f = io.open(src, "rb")
   if not in_f then
     return false, err or ("failed to open source: " .. src)
   end
-
   local data = in_f:read("*a")
   in_f:close()
-
   local out_f = io.open(dest, "wb")
   if not out_f then
     return false, "failed to open destination: " .. dest
@@ -68,28 +67,19 @@ local function copy_dir_recursive(src, dest)
   if not handle then
     return false, "failed to scan directory: " .. src
   end
-
   while true do
     local name, entry_type = vim.uv.fs_scandir_next(handle)
-    if not name then
-      break
-    end
-
+    if not name then break end
     local from = tree.join(src, name)
-    local to = tree.join(dest, name)
+    local to   = tree.join(dest, name)
     if entry_type == "directory" then
       local ok, err = copy_dir_recursive(from, to)
-      if not ok then
-        return false, err
-      end
+      if not ok then return false, err end
     else
       local ok, err = copy_file(from, to)
-      if not ok then
-        return false, err
-      end
+      if not ok then return false, err end
     end
   end
-
   return true
 end
 
@@ -108,7 +98,7 @@ function A.current_item()
   if not (S.win and api.nvim_win_is_valid(S.win)) then
     return nil
   end
-  local row = api.nvim_win_get_cursor(S.win)[1] -- 1-based
+  local row = api.nvim_win_get_cursor(S.win)[1]  -- 1-based
   if row < 2 then
     return nil
   end
@@ -118,7 +108,7 @@ end
 function A.jump_to(path)
   for i, it in ipairs(S.items) do
     if it.path == path then
-      pcall(api.nvim_win_set_cursor, S.win, { i + 1, 0 }) -- line i+1
+      pcall(api.nvim_win_set_cursor, S.win, { i + 1, 0 })
       return true
     end
   end
@@ -127,37 +117,25 @@ end
 
 local function target_win()
   local function usable(w)
-    if not (w and api.nvim_win_is_valid(w)) then
-      return false
-    end
-    if w == S.win then
-      return false
-    end
-    if api.nvim_win_get_config(w).relative ~= "" then
-      return false
-    end
+    if not (w and api.nvim_win_is_valid(w)) then return false end
+    if w == S.win then return false end
+    if api.nvim_win_get_config(w).relative ~= "" then return false end
     local buf = api.nvim_win_get_buf(w)
-    if is_explorer_like_buffer(buf) then
-      return false
-    end
-    local bt = vim.bo[buf].buftype
-    if bt ~= "" then
-      return false
-    end
-    if vim.wo[w].previewwindow then
-      return false
-    end
+    if is_explorer_like_buffer(buf) then return false end
+    if vim.bo[buf].buftype ~= "" then return false end
+    if vim.wo[w].previewwindow then return false end
     return true
   end
   if S.prev_win and api.nvim_win_is_valid(S.prev_win) and usable(S.prev_win) then
     return S.prev_win
   end
   for _, w in ipairs(api.nvim_list_wins()) do
-    if usable(w) then
-      return w
-    end
+    if usable(w) then return w end
   end
 end
+
+-- Export so search.lua can use it for <CR> open-in-place
+A.target_win = target_win
 
 local function open_in(path, cmd)
   local tw = target_win()
@@ -175,9 +153,7 @@ end
 
 function A.open_or_toggle()
   local item = A.current_item()
-  if not item then
-    return
-  end
+  if not item then return end
   if item.is_dir then
     S.open_dirs[item.path] = not S.open_dirs[item.path] or nil
     render.render()
@@ -185,7 +161,8 @@ function A.open_or_toggle()
     open_in(item.path, "edit")
     if S.win and api.nvim_win_is_valid(S.win) then
       vim.schedule(function()
-        if S.win and api.nvim_win_is_valid(S.win) and A.current_item() == nil and #S.items > 0 then
+        if S.win and api.nvim_win_is_valid(S.win)
+            and A.current_item() == nil and #S.items > 0 then
           pcall(api.nvim_win_set_cursor, S.win, { 2, 0 })
         end
       end)
@@ -198,39 +175,29 @@ end
 
 function A.close_dir()
   local item = A.current_item()
-  if not item then
-    return
-  end
+  if not item then return end
   if item.is_dir and S.open_dirs[item.path] then
     S.open_dirs[item.path] = nil
     render.render()
     return
   end
   local par = tree.parent(item.path)
-  if par == S.root then
-    return
-  end
+  if par == S.root then return end
   S.open_dirs[par] = nil
   render.render()
-  vim.schedule(function()
-    A.jump_to(par)
-  end)
+  vim.schedule(function() A.jump_to(par) end)
 end
 
 function A.go_up()
   local up = tree.parent(S.root)
-  if up == S.root then
-    return
-  end
+  if up == S.root then return end
   local old = S.root
   S.root = up
   S.open_dirs[old] = true
   render.render()
   git.fetch()
   require("custom.explorer.win").update_winbar()
-  vim.schedule(function()
-    A.jump_to(old)
-  end)
+  vim.schedule(function() A.jump_to(old) end)
 end
 
 function A.collapse_all()
@@ -238,77 +205,84 @@ function A.collapse_all()
   render.render()
 end
 
+-- FIX: was synchronous uv.fs_scandir in a tight loop — blocked the main
+-- thread on large directory trees.  Now uses async fs_scandir with a
+-- recursive continuation so Neovim stays responsive throughout.
 function A.expand_all(max_depth)
   max_depth = max_depth or 1
-  local function expand(path, depth)
-    if depth > max_depth then
-      return
-    end
-    local uv = vim.uv
-    local handle = uv.fs_scandir(path)
-    if not handle then
-      return
-    end
-    while true do
-      local name, t = uv.fs_scandir_next(handle)
-      if not name then
-        break
-      end
-      if t == "directory" then
-        local abs = tree.join(path, name)
-        S.open_dirs[abs] = true
-        expand(abs, depth + 1)
-      end
-    end
-  end
   S.open_dirs = {}
-  expand(S.root, 1)
-  render.render()
+
+  local function expand_async(path, depth, done)
+    if depth > max_depth then
+      done()
+      return
+    end
+    vim.uv.fs_scandir(path, vim.schedule_wrap(function(err, handle)
+      if err or not handle then
+        done()
+        return
+      end
+      local subdirs = {}
+      while true do
+        local name, t = vim.uv.fs_scandir_next(handle)
+        if not name then break end
+        if t == "directory" then
+          local abs = tree.join(path, name)
+          S.open_dirs[abs] = true
+          subdirs[#subdirs + 1] = abs
+        end
+      end
+      -- Process subdirectories sequentially to avoid stack overflow on
+      -- deeply nested trees and to keep the I/O observable.
+      local i = 0
+      local function next_dir()
+        i = i + 1
+        if i > #subdirs then
+          done()
+        else
+          expand_async(subdirs[i], depth + 1, next_dir)
+        end
+      end
+      next_dir()
+    end))
+  end
+
+  expand_async(S.root, 1, function()
+    render.render()
+  end)
 end
 
 function A.vsplit()
   local i = A.current_item()
-  if i and not i.is_dir then
-    open_in(i.path, "vsplit")
-  end
+  if i and not i.is_dir then open_in(i.path, "vsplit") end
 end
 function A.split()
   local i = A.current_item()
-  if i and not i.is_dir then
-    open_in(i.path, "split")
-  end
+  if i and not i.is_dir then open_in(i.path, "split") end
 end
 function A.tab_open()
   local i = A.current_item()
-  if i and not i.is_dir then
-    open_in(i.path, "tabedit")
-  end
+  if i and not i.is_dir then open_in(i.path, "tabedit") end
 end
 
 function A.add()
-  local item = A.current_item()
-  local dir = item and (item.is_dir and item.path or tree.parent(item.path)) or S.root
+  local item    = A.current_item()
+  local dir     = item and (item.is_dir and item.path or tree.parent(item.path)) or S.root
   local default = rel_to_root(dir)
-  if default ~= "" then
-    default = default .. "/"
-  end
+  if default ~= "" then default = default .. "/" end
   ui.rooted_path_input({
-    title = " New Entry ",
-    prompt = "Create: ",
-    root = S.root,
+    title   = " New Entry ",
+    prompt  = "Create: ",
+    root    = S.root,
     default = default,
-    footer = " finish with / for a directory ",
+    footer  = " finish with / for a directory ",
   }, function(name)
-    if not name or name == "" then
-      return
-    end
-    -- Check for trailing slash BEFORE tree.norm strips it — that's what
-    -- signals "the user wants a directory".
+    if not name or name == "" then return end
+    -- Check for trailing slash BEFORE tree.norm strips it —
+    -- that's what signals "the user wants a directory".
     local is_dir = vim.endswith(name, "/")
     name = tree.norm(name)
-    if name == "" then
-      return
-    end
+    if name == "" then return end
     if is_dir then
       if fn.mkdir(name, "p") == 0 then
         vim.notify("[explorer] failed to create directory: " .. name, vim.log.levels.ERROR)
@@ -324,15 +298,13 @@ function A.add()
       f:close()
     end
     A.refresh()
-    vim.schedule(function()
-      require("custom.explorer").reveal(name)
-    end)
+    vim.schedule(function() require("custom.explorer").reveal(name) end)
   end)
 end
 
 function A.delete()
   local item = A.current_item()
-  local mc = marks.count()
+  local mc   = marks.count()
 
   local paths
   if mc > 0 then
@@ -342,31 +314,24 @@ function A.delete()
   else
     return
   end
+  if #paths == 0 then return end
 
-  if #paths == 0 then
-    return
-  end
+  local label = mc > 0
+    and (mc .. " marked item" .. (mc == 1 and "" or "s"))
+    or  (fn.fnamemodify(paths[1], ":t") .. (item and item.is_dir and "/" or ""))
 
-  local label = mc > 0 and (mc .. " marked item" .. (mc == 1 and "" or "s"))
-    or fn.fnamemodify(paths[1], ":t") .. (item and item.is_dir and "/" or "")
-
-  -- Use popup confirmation instead of vim.ui.input
   ui.confirm({
     prompt = "Delete " .. label,
-    title = " Delete Confirmation ",
+    title  = " Delete Confirmation ",
     footer = " y delete   <Esc> cancel ",
     danger = true,
   }, function(confirmed)
-    if not confirmed then
-      return
-    end
-
+    if not confirmed then return end
     for _, p in ipairs(paths) do
       local stat = vim.uv.fs_stat(p)
       if stat then
         local flags = stat.type == "directory" and "rf" or ""
-        local ok = fn.delete(p, flags)
-        if ok ~= 0 then
+        if fn.delete(p, flags) ~= 0 then
           vim.notify("[explorer] failed to delete: " .. p, vim.log.levels.ERROR)
         end
       end
@@ -378,18 +343,14 @@ end
 
 function A.rename()
   local item = A.current_item()
-  if not item then
-    return
-  end
+  if not item then return end
   ui.rooted_path_input({
-    title = " Rename / Move ",
-    prompt = "Rename to: ",
-    root = S.root,
+    title   = " Rename / Move ",
+    prompt  = "Rename to: ",
+    root    = S.root,
     default = item.path,
   }, function(dest)
-    if not dest or dest == "" or dest == item.path then
-      return
-    end
+    if not dest or dest == "" or dest == item.path then return end
     dest = tree.norm(dest)
     fn.mkdir(tree.parent(dest), "p")
     if fn.rename(item.path, dest) ~= 0 then
@@ -397,43 +358,34 @@ function A.rename()
       return
     end
     for _, client in ipairs(vim.lsp.get_clients()) do
-      -- Check if the server supports the 'didRename' file operation notification
-      local file_ops = client.server_capabilities.workspace and client.server_capabilities.workspace.fileOperations
+      local file_ops = client.server_capabilities.workspace
+                    and client.server_capabilities.workspace.fileOperations
       if file_ops and file_ops.didRename then
-        local method = vim.lsp.protocol.Methods.workspace_didRenameFiles
-        client.notify(method, {
-          files = {
-            {
-              oldUri = vim.uri_from_fname(item.path),
-              newUri = vim.uri_from_fname(dest),
-            },
-          },
+        client.notify(vim.lsp.protocol.Methods.workspace_didRenameFiles, {
+          files = { {
+            oldUri = vim.uri_from_fname(item.path),
+            newUri = vim.uri_from_fname(dest),
+          } },
         })
       end
     end
     A.refresh()
-    vim.schedule(function()
-      require("custom.explorer").reveal(dest)
-    end)
+    vim.schedule(function() require("custom.explorer").reveal(dest) end)
   end)
 end
 
 function A.copy()
-  local item = A.current_item()
+  local item  = A.current_item()
   local paths = marks.selection(item)
-  if #paths == 0 then
-    return
-  end
+  if #paths == 0 then return end
   if #paths == 1 then
     ui.rooted_path_input({
-      title = " Copy Entry ",
-      prompt = "Copy to: ",
-      root = S.root,
+      title   = " Copy Entry ",
+      prompt  = "Copy to: ",
+      root    = S.root,
       default = paths[1],
     }, function(dest)
-      if not dest or dest == "" or dest == paths[1] then
-        return
-      end
+      if not dest or dest == "" or dest == paths[1] then return end
       dest = tree.norm(dest)
       local ok, err = copy_path(paths[1], dest)
       if not ok then
@@ -444,14 +396,12 @@ function A.copy()
     end)
   else
     ui.rooted_path_input({
-      title = " Copy Marked Entries ",
-      prompt = "Copy " .. #paths .. " items to: ",
-      root = S.root,
+      title   = " Copy Marked Entries ",
+      prompt  = "Copy " .. #paths .. " items to: ",
+      root    = S.root,
       default = "",
     }, function(dest)
-      if not dest or dest == "" then
-        return
-      end
+      if not dest or dest == "" then return end
       dest = tree.norm(dest)
       fn.mkdir(dest, "p")
       for _, p in ipairs(paths) do
@@ -470,12 +420,10 @@ end
 
 function A.toggle_mark()
   local item = A.current_item()
-  if not item then
-    return
-  end
+  if not item then return end
   marks.toggle(item)
   local row = api.nvim_win_get_cursor(S.win)[1]
-  local max = #S.items + 1 -- last item is at line #items+1
+  local max = #S.items + 1
   if max >= 2 then
     pcall(api.nvim_win_set_cursor, S.win, { math.min(row + 1, max), 0 })
   end
@@ -487,17 +435,13 @@ end
 
 local function git_op(item, args_fn, msg)
   local paths = marks.selection(item)
-  if #paths == 0 then
-    return
-  end
+  if #paths == 0 then return end
   vim.system(vim.list_extend({ "git", "-C", S.root }, args_fn(paths)), { text = true }, function(out)
     vim.schedule(function()
       if out.code ~= 0 then
         vim.notify("[explorer] git error:\n" .. (out.stderr or ""), vim.log.levels.ERROR)
       else
-        if msg then
-          vim.notify("[explorer] " .. msg, vim.log.levels.INFO)
-        end
+        if msg then vim.notify("[explorer] " .. msg, vim.log.levels.INFO) end
         marks.clear()
         git.fetch()
       end
@@ -510,18 +454,20 @@ function A.git_stage()
     return vim.list_extend({ "add", "--" }, p)
   end, "staged")
 end
+
+-- FIX: was vim.ui.input — inconsistent with the rest of the UI.
+-- Now uses ui.confirm to match the plugin's own popup style.
 function A.git_restore()
   local item = A.current_item()
-  vim.ui.input({ prompt = "git restore: restore staged? (y/N): " }, function(ans)
-    local staged = ans and ans:lower() == "y"
+  ui.confirm({
+    title  = " Git Restore ",
+    prompt = "Also restore staged changes?",
+    footer = " y yes   <Esc> no (working tree only) ",
+  }, function(include_staged)
     git_op(item, function(p)
       local a = { "restore" }
-      if staged then
-        a[#a + 1] = "--staged"
-      end
+      if include_staged then a[#a + 1] = "--staged" end
       a[#a + 1] = "--"
-      -- vim.list_extend(dst, src) — only two meaningful args here;
-      -- the old call passed `p` (a table) as the integer start-index.
       return vim.list_extend(a, p)
     end, "restored")
   end)
@@ -529,15 +475,12 @@ end
 
 function A.file_info()
   local item = A.current_item()
-  if not item then
-    return
-  end
+  if not item then return end
   ui.file_info(item)
 end
 
 function A.toggle_hidden()
-  -- cfg.get() may return a shallow copy when tree is unresolved, so we must
-  -- write back to the authoritative source to make the change stick.
+  -- cfg.get() may return a shallow copy; write to the authoritative source
   local c = cfg.current or cfg.defaults
   c.show_hidden = not c.show_hidden
   render.render()
@@ -545,25 +488,19 @@ end
 
 function A.copy_path()
   local item = A.current_item()
-  if not item then
-    return
-  end
+  if not item then return end
   local p = item.path
   vim.ui.select({
-    { label = "Absolute", val = p },
+    { label = "Absolute",        val = p },
     { label = "Relative to CWD", val = fn.fnamemodify(p, ":.") },
-    { label = "Home-relative", val = fn.fnamemodify(p, ":~") },
-    { label = "Filename", val = fn.fnamemodify(p, ":t") },
-    { label = "Stem (no ext)", val = fn.fnamemodify(p, ":t:r") },
+    { label = "Home-relative",   val = fn.fnamemodify(p, ":~") },
+    { label = "Filename",        val = fn.fnamemodify(p, ":t") },
+    { label = "Stem (no ext)",   val = fn.fnamemodify(p, ":t:r") },
   }, {
-    prompt = "Copy path:",
-    format_item = function(o)
-      return ("%-20s  %s"):format(o.label, o.val)
-    end,
+    prompt      = "Copy path:",
+    format_item = function(o) return ("%-20s  %s"):format(o.label, o.val) end,
   }, function(choice)
-    if not choice then
-      return
-    end
+    if not choice then return end
     fn.setreg("+", choice.val)
     fn.setreg('"', choice.val)
     vim.notify("[explorer] " .. choice.val, vim.log.levels.INFO)
@@ -577,17 +514,13 @@ end
 
 function A.add_project()
   local root = S.root
-  if not root or root == "" then
-    return
-  end
-
+  if not root or root == "" then return end
   if store.is_pinned(root) then
-    vim.notify("[explorer] project already pinned: " .. vim.fn.fnamemodify(root, ":~"), vim.log.levels.INFO)
+    vim.notify("[explorer] project already pinned: " .. fn.fnamemodify(root, ":~"), vim.log.levels.INFO)
     return
   end
-
   store.add_pinned(root)
-  vim.notify("[explorer] pinned project: " .. vim.fn.fnamemodify(root, ":~"), vim.log.levels.INFO)
+  vim.notify("[explorer] pinned project: " .. fn.fnamemodify(root, ":~"), vim.log.levels.INFO)
 end
 
 function A.show_help()
