@@ -21,7 +21,7 @@
 
 local M = {}
 
-local _config = nil  -- set by M.setup()
+local _config = nil -- set by M.setup()
 
 function M.setup(config)
   _config = config
@@ -35,7 +35,9 @@ end
 ---@param button   string
 ---@param modifier string
 function M.handle_click(bufnr, clicks, button, modifier)
-  if not vim.api.nvim_buf_is_valid(bufnr) then return end
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    return
+  end
 
   if button == "m" then
     -- Middle click → close
@@ -58,7 +60,9 @@ end
 ---@param button   string
 ---@param modifier string
 function M.handle_close(bufnr, clicks, button, modifier)
-  if not vim.api.nvim_buf_is_valid(bufnr) then return end
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    return
+  end
 
   if button == "l" or button == "m" then
     local buffers = require("custom.tabline.buffers")

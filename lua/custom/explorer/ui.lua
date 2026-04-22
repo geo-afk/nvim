@@ -419,6 +419,7 @@ function M.help()
       { key_label(km.delete), "delete current item or marked items" },
       { key_label(km.rename), "rename or move current item" },
       { key_label(km.copy), "copy current item or marked items" },
+      { key_label(km.move), "browse folders and paste selected items there" },
     } },
     { "Search And Marks", {
       { key_label(km.search), "focus the inline file filter" },

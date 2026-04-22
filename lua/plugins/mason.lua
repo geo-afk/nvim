@@ -90,6 +90,8 @@ mason.setup({
   pip = { upgrade_pip = true },
 })
 
+vim.keymap.set("n", "<leader>pm", "<cmd>Mason<CR>", { desc = "Mason UI" })
+
 -- ── 2. Auto-install LSP servers via registry ──────────────────────────────────
 local registry_ok, registry = pcall(require, "mason-registry")
 if registry_ok then

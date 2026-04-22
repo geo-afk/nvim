@@ -6,6 +6,7 @@ local tree  = require("custom.explorer.tree")
 local render = require("custom.explorer.render")
 local git   = require("custom.explorer.git")
 local marks = require("custom.explorer.marks")
+local move_picker = require("custom.explorer.move")
 local store = require("custom.explorer.project_store")
 local ui    = require("custom.explorer.ui")
 
@@ -92,6 +93,67 @@ local function copy_path(src, dest)
     return copy_dir_recursive(src, dest)
   end
   return copy_file(src, dest)
+end
+
+local function is_subpath(path, parent)
+  if not path or not parent then
+    return false
+  end
+  path = tree.norm(path)
+  parent = tree.norm(parent)
+  return path == parent or vim.startswith(path, parent .. "/")
+end
+
+local function notify_lsp_rename(old_path, new_path)
+  for _, client in ipairs(vim.lsp.get_clients()) do
+    local file_ops = client.server_capabilities.workspace
+                  and client.server_capabilities.workspace.fileOperations
+    if file_ops and file_ops.didRename then
+      client.notify(vim.lsp.protocol.Methods.workspace_didRenameFiles, {
+        files = { {
+          oldUri = vim.uri_from_fname(old_path),
+          newUri = vim.uri_from_fname(new_path),
+        } },
+      })
+    end
+  end
+end
+
+local function move_paths(paths, dest_dir)
+  dest_dir = tree.norm(dest_dir or "")
+  if dest_dir == "" then
+    return false, "missing destination folder"
+  end
+
+  local stat = vim.uv.fs_stat(dest_dir)
+  if not stat or stat.type ~= "directory" then
+    return false, "destination is not a directory: " .. dest_dir
+  end
+
+  local moved = {}
+  for _, src in ipairs(paths) do
+    local dest = tree.join(dest_dir, fn.fnamemodify(src, ":t"))
+    if dest == src then
+      return false, "source is already in that folder: " .. src
+    end
+    if is_subpath(dest, src) then
+      return false, "cannot move a folder into itself: " .. src
+    end
+    if vim.uv.fs_stat(dest) then
+      return false, "destination already exists: " .. dest
+    end
+    fn.mkdir(tree.parent(dest), "p")
+    if fn.rename(src, dest) ~= 0 then
+      return false, "move failed: " .. src .. " -> " .. dest
+    end
+    moved[#moved + 1] = { old = src, new = dest }
+  end
+
+  for _, item in ipairs(moved) do
+    notify_lsp_rename(item.old, item.new)
+  end
+
+  return true, moved
 end
 
 function A.current_item()
@@ -357,21 +419,38 @@ function A.rename()
       vim.notify("[explorer] rename failed: " .. item.path .. " → " .. dest, vim.log.levels.ERROR)
       return
     end
-    for _, client in ipairs(vim.lsp.get_clients()) do
-      local file_ops = client.server_capabilities.workspace
-                    and client.server_capabilities.workspace.fileOperations
-      if file_ops and file_ops.didRename then
-        client.notify(vim.lsp.protocol.Methods.workspace_didRenameFiles, {
-          files = { {
-            oldUri = vim.uri_from_fname(item.path),
-            newUri = vim.uri_from_fname(dest),
-          } },
-        })
-      end
-    end
+    notify_lsp_rename(item.path, dest)
     A.refresh()
     vim.schedule(function() require("custom.explorer").reveal(dest) end)
   end)
+end
+
+A._move_paths = move_paths
+
+function A.move()
+  local item = A.current_item()
+  local paths = marks.selection(item)
+  if #paths == 0 then return end
+
+  move_picker.open({
+    start_dir = #paths == 1 and tree.parent(paths[1]) or S.root,
+    on_confirm = function(dest_dir)
+      local ok, result = move_paths(paths, dest_dir)
+      if not ok then
+        vim.notify("[explorer] " .. tostring(result), vim.log.levels.ERROR)
+        return
+      end
+      marks.clear()
+      A.refresh()
+      local last = result[#result]
+      if last then
+        vim.schedule(function()
+          require("custom.explorer").reveal(last.new)
+        end)
+      end
+      vim.notify("[explorer] moved " .. #result .. " item" .. (#result == 1 and "" or "s"), vim.log.levels.INFO)
+    end,
+  })
 end
 
 function A.copy()

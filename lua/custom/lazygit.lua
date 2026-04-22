@@ -16,6 +16,10 @@ function M.setup()
     border = "rounded",
     title = " LazyGit ",
   })
+
+  vim.keymap.set("n", "<leader>gg", function()
+    term.create_terminal("lazygit")
+  end, { desc = "LazyGit" })
 end
 
 return M

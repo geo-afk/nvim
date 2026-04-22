@@ -14,21 +14,6 @@
 local S = require("custom.explorer.state")
 local cfg = require("custom.explorer.config")
 local store = require("custom.explorer.project_store")
--- FIX: was a hard require — crashes if tabline module is absent.
--- Wrapped in pcall so the explorer works as a standalone plugin.
-local tabline_session
-do
-  local ok, mod = pcall(require, "custom.tabline.session")
-  if ok then
-    tabline_session = mod
-  else
-    tabline_session = {
-      session_file = function() return nil end,
-      save         = function() end,
-      restore      = function() end,
-    }
-  end
-end
 local api = vim.api
 local fn = vim.fn
 local uv = vim.uv
@@ -40,7 +25,7 @@ local M = {}
 local P = {
   buf = nil, -- scratch buffer
   win = nil, -- floating window
-  projects = {}, -- full list  { path, name, is_git, pinned, recent, discovered, visited, has_session }
+  projects = {}, -- full list  { path, name, is_git, pinned, recent, discovered, visited }
   filtered = {}, -- filtered subset
   filter = "", -- current filter string
   cursor = 1, -- 1-based index into P.filtered (the "selected" item)
@@ -126,7 +111,6 @@ local function ensure_project(out, seen, path, source, metadata)
     discovered = source == "discovered",
     missing = not store.exists(path),
     visited = (metadata and metadata.visited) or 0,
-    has_session = tabline_session.session_file(path) ~= nil,
   }
   seen[path] = item
   out[#out + 1] = item
@@ -421,7 +405,6 @@ local function paint_items()
       local is_cur = (idx == P.cursor)
       local icon = p.is_git and "󰊢 " or "󰉋 "
       local pin_icon = p.pinned and "󰐃 " or "  "
-      local session_icon = p.has_session and "󱫓 " or "  "
 
       local line = "   " .. icon .. pin_icon .. p.name
       lines[#lines + 1] = line
@@ -474,10 +457,6 @@ local function paint_items()
       local label = project_source_label(p)
       local badge = " [" .. label .. "] "
       vtext[#vtext + 1] = { badge, p.path == S.root and "ExplorerDirectory" or "ExplorerSearchCount" }
-
-      if p.has_session then
-        vtext[#vtext + 1] = { session_icon, "ExplorerSearchActiveText" }
-      end
 
       if p.visited and p.visited > 0 then
         vtext[#vtext + 1] = { " " .. fmt_relative_time(p.visited) .. " ", "Comment" }
@@ -570,18 +549,11 @@ local function open_selected()
     return
   end
 
-  -- Save current session and push to recent
-  local old_cwd = fn.getcwd()
-  tabline_session.save(old_cwd, true)
-  store.push_recent(old_cwd)
+  store.push_recent(fn.getcwd())
 
-  -- Open the explorer rooted at the chosen project
   vim.schedule(function()
-    -- Change CWD to the project root so tabline session restores correctly
     pcall(api.nvim_set_current_dir, p.path)
     require("custom.explorer").open({ root = p.path })
-    -- Restore session using your existing tabline session manager
-    tabline_session.restore(p.path, false)
   end)
 end
 
@@ -684,7 +656,7 @@ function M.open()
     border = "rounded",
     title = " 󰉋 Projects ",
     title_pos = "center",
-    footer = " <Enter> open   P pin   D forget   S save session   <Esc> close ",
+    footer = " <Enter> open   P pin   D forget   <Esc> close ",
     footer_pos = "center",
   })
   P.win = win
@@ -795,14 +767,6 @@ function M.open()
   vim.keymap.set({ "i", "n" }, "<CR>", open_selected, bopts)
   vim.keymap.set({ "i", "n" }, "P", toggle_pin_selected, bopts)
   vim.keymap.set({ "i", "n" }, "D", remove_selected, bopts)
-  vim.keymap.set({ "i", "n" }, "S", function()
-    local p = current_project()
-    if p then
-      tabline_session.save(p.path, false)
-      vim.notify("[explorer] session saved: " .. p.name, vim.log.levels.INFO)
-      refresh_projects()
-    end
-  end, bopts)
 
   -- Close
   vim.keymap.set({ "i", "n" }, "<Esc>", M.close, bopts)

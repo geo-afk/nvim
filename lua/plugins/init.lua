@@ -79,3 +79,14 @@ Loader.later(function()
     pcall(vim.cmd, "packadd " .. pkg)
   end
 end)
+
+local map = vim.keymap.set
+map("n", "<leader>pu", function()
+  vim.pack.update()
+end, { desc = "Update plugins" })
+
+map("n", "<leader>uu", "<cmd>Undotree<CR>", { desc = "Undotree" })
+map("n", "<leader>nd", "<cmd>DiffTool<CR>", { desc = "DiffTool" })
+map("n", "<leader>nr", function()
+  require("custom.session").restart()
+end, { desc = "Restart Neovim" })

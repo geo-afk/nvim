@@ -924,6 +924,10 @@ function M.setup()
     require("custom.pack_manager").open()
   end, { desc = "Open vim.pack manager" })
 
+  vim.keymap.set("n", "<leader>pp", function()
+    M.open()
+  end, { desc = "Pack manager" })
+
   vim.api.nvim_create_autocmd({ "PackChanged", "PackChangedPre" }, {
     group = vim.api.nvim_create_augroup("custom_pack_manager_sync", { clear = true }),
     callback = function()

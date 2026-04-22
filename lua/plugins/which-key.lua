@@ -64,5 +64,9 @@ wk.setup({
   },
 })
 
+vim.keymap.set("n", "<leader>?", function()
+  require("which-key").show({ global = false })
+end, { desc = "Buffer keymaps" })
+
 -- The keymap for "?" is already in config/keymaps.lua, but keeping it here
 -- as a buffer-local helper is also fine. I'll stick to the one in keymaps.lua.

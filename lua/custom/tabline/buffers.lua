@@ -97,6 +97,49 @@ end
 
 -- ─── reorder ──────────────────────────────────────────────────────────────
 
+--- Rebuild the custom buffer order from a list of file paths.
+--- Any listed buffers not present in `paths` are appended so restore metadata
+--- can be stale without losing live buffers.
+---@param paths string[]
+---@return integer[]
+function M.restore_order(paths)
+  local live = M.sync()
+  if type(paths) ~= "table" or #paths == 0 then
+    return live
+  end
+
+  local by_name = {}
+  for _, bufnr in ipairs(live) do
+    local name = normalize_path(vim.api.nvim_buf_get_name(bufnr))
+    if name ~= "" then
+      by_name[name] = by_name[name] or {}
+      by_name[name][#by_name[name] + 1] = bufnr
+    end
+  end
+
+  local reordered = {}
+  local seen = {}
+
+  for _, path in ipairs(paths) do
+    local key = normalize_path(path)
+    for _, bufnr in ipairs(by_name[key] or {}) do
+      if not seen[bufnr] and is_valid_listed(bufnr) then
+        seen[bufnr] = true
+        reordered[#reordered + 1] = bufnr
+      end
+    end
+  end
+
+  for _, bufnr in ipairs(live) do
+    if not seen[bufnr] and is_valid_listed(bufnr) then
+      reordered[#reordered + 1] = bufnr
+    end
+  end
+
+  state.order = reordered
+  return reordered
+end
+
 --- Swap bufnr one position to the left.
 ---@param bufnr integer
 function M.move_left(bufnr)

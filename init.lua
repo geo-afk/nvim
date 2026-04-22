@@ -33,6 +33,7 @@ Loader.now(function()
   -- Visual essentials: must be ready before first draw.
   require("custom.statusline").setup()
   require("custom.tabline").setup()
+  require("custom.session").setup()
 end)
 
 -- ── Deferred Loading ─────────────────────────────────────────────────────────

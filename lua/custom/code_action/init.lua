@@ -199,7 +199,16 @@ function M.setup(user_opts)
 
   -- ── Default keymaps ──────────────────────────────────────────────────────
 
-  -- Mappings are now centralized in lua/config/keymaps.lua.
+  local map = vim.keymap.set
+  map("n", "<leader>ca", function()
+    M.open()
+  end, { desc = "LSP: Code Action" })
+  map("x", "<leader>ca", function()
+    M.open()
+  end, { desc = "LSP: Code Action" })
+  map("n", "<leader>cA", function()
+    M.open({ open_preview = true })
+  end, { desc = "LSP: Code Action (preview)" })
 
   -- ── User commands ────────────────────────────────────────────────────────
 

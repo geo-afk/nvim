@@ -293,6 +293,10 @@ function M.setup(opts)
     vim.notify("[explorer] pinned project root: " .. fn.fnamemodify(root, ":~"), vim.log.levels.INFO)
   end, { desc = "Pin current project root" })
 
+  vim.keymap.set("n", "<leader>e", function()
+    M.toggle()
+  end, { desc = "Toggle explorer" })
+
   nvim_utils.autocmd("ColorScheme", {
     desc = "explorer: refresh highlights",
     callback = function()

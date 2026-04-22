@@ -55,3 +55,5 @@ conform.setup({
   },
 })
 
+vim.keymap.set("n", "<leader>fi", "<cmd>ConformInfo<CR>", { desc = "Conform info" })
+

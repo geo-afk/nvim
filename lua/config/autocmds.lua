@@ -160,17 +160,17 @@ autocmd("MarkSet", {
   end,
 })
 
--- =============================================================================
---  SESSION  (0.12-new)
--- =============================================================================
--- [0.12-new] SessionLoadPre fires BEFORE a Session file is loaded.
-autocmd("SessionLoadPre", {
-  group = G,
-  desc = "[0.12] Notify before session load",
-  callback = function(ev)
-    vim.notify("Loading session: " .. (ev.file or "<unknown>"), vim.log.levels.INFO)
-  end,
-})
+-- -- =============================================================================
+-- --  SESSION  (0.12-new)
+-- -- =============================================================================
+-- -- [0.12-new] SessionLoadPre fires BEFORE a Session file is loaded.
+-- autocmd("SessionLoadPre", {
+--   group = G,
+--   desc = "[0.12] Notify before session load",
+--   callback = function(ev)
+--     vim.notify("Loading session: " .. (ev.file or "<unknown>"), vim.log.levels.INFO)
+--   end,
+-- })
 
 -- =============================================================================
 --  TAB MANAGEMENT  (0.12-new)

@@ -144,7 +144,12 @@ function M.setup(user_opts)
     desc = 'lsp-keymapper: re-apply saved keymaps and optionally open browser',
   })
 
-  -- Global key to open the browser is now centralized in lua/config/keymaps.lua.
+  -- Global key to open the browser
+  if _opts.open_keymap then
+    vim.keymap.set('n', _opts.open_keymap, function()
+      M.open()
+    end, { desc = 'LSP keymapper' })
+  end
 
   -- User commands
   nvim_utils.command('LspKeymapBrowse', function()

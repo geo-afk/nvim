@@ -77,7 +77,7 @@ opt.writebackup = false
 opt.swapfile = false
 opt.undofile = true
 opt.undodir = vim.fn.stdpath("data") .. "/undo"
-opt.sessionoptions = "blank,buffers,curdir,help,tabpages,winsize,winpos,terminal,localoptions" -- from old
+opt.sessionoptions = "blank,buffers,curdir,folds,help,tabpages,winsize,terminal,localoptions,skiprtp"
 opt.autowriteall = true
 
 -- [0.12-changed] 'shada' default excludes /tmp etc.

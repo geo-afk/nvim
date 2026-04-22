@@ -82,6 +82,14 @@ gitsigns.setup({
       return "<Ignore>"
     end, "Prev hunk")
 
+    map("n", "]g", function()
+      gs.nav_hunk("next")
+    end, "Next hunk")
+
+    map("n", "[g", function()
+      gs.nav_hunk("prev")
+    end, "Prev hunk")
+
     -- Hunk operations
     map("n", "<leader>gs", gs.stage_hunk, "Stage hunk")
     map("n", "<leader>gr", gs.reset_hunk, "Reset hunk")
