@@ -20,26 +20,38 @@ end
 vim.g.mapleader = " "
 vim.g.maplocalleader = "\\"
 
--- ── Bootstrap modules ────────────────────────────────────────────────────────
-require("config.options")
-require("plugins") -- lua/plugins/init.lua → requires each plugin file
-require("config.keymaps")
-require("config.autocmds")
-require("config.lsp") -- native LSP server configs (vim.lsp.config/enable)
-require("config.ui") -- ui2, float demos, Lua API showcases
+local Loader = require("custom.loader")
 
--- custom utilities
-require("custom.explorer").setup()
-require("custom.lazygit").setup()
-require("custom.cmdline").setup()
-require("custom.code_action").setup()
-require("custom.lsp_keymapper").setup()
-require("custom.statusline").setup()
-require("custom.tabline").setup()
-require("custom.autoclose").setup()
-require("custom.glow").setup()
-require("custom.image_view").setup()
-require("custom.pack_manager").setup()
+-- ── Immediate Loading ────────────────────────────────────────────────────────
+-- Core options, plugin registration, and visual foundation.
+Loader.now(function()
+  require("config.options")
+  require("plugins") -- lua/plugins/init.lua
+  require("config.keymaps")
+  require("config.autocmds")
 
---terminal_manager
-require("custom.terminal_manager")
+  -- Visual essentials: must be ready before first draw.
+  require("custom.statusline").setup()
+  require("custom.tabline").setup()
+end)
+
+-- ── Deferred Loading ─────────────────────────────────────────────────────────
+-- Heavy logic and optional utilities.
+Loader.later(function()
+  require("config.lsp") -- native LSP server configs
+  require("config.ui") -- ui2, float demos, Lua API showcases
+
+  -- custom utilities
+  require("custom.explorer").setup()
+  require("custom.lazygit").setup()
+  require("custom.cmdline").setup()
+  require("custom.code_action").setup()
+  require("custom.lsp_keymapper").setup()
+  require("custom.autoclose").setup()
+  require("custom.glow").setup()
+  require("custom.image_view").setup()
+  require("custom.pack_manager").setup()
+
+  -- terminal_manager
+  require("custom.terminal_manager")
+end)
