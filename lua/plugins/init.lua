@@ -4,17 +4,9 @@
 --  Each file in this directory is self-contained:
 --    1. Declares its plugin(s) via vim.pack.add()
 --    2. Runs its own setup() with pcall guards
---
---  Order matters: icons → colorscheme → which-key → treesitter
---              → mason → lsp → completion → snippets → …
 -- =============================================================================
 
-local function load(mod)
-  local ok, err = pcall(require, mod)
-  if not ok then
-    vim.notify("plugins: failed to load " .. mod .. "\n" .. err, vim.log.levels.ERROR)
-  end
-end
+local Loader = require("custom.loader")
 
 -- Build hooks (must be registered before vim.pack.add)
 vim.api.nvim_create_autocmd("PackChanged", {
@@ -38,46 +30,48 @@ vim.api.nvim_create_autocmd("PackChanged", {
 
 -- ── Core / UI foundation ─────────────────────────────────────────────────────
 -- These must load immediately for visual consistency.
-load("plugins.icons") -- nvim-web-devicons
-load("plugins.colorscheme") -- tokyonight
+Loader.now(function()
+  require("plugins.icons") -- nvim-web-devicons
+  require("plugins.colorscheme") -- tokyonight
+end)
 
 -- ── Deferred Loading ─────────────────────────────────────────────────────────
 -- Everything else is scheduled to load after the initial UI loop to speed up
 -- the first frame and reduce startup blocking.
-vim.schedule(function()
+Loader.later(function()
   -- Keybinding helper
-  load("plugins.which-key")
+  require("plugins.which-key")
 
   -- Syntax / parsing
-  load("plugins.treesitter")
-  load("plugins.rainbow")
-  load("plugins.ts-autotag")
+  require("plugins.treesitter")
+  require("plugins.rainbow")
+  require("plugins.ts-autotag")
 
   -- LSP toolchain
-  load("plugins.mason")
-  load("plugins.lsp")
-  load("plugins.lazydev")
-  load("plugins.completion")
-  load("plugins.snippets")
+  require("plugins.mason")
+  require("plugins.lsp")
+  require("plugins.lazydev")
+  require("plugins.completion")
+  require("plugins.snippets")
 
   -- Formatting / linting
-  load("plugins.formatting")
-  load("plugins.linting")
+  require("plugins.formatting")
+  require("plugins.linting")
 
   -- Diagnostics / navigation
-  load("plugins.trouble")
-  load("plugins.telescope")
-  load("plugins.flash")
+  require("plugins.trouble")
+  require("plugins.telescope")
+  require("plugins.flash")
 
   -- Git
-  load("plugins.gitsigns")
+  require("plugins.gitsigns")
 
   -- Eye candy
-  load("plugins.smear")
-  load("plugins.color-highlight")
+  require("plugins.smear")
+  require("plugins.color-highlight")
 
   -- Dev tools
-  load("plugins.dev-server")
+  require("plugins.dev-server")
 
   -- Activate built-in 0.12 optional plugins
   for _, pkg in ipairs({ "nvim.undotree", "nvim.difftool", "nvim.tohtml" }) do
