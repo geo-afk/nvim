@@ -21,8 +21,8 @@
 -- ── Insert-mode keymaps (search active only) ─────────────────────────────
 --
 --   <CR>          confirm (keep filter); cursor lands on selected result
---   <Esc>         clear filter and exit insert
---   <C-u>         wipe filter text, stay in insert
+--   <Esc> / <C-c> clear filter and exit insert
+--   <C-u> / <C-l> wipe filter text, stay in insert
 --   <BS>          blocked when cursor is at/before icon boundary
 --   <Home>/<C-a>  jump to start of filter text (col #ICON_PREFIX)
 --   <C-v>/<S-Ins> paste from clipboard
@@ -30,10 +30,10 @@
 --   <C-k>/<C-p>/<Up>    move result cursor up one row
 --   completion keys → <Nop> to prevent popup bleed
 
-local S      = require("custom.explorer.state")
+local S = require("custom.explorer.state")
 local render = require("custom.explorer.render")
-local tree   = require("custom.explorer.tree")
-local api    = vim.api
+local tree = require("custom.explorer.tree")
+local api = vim.api
 
 -- Mirror the constant from render so we never hard-code the prefix width.
 local ICON_PREFIX = render.ICON_PREFIX
@@ -55,7 +55,7 @@ local function fuzzy_match(text, query)
     return 0, {}
   end
 
-  local lo_text  = text:lower()
+  local lo_text = text:lower()
   local lo_query = query:lower()
 
   -- ── Fast path: exact substring ────────────────────────────────────────
@@ -70,22 +70,22 @@ local function fuzzy_match(text, query)
 
   -- ── Sequential fuzzy match ────────────────────────────────────────────
   local positions = {}
-  local score     = 0
-  local run       = 0
-  local pos       = 1
+  local score = 0
+  local run = 0
+  local pos = 1
 
   for i = 1, #lo_query do
-    local ch    = lo_query:sub(i, i)
+    local ch = lo_query:sub(i, i)
     local found = lo_text:find(ch, pos, true)
     if not found then
-      return nil  -- hard miss
+      return nil -- hard miss
     end
     positions[#positions + 1] = found
     if found == pos then
-      run   = run + 1
-      score = score + 5 + run * 2  -- consecutive bonus grows with run length
+      run = run + 1
+      score = score + 5 + run * 2 -- consecutive bonus grows with run length
     else
-      run   = 0
+      run = 0
       score = score + 1
     end
     pos = found + 1
@@ -120,10 +120,23 @@ local function scroll_to_result_cursor()
   if not idx or idx < 1 or idx > #S.items then
     return
   end
-  -- Temporarily move cursor to target row to trigger scrolling, then
-  -- immediately return to the search bar so insert mode stays there.
-  local target_line = idx + 1  -- 1-based; header = line 1, items from line 2
-  pcall(api.nvim_win_set_cursor, S.win, { target_line, 0 })
+
+  -- target_line is 1-based: header is line 1, first item is line 2
+  local target_line = idx + 1
+  local height = api.nvim_win_get_height(S.win)
+
+  -- Read, adjust, restore the scroll view without touching the cursor.
+  api.nvim_win_call(S.win, function()
+    local view = vim.fn.winsaveview()
+    if target_line < view.topline then
+      view.topline = target_line
+    elseif target_line >= view.topline + height - 1 then
+      view.topline = math.max(1, target_line - height + 2)
+    end
+    vim.fn.winrestview(view)
+  end)
+
+  -- Ensure editor cursor stays pinned to the search bar.
   local col = #ICON_PREFIX + #(S.filter or "")
   pcall(api.nvim_win_set_cursor, S.win, { 1, col })
 end
@@ -145,9 +158,9 @@ local function paint_match_layer()
   local idx = S._search_cursor
   if idx and idx >= 1 and idx <= #S.items then
     pcall(api.nvim_buf_set_extmark, buf, S.match_ns, idx, 0, {
-      end_col  = -1,
+      end_col = -1,
       hl_group = "ExplorerSearchCursor",
-      hl_eol   = true,
+      hl_eol = true,
       priority = 35,
     })
   end
@@ -161,7 +174,7 @@ local function paint_match_layer()
           -- byte_pos is 1-based within item.name; convert to buffer column
           local buf_col = item._col_name + byte_pos - 1
           pcall(api.nvim_buf_set_extmark, buf, S.match_ns, i, buf_col, {
-            end_col  = buf_col + 1,
+            end_col = buf_col + 1,
             hl_group = "ExplorerSearchMatch",
             priority = 40,
           })
@@ -186,7 +199,7 @@ local function score_and_sort(items, filter)
   end
   for _, item in ipairs(items) do
     local score, positions = fuzzy_match(item.name, filter)
-    item._match_score     = score or 0
+    item._match_score = score or 0
     item._match_positions = positions or {}
   end
   table.sort(items, function(a, b)
@@ -215,17 +228,21 @@ local function rebuild_items()
     if not (S.buf and api.nvim_buf_is_valid(S.buf)) then
       return
     end
-    tree.build(tok, S.filter, vim.schedule_wrap(function(items)
-      if S.build_tok ~= tok then
-        return
-      end
-      S.items = score_and_sort(items, S.filter)
-      -- Reset result cursor to top on every keystroke
-      S._search_cursor = #S.items > 0 and 1 or 0
-      render._paint_items_only()
-      render.paint_header()
-      paint_match_layer()
-    end))
+    tree.build(
+      tok,
+      S.filter,
+      vim.schedule_wrap(function(items)
+        if S.build_tok ~= tok then
+          return
+        end
+        S.items = score_and_sort(items, S.filter)
+        -- Reset result cursor to top on every keystroke
+        S._search_cursor = #S.items > 0 and 1 or 0
+        render._paint_items_only()
+        render.paint_header()
+        paint_match_layer()
+      end)
+    )
   end)
 end
 
@@ -258,20 +275,24 @@ end
 -- ── kill / restore completion engines ────────────────────────────────────
 
 local function kill_completion(buf)
-  vim.b[buf].completion           = false
-  vim.b[buf].blink_cmp_enabled    = false
-  vim.b[buf].cmp_enabled          = false
-  vim.b[buf].coq_settings         = { completion = { enabled = false } }
-  vim.b[buf].completion_enabled   = false
-  pcall(function() vim.bo[buf].omnifunc    = "" end)
-  pcall(function() vim.bo[buf].completefunc = "" end)
+  vim.b[buf].completion = false
+  vim.b[buf].blink_cmp_enabled = false
+  vim.b[buf].cmp_enabled = false
+  vim.b[buf].coq_settings = { completion = { enabled = false } }
+  vim.b[buf].completion_enabled = false
+  pcall(function()
+    vim.bo[buf].omnifunc = ""
+  end)
+  pcall(function()
+    vim.bo[buf].completefunc = ""
+  end)
 end
 
 local function restore_completion(buf)
-  vim.b[buf].completion         = nil
-  vim.b[buf].blink_cmp_enabled  = nil
-  vim.b[buf].cmp_enabled        = nil
-  vim.b[buf].coq_settings       = nil
+  vim.b[buf].completion = nil
+  vim.b[buf].blink_cmp_enabled = nil
+  vim.b[buf].cmp_enabled = nil
+  vim.b[buf].coq_settings = nil
   vim.b[buf].completion_enabled = nil
   local ok, blink = pcall(require, "blink.cmp")
   if ok and type(blink.enable) == "function" then
@@ -298,12 +319,12 @@ function M.activate()
     return
   end
 
-  S.search_active  = true
+  S.search_active = true
   S._search_cursor = #S.items > 0 and 1 or 0
   kill_completion(S.buf)
 
   local filter_text = S.filter or ""
-  local line_text   = ICON_PREFIX .. filter_text
+  local line_text = ICON_PREFIX .. filter_text
 
   set_buf_modifiable(S.buf, true)
   api.nvim_buf_set_lines(S.buf, 0, 1, false, { line_text })
@@ -322,7 +343,7 @@ local function deactivate(clear_filter, target_row)
   if not S.search_active then
     return
   end
-  S.search_active  = false
+  S.search_active = false
   S._search_cursor = nil
 
   -- Clear match/cursor highlights
@@ -330,8 +351,7 @@ local function deactivate(clear_filter, target_row)
     api.nvim_buf_clear_namespace(S.buf, S.match_ns, 0, -1)
   end
 
-  local raw  = (S.buf and api.nvim_buf_is_valid(S.buf))
-                 and (api.nvim_buf_get_lines(S.buf, 0, 1, false)[1] or "") or ""
+  local raw = (S.buf and api.nvim_buf_is_valid(S.buf)) and (api.nvim_buf_get_lines(S.buf, 0, 1, false)[1] or "") or ""
   local text = strip_prefix(raw)
 
   S.filter = (not clear_filter and text ~= "") and text or nil
@@ -339,7 +359,7 @@ local function deactivate(clear_filter, target_row)
   -- Discard match metadata when the filter is cleared
   if clear_filter then
     for _, item in ipairs(S.items) do
-      item._match_score     = nil
+      item._match_score = nil
       item._match_positions = nil
     end
   end
@@ -364,7 +384,7 @@ local function deactivate(clear_filter, target_row)
     end
     -- If <CR> passed a specific row, land there; otherwise ensure cursor ≥ row 2
     local desired = target_row or api.nvim_win_get_cursor(S.win)[1]
-    local row     = math.max(2, math.min(desired, #S.items + 1))
+    local row = math.max(2, math.min(desired, #S.items + 1))
     pcall(api.nvim_win_set_cursor, S.win, { row, 0 })
   end)
 end
@@ -376,7 +396,7 @@ function M.setup(buf)
 
   -- Guard: keep cursor off row 0 in normal mode
   api.nvim_create_autocmd("CursorMoved", {
-    buffer   = buf,
+    buffer = buf,
     callback = function()
       if S.search_active then
         return
@@ -386,7 +406,8 @@ function M.setup(buf)
       end
       if api.nvim_win_get_cursor(S.win)[1] == 1 then
         pcall(api.nvim_win_set_cursor, S.win, {
-          math.max(2, #S.items > 0 and 2 or 1), 0,
+          math.max(2, #S.items > 0 and 2 or 1),
+          0,
         })
       end
     end,
@@ -394,7 +415,7 @@ function M.setup(buf)
 
   -- Live filter: rebuild tree on every keystroke in the search bar
   api.nvim_create_autocmd("TextChangedI", {
-    buffer   = buf,
+    buffer = buf,
     callback = function()
       if not S.search_active then
         return
@@ -406,7 +427,7 @@ function M.setup(buf)
         return
       end
       local raw = api.nvim_buf_get_lines(buf, 0, 1, false)[1] or ""
-      local t   = strip_prefix(raw)
+      local t = strip_prefix(raw)
       S.filter = t ~= "" and t or nil
       rebuild_items()
     end,
@@ -414,7 +435,7 @@ function M.setup(buf)
 
   -- InsertLeave: commit or discard the filter and land cursor on chosen result
   api.nvim_create_autocmd("InsertLeave", {
-    buffer   = buf,
+    buffer = buf,
     callback = vim.schedule_wrap(function()
       if not S.search_active then
         return
@@ -428,9 +449,17 @@ function M.setup(buf)
 
   -- ── Block completion popups ───────────────────────────────────────────
   for _, k in ipairs({
-    "<C-x><C-o>", "<C-x><C-n>", "<C-x><C-p>", "<C-x><C-f>",
-    "<C-x><C-l>", "<C-x><C-s>", "<C-x><C-k>",
-    "<Tab>", "<S-Tab>", "<C-y>", "<C-e>",
+    "<C-x><C-o>",
+    "<C-x><C-n>",
+    "<C-x><C-p>",
+    "<C-x><C-f>",
+    "<C-x><C-l>",
+    "<C-x><C-s>",
+    "<C-x><C-k>",
+    "<Tab>",
+    "<S-Tab>",
+    "<C-y>",
+    "<C-e>",
   }) do
     vim.keymap.set("i", k, "<Nop>", bopts)
   end
@@ -448,27 +477,31 @@ function M.setup(buf)
     vim.cmd("stopinsert")
   end, bopts)
 
-  -- ── <Esc>: discard filter ────────────────────────────────────────────
-  vim.keymap.set("i", "<Esc>", function()
+  -- ── <Esc> / <C-c>: discard filter ───────────────────────────────────
+  local function discard_search()
     if not S.search_active then
       return
     end
     S._search_clear_on_leave = true
     vim.cmd("stopinsert")
-  end, bopts)
+  end
+  vim.keymap.set("i", "<Esc>", discard_search, bopts)
+  vim.keymap.set("i", "<C-c>", discard_search, bopts)
 
-  -- ── <C-u>: wipe filter text, stay in insert ──────────────────────────
-  vim.keymap.set("i", "<C-u>", function()
+  -- ── <C-u> / <C-l>: wipe filter text, stay in insert ─────────────────
+  local function wipe_filter()
     if not S.search_active then
       return
     end
     api.nvim_buf_set_lines(buf, 0, 1, false, { ICON_PREFIX })
-    S.filter         = nil
+    S.filter = nil
     S._search_cursor = 0
     api.nvim_win_set_cursor(S.win, { 1, #ICON_PREFIX })
     render.paint_header()
     rebuild_items()
-  end, bopts)
+  end
+  vim.keymap.set("i", "<C-u>", wipe_filter, bopts)
+  vim.keymap.set("i", "<C-l>", wipe_filter, bopts)
 
   -- ── <BS>: block deletion into the icon prefix zone ───────────────────
   vim.keymap.set("i", "<BS>", function()
@@ -489,11 +522,11 @@ function M.setup(buf)
     end
     api.nvim_win_set_cursor(S.win, { 1, #ICON_PREFIX })
   end
-  vim.keymap.set("i", "<Home>",  to_filter_start, bopts)
-  vim.keymap.set("i", "<C-a>",   to_filter_start, bopts)
+  vim.keymap.set("i", "<Home>", to_filter_start, bopts)
+  vim.keymap.set("i", "<C-a>", to_filter_start, bopts)
 
   -- ── Clipboard paste ───────────────────────────────────────────────────
-  vim.keymap.set("i", "<C-v>",     paste_from_clipboard, bopts)
+  vim.keymap.set("i", "<C-v>", paste_from_clipboard, bopts)
   vim.keymap.set("i", "<S-Insert>", paste_from_clipboard, bopts)
 
   -- ── <C-j> / <C-n> / <Down>: move result cursor down ──────────────────
@@ -507,8 +540,8 @@ function M.setup(buf)
     render.paint_header()
     scroll_to_result_cursor()
   end
-  vim.keymap.set("i", "<C-j>",  cursor_down, bopts)
-  vim.keymap.set("i", "<C-n>",  cursor_down, bopts)
+  vim.keymap.set("i", "<C-j>", cursor_down, bopts)
+  vim.keymap.set("i", "<C-n>", cursor_down, bopts)
   vim.keymap.set("i", "<Down>", cursor_down, bopts)
 
   -- ── <C-k> / <C-p> / <Up>: move result cursor up ──────────────────────
@@ -524,14 +557,14 @@ function M.setup(buf)
   end
   vim.keymap.set("i", "<C-k>", cursor_up, bopts)
   vim.keymap.set("i", "<C-p>", cursor_up, bopts)
-  vim.keymap.set("i", "<Up>",  cursor_up, bopts)
+  vim.keymap.set("i", "<Up>", cursor_up, bopts)
 end
 
 -- ── close / clear (called externally) ────────────────────────────────────
 
 function M.close()
   if S.search_active then
-    S.search_active  = false
+    S.search_active = false
     S._search_cursor = nil
     if S.buf and api.nvim_buf_is_valid(S.buf) then
       pcall(api.nvim_set_option_value, "modifiable", false, { buf = S.buf })
@@ -541,8 +574,8 @@ function M.close()
 end
 
 function M.clear()
-  S.filter         = nil
-  S.search_active  = false
+  S.filter = nil
+  S.search_active = false
   S._search_cursor = nil
   if S.buf and api.nvim_buf_is_valid(S.buf) then
     pcall(api.nvim_set_option_value, "modifiable", false, { buf = S.buf })

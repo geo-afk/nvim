@@ -220,7 +220,7 @@ local function move_cursor(delta)
 end
 
 local function go_parent()
-  if not P.current_dir or P.current_dir == S.root then
+  if not P.current_dir or P.current_dir == "/" then
     return
   end
   P.current_dir = tree.parent(P.current_dir)
@@ -240,6 +240,19 @@ local function enter_dir()
   P.cursor = 1
   api.nvim_buf_set_lines(P.buf, 0, 1, false, { ICON_PREFIX })
   refresh_entries()
+end
+
+-- <CR> smart behaviour:
+--   • If a directory is highlighted in the list → navigate into it.
+--   • If the list is empty (no subdirs, or filter yields nothing) → confirm
+--     the move to the currently displayed directory.
+local function enter_or_confirm()
+  local entry = current_entry()
+  if entry then
+    enter_dir()
+  else
+    confirm_move()
+  end
 end
 
 local function confirm_move()
@@ -292,7 +305,7 @@ function M.open(opts)
     border = "rounded",
     title = " Move To Folder ",
     title_pos = "center",
-    footer = " <CR>/l enter   h/- up   y paste   <Esc> cancel ",
+    footer = " <CR>/l enter   h/- up   y confirm move   <Esc> cancel ",
     footer_pos = "center",
   })
   P.win = win
@@ -354,7 +367,7 @@ function M.open(opts)
   vim.keymap.set({ "i", "n" }, "<Up>", function()
     move_cursor(-1)
   end, bopts)
-  vim.keymap.set({ "i", "n" }, "<CR>", enter_dir, bopts)
+  vim.keymap.set({ "i", "n" }, "<CR>", enter_or_confirm, bopts)
   vim.keymap.set({ "i", "n" }, "l", enter_dir, bopts)
   vim.keymap.set({ "i", "n" }, "h", go_parent, bopts)
   vim.keymap.set({ "i", "n" }, "-", go_parent, bopts)
