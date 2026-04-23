@@ -2,10 +2,10 @@
 -- custom/terminal_manager/links.lua
 -- Detect URLs and file:line references in terminal buffers.
 -- Highlights them with extmarks and provides:
---   gx  → open URL in browser
---   gf  → open file:line in Neovim
---   <C-]> → same as gf (fallback to tags)
---   gl  → list all links in a picker
+--   gx   -> open URL in browser
+--   gf   -> open file:line in Neovim
+--   <C-]> -> same as gf (fallback to tags)
+--   gl   -> list all links in a picker
 --------------------------------------------------------------------------------
 
 local state = require("custom.terminal_manager.state")
@@ -13,7 +13,7 @@ local utils = require("custom.terminal_manager.utils")
 
 local M = {}
 
--- ── Pattern library ───────────────────────────────────────────────────────────
+-- Pattern library --------------------------------------------------------------
 
 -- Ordered list: each entry is { pattern, type }
 -- `type` is "url" | "file"
@@ -22,23 +22,23 @@ local PATTERNS = {
   -- URLs
   { pat = "https?://[^%s%]%)>\"']+", kind = "url" },
   { pat = "file://[^%s%]%)>\"']+", kind = "url" },
-  -- file:line or file:line:col  (common compiler/linter output)
-  -- e.g.  src/main.lua:42:5   or  ./lib/foo.py:100
+  -- file:line or file:line:col (common compiler/linter output)
+  -- e.g. src/main.lua:42:5 or ./lib/foo.py:100
   { pat = "[%./][^%s:\"'%(%)%[%]]+%.[%a]+:%d+", kind = "file" },
   { pat = "[%a_][%w%./%-_]*%.[%a][%a%d]+:%d+", kind = "file" },
-  -- Rust-style:  --> src/main.rs:12:34
+  -- Rust-style: --> src/main.rs:12:34
   { pat = "%->%s+[^%s:\"']+:%d+", kind = "file" },
-  -- Python traceback:  File "foo.py", line 42
+  -- Python traceback: File "foo.py", line 42
   { pat = 'File "[^"]+", line %d+', kind = "file_py" },
-  -- Go:  /abs/path/to/file.go:42 +0x...
+  -- Go: /abs/path/to/file.go:42 +0x...
   { pat = "/[^%s:%(%)\"']+%.go:%d+", kind = "file" },
-  -- Node / JS:  at Object. (/path/to/file.js:10:5)
+  -- Node / JS: at Object. (/path/to/file.js:10:5)
   { pat = "%(([^%)]+%.%a+:%d+)%)", kind = "file" },
 }
 
--- ── Parsing helpers ────────────────────────────────────────────────────────────
+-- Parsing helpers --------------------------------------------------------------
 
---- Parse "path:line[:col]" → { path, line, col } or nil.
+--- Parse "path:line[:col]" -> { path, line, col } or nil.
 local function parse_file_loc(s)
   -- Strip leading --> or whitespace
   s = s:match("^%-*>?%s*(.+)") or s
@@ -60,7 +60,7 @@ local function parse_file_loc(s)
   return nil
 end
 
---- Parse Python-style  File "foo.py", line 42  → { path, line }.
+--- Parse Python-style `File "foo.py", line 42` -> { path, line }.
 local function parse_python_file(s)
   local path, line = s:match('^File "([^"]+)", line (%d+)')
   if path then
@@ -77,7 +77,7 @@ local function resolve_path(raw_path)
   return vim.fn.getcwd() .. "/" .. raw_path
 end
 
--- ── Extmark highlighting ───────────────────────────────────────────────────────
+-- Extmark highlighting ---------------------------------------------------------
 
 local URL_HL = "TermManagerLinkURL"
 local FILE_HL = "TermManagerLinkFile"
@@ -105,6 +105,7 @@ local function scan_lines(lines)
         if not ms then
           break
         end
+
         local raw = text:sub(ms, me)
         local parsed = nil
         if spec.kind == "url" then
@@ -114,10 +115,11 @@ local function scan_lines(lines)
         else
           parsed = parse_file_loc(raw)
         end
+
         if parsed then
           matches[#matches + 1] = {
             lnum = lnum,
-            col_s = ms - 1, -- 0-based
+            col_s = ms - 1,
             col_e = me,
             kind = spec.kind,
             raw = raw,
@@ -131,10 +133,10 @@ local function scan_lines(lines)
   return matches
 end
 
--- ── Per-buffer highlighting ────────────────────────────────────────────────────
+-- Per-buffer highlighting ------------------------------------------------------
 
 --- Re-scan the last N lines of `buf` and refresh extmark highlights.
-local SCAN_LINES = 300 -- how many trailing lines to scan
+local SCAN_LINES = 300
 
 function M.refresh_highlights(buf)
   if not utils.buf_ok(buf) then
@@ -145,12 +147,11 @@ function M.refresh_highlights(buf)
   local start_line = math.max(0, line_count - SCAN_LINES)
   local raw_lines = vim.api.nvim_buf_get_lines(buf, start_line, -1, false)
 
-  -- Clear old link marks
   vim.api.nvim_buf_clear_namespace(buf, state.link_ns, start_line, -1)
 
   local matches = scan_lines(raw_lines)
   for _, m in ipairs(matches) do
-    local abs_lnum = start_line + m.lnum - 1 -- 0-based absolute line
+    local abs_lnum = start_line + m.lnum - 1
     local hl = m.kind == "url" and URL_HL or FILE_HL
     pcall(vim.api.nvim_buf_set_extmark, buf, state.link_ns, abs_lnum, m.col_s, {
       end_col = m.col_e,
@@ -160,7 +161,7 @@ function M.refresh_highlights(buf)
   end
 end
 
--- ── Navigation ────────────────────────────────────────────────────────────────
+-- Navigation -------------------------------------------------------------------
 
 --- Find the link closest to (or at) the current cursor position in `buf`.
 --- Returns the match table or nil.
@@ -170,13 +171,13 @@ local function link_at_cursor(buf)
   end
 
   local cur = vim.api.nvim_win_get_cursor(0)
-  local lnum0 = cur[1] - 1 -- 0-based
+  local lnum0 = cur[1] - 1
   local col0 = cur[2]
 
   local line_count = vim.api.nvim_buf_line_count(buf)
   local start_line = math.max(0, line_count - SCAN_LINES)
 
-  -- Only scan the visible window range ± a few lines for speed.
+  -- Only scan the visible window range +/- a few lines for speed.
   local range_s = math.max(start_line, lnum0 - 2)
   local range_e = math.min(line_count, lnum0 + 3)
   local raw_lines = vim.api.nvim_buf_get_lines(buf, range_s, range_e, false)
@@ -188,13 +189,58 @@ local function link_at_cursor(buf)
       return m
     end
   end
-  -- Broaden: any match on the same line
+
   for _, m in ipairs(matches) do
     local abs = range_s + m.lnum - 1
     if abs == lnum0 then
       return m
     end
   end
+
+  return nil
+end
+
+local function is_panel_win(win)
+  return win == state.ui.sidebar_win or win == state.ui.term_win or win == state.ui.term_win2
+end
+
+local function is_editor_win(win)
+  if not utils.win_ok(win) or is_panel_win(win) then
+    return false
+  end
+
+  local cfg = vim.api.nvim_win_get_config(win)
+  if cfg.relative and cfg.relative ~= "" then
+    return false
+  end
+
+  local buf = vim.api.nvim_win_get_buf(win)
+  if not utils.buf_ok(buf) then
+    return false
+  end
+
+  return vim.bo[buf].buftype == ""
+end
+
+local function pick_target_win()
+  local cur = vim.api.nvim_get_current_win()
+  if is_editor_win(cur) then
+    return cur
+  end
+
+  local wins = vim.api.nvim_tabpage_list_wins(0)
+  for _, win in ipairs(wins) do
+    if is_editor_win(win) then
+      return win
+    end
+  end
+
+  for _, win in ipairs(wins) do
+    if utils.win_ok(win) and not is_panel_win(win) then
+      return win
+    end
+  end
+
   return nil
 end
 
@@ -208,7 +254,6 @@ function M.open_at_cursor()
   end
 
   if m.kind == "url" then
-    -- Open URL using Neovim's built-in opener (or xdg-open / open).
     local url = m.parsed.url
     if vim.ui and vim.ui.open then
       vim.ui.open(url)
@@ -217,42 +262,34 @@ function M.open_at_cursor()
       vim.fn.jobstart({ cmd, url }, { detach = true })
     end
     vim.notify("TermManager: opening " .. url, vim.log.levels.INFO)
-  else
-    -- File + line reference → jump to that file in Neovim.
-    local loc = m.parsed
-    if not loc then
-      return
-    end
-    local path = resolve_path(loc.path)
+    return
+  end
 
-    -- Leave the terminal, open in the editor area.
-    vim.cmd("wincmd k") -- move up to editor windows
+  local loc = m.parsed
+  if not loc then
+    return
+  end
 
-    -- Find an existing normal (non-terminal) window or use the first one.
-    local target_win = nil
-    for _, w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-      local bt = vim.api.nvim_get_option_value("buftype", { win = w })
-      if bt == "" then
-        target_win = w
-        break
-      end
-    end
+  local path = resolve_path(loc.path)
+  if vim.fn.filereadable(path) ~= 1 then
+    vim.notify("TermManager: file not found: " .. path, vim.log.levels.WARN)
+    return
+  end
 
-    if target_win then
-      vim.api.nvim_set_current_win(target_win)
-    end
+  local target_win = pick_target_win()
+  if target_win then
+    vim.api.nvim_set_current_win(target_win)
+  elseif utils.win_ok(state.ui.term_win) then
+    vim.api.nvim_win_call(state.ui.term_win, function()
+      vim.cmd("wincmd k")
+    end)
+  end
 
-    -- Edit the file and jump to line.
-    if vim.fn.filereadable(path) == 1 then
-      vim.cmd("edit " .. vim.fn.fnameescape(path))
-      if loc.line and loc.line > 0 then
-        vim.api.nvim_win_set_cursor(0, { loc.line, math.max(0, (loc.col or 1) - 1) })
-        vim.cmd("normal! zv") -- open folds
-        vim.cmd("normal! zz") -- centre view
-      end
-    else
-      vim.notify("TermManager: file not found: " .. path, vim.log.levels.WARN)
-    end
+  vim.cmd("edit " .. vim.fn.fnameescape(path))
+  if loc.line and loc.line > 0 then
+    vim.api.nvim_win_set_cursor(0, { loc.line, math.max(0, (loc.col or 1) - 1) })
+    vim.cmd("normal! zv")
+    vim.cmd("normal! zz")
   end
 end
 
@@ -273,7 +310,6 @@ function M.list_links()
     return
   end
 
-  -- Deduplicate by raw text.
   local seen = {}
   local unique = {}
   for _, m in ipairs(matches) do
@@ -283,24 +319,24 @@ function M.list_links()
     end
   end
 
-  local items = vim.tbl_map(function(m)
-    local icon = m.kind == "url" and "🌐" or "📄"
-    return icon .. "  " .. m.raw
+  local items = vim.tbl_map(function(match)
+    local icon = match.kind == "url" and "URL" or "FILE"
+    return icon .. "  " .. match.raw
   end, unique)
 
   vim.ui.select(items, { prompt = "Links:" }, function(_, idx)
     if not idx then
       return
     end
-    local m = unique[idx]
-    -- Position cursor and delegate to open_at_cursor logic
-    local abs_lnum = start_line + m.lnum -- 1-based
-    pcall(vim.api.nvim_win_set_cursor, 0, { abs_lnum, m.col_s })
+
+    local match = unique[idx]
+    local abs_lnum = start_line + match.lnum
+    pcall(vim.api.nvim_win_set_cursor, 0, { abs_lnum, match.col_s })
     vim.schedule(M.open_at_cursor)
   end)
 end
 
--- ── Autocmd setup ─────────────────────────────────────────────────────────────
+-- Autocmd setup ----------------------------------------------------------------
 
 --- Attach link-detection autocmds and keymaps to a terminal buffer.
 function M.attach(buf)
@@ -310,7 +346,6 @@ function M.attach(buf)
 
   local aug = vim.api.nvim_create_augroup("TermManagerLinks_" .. buf, { clear = true })
 
-  -- Refresh highlights whenever the terminal output changes.
   vim.api.nvim_create_autocmd({ "TextChanged", "BufWinEnter" }, {
     group = aug,
     buffer = buf,
@@ -321,12 +356,10 @@ function M.attach(buf)
     end,
   })
 
-  -- Initial scan.
   vim.schedule(function()
     M.refresh_highlights(buf)
   end)
 
-  -- Keymaps (buffer-local, normal mode).
   local ko = { buffer = buf, silent = true, noremap = true }
   vim.keymap.set("n", "gx", M.open_at_cursor, vim.tbl_extend("force", ko, { desc = "open link/file" }))
   vim.keymap.set("n", "gf", M.open_at_cursor, vim.tbl_extend("force", ko, { desc = "go to file:line" }))
