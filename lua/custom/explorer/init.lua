@@ -15,6 +15,7 @@ local nvim_utils = require("utils.nvim")
 local api = vim.api
 local fn = vim.fn
 local M = {}
+local did_setup = false
 
 local ROOT_MARKERS = { ".git", "package.json", "go.mod", "Cargo.toml", "Makefile", "tsconfig.json", "requirements.txt" }
 
@@ -118,6 +119,41 @@ local function watch_stop()
       _watcher:close()
     end)
     _watcher = nil
+  end
+end
+
+local function list_to_open_dirs(paths)
+  local open_dirs = {}
+  if type(paths) ~= "table" then
+    return open_dirs
+  end
+  for _, path in ipairs(paths) do
+    if type(path) == "string" and path ~= "" then
+      open_dirs[tree.norm(fn.fnamemodify(path, ":p"))] = true
+    end
+  end
+  return open_dirs
+end
+
+local function open_dirs_to_list()
+  local paths = {}
+  for path, is_open in pairs(S.open_dirs or {}) do
+    if is_open then
+      paths[#paths + 1] = tree.norm(fn.fnamemodify(path, ":p"))
+    end
+  end
+  table.sort(paths)
+  return paths
+end
+
+local function find_existing_window()
+  for _, winid in ipairs(api.nvim_list_wins()) do
+    if api.nvim_win_is_valid(winid) and api.nvim_win_get_config(winid).relative == "" then
+      local buf = api.nvim_win_get_buf(winid)
+      if buf and api.nvim_buf_is_valid(buf) and vim.bo[buf].filetype == "explorer" then
+        return winid, buf
+      end
+    end
   end
 end
 
@@ -242,7 +278,8 @@ end
 
 -- ── close ────────────────────────────────────────────────────────────────
 
-function M.close()
+function M.close(opts)
+  opts = opts or {}
   search.close()
   watch_stop()
   if S.win and api.nvim_win_is_valid(S.win) then
@@ -251,6 +288,11 @@ function M.close()
     pcall(api.nvim_win_close, w, true)
   else
     S.win = nil
+  end
+  if opts.wipe and S.buf and api.nvim_buf_is_valid(S.buf) then
+    local buf = S.buf
+    S.buf = nil
+    pcall(api.nvim_buf_delete, buf, { force = true })
   end
 end
 
@@ -264,9 +306,77 @@ function M.toggle(opts)
   end
 end
 
+function M.session_snapshot()
+  local is_open = S.win and api.nvim_win_is_valid(S.win)
+  if not is_open then
+    return { open = false }
+  end
+
+  local current_buf = api.nvim_get_current_buf()
+  local active_path = fn.fnamemodify(api.nvim_buf_get_name(current_buf), ":p")
+  if active_path == "" or not vim.startswith(tree.norm(active_path), S.root or "") then
+    active_path = nil
+  end
+
+  return {
+    open = true,
+    root = S.root,
+    open_dirs = open_dirs_to_list(),
+    active_path = active_path,
+  }
+end
+
+function M.restore_session(snapshot)
+  if not did_setup or type(snapshot) ~= "table" or not snapshot.open then
+    return false
+  end
+
+  local root = snapshot.root and tree.norm(fn.fnamemodify(snapshot.root, ":p")) or nil
+  if not root or fn.isdirectory(root) ~= 1 then
+    return false
+  end
+
+  S.root = root
+  S.open_dirs = list_to_open_dirs(snapshot.open_dirs)
+  S.filter = nil
+  S.search_active = false
+  S._reveal_target = nil
+
+  local winid, buf = find_existing_window()
+  if winid and buf then
+    S.win = winid
+    S.buf = buf
+    win.apply_window_options(winid)
+    win.setup_keymaps(buf)
+    search.setup(buf)
+    win.update_winbar()
+  else
+    local current = api.nvim_get_current_win()
+    M.open({ root = root })
+    if api.nvim_win_is_valid(current) and current ~= S.win then
+      pcall(api.nvim_set_current_win, current)
+    end
+  end
+
+  S.icon_fn = icons.resolve()
+  render.render()
+  git.fetch()
+  watch_start()
+
+  if snapshot.active_path and snapshot.active_path ~= "" then
+    M.reveal(snapshot.active_path)
+  end
+
+  return true
+end
+
 -- ── setup ────────────────────────────────────────────────────────────────
 
 function M.setup(opts)
+  if did_setup then
+    return
+  end
+  did_setup = true
   cfg.current = vim.tbl_deep_extend("force", cfg.defaults, opts or {})
   local c = cfg.current
   local km = c.keymaps

@@ -39,12 +39,34 @@ local function normalize(path)
   return vim.fs.normalize(path or "")
 end
 
-local function paths()
+local function cwd_scope()
+  return normalize(fn.getcwd())
+end
+
+local function scope_key(scope)
+  scope = normalize(scope ~= "" and scope or cwd_scope())
+  local tail = scope:gsub("^%a:[/\\]?", "")
+  tail = tail:gsub("[/\\]+", "__")
+  tail = tail:gsub("[^%w%._-]", "_")
+  tail = tail:gsub("_+", "_")
+  tail = tail:gsub("^_+", "")
+  tail = tail:gsub("_+$", "")
+  if tail == "" then
+    tail = "root"
+  end
+  local hash = fn.sha256(scope):sub(1, 12)
+  return tail:sub(1, 80) .. "-" .. hash
+end
+
+local function paths(scope)
   local dir = normalize(state.config.session_dir)
+  local key = scope_key(scope)
   return {
     dir = dir,
-    session = normalize(vim.fs.joinpath(dir, state.config.session_file)),
-    meta = normalize(vim.fs.joinpath(dir, state.config.meta_file)),
+    scope = normalize(scope ~= "" and scope or cwd_scope()),
+    key = key,
+    session = normalize(vim.fs.joinpath(dir, key .. "-" .. state.config.session_file)),
+    meta = normalize(vim.fs.joinpath(dir, key .. "-" .. state.config.meta_file)),
   }
 end
 
@@ -97,6 +119,60 @@ local function read_json(path)
     return nil
   end
   return decoded
+end
+
+local function capture_explorer_snapshot()
+  local ok, explorer = pcall(require, "custom.explorer")
+  if not ok or type(explorer.session_snapshot) ~= "function" then
+    return nil
+  end
+  local snapshot_ok, snapshot = pcall(explorer.session_snapshot)
+  if not snapshot_ok or type(snapshot) ~= "table" then
+    return nil
+  end
+  return snapshot
+end
+
+local function with_detached_explorer(callback, opts)
+  opts = opts or {}
+  local ok, explorer = pcall(require, "custom.explorer")
+  local snapshot = capture_explorer_snapshot()
+  local detached = false
+
+  if ok and snapshot and snapshot.open and type(explorer.close) == "function" then
+    pcall(explorer.close, { wipe = true })
+    detached = true
+  end
+
+  local call_ok, result, extra = pcall(callback, snapshot)
+
+  if detached and opts.reopen ~= false and ok and type(explorer.restore_session) == "function" then
+    vim.schedule(function()
+      pcall(explorer.restore_session, snapshot)
+    end)
+  end
+
+  if not call_ok then
+    return false, result
+  end
+  return true, result, extra
+end
+
+local function restore_explorer(snapshot, attempt)
+  if type(snapshot) ~= "table" or not snapshot.open then
+    return
+  end
+  attempt = attempt or 0
+  local ok, explorer = pcall(require, "custom.explorer")
+  if ok and type(explorer.restore_session) == "function" and explorer.restore_session(snapshot) then
+    return
+  end
+  if attempt >= 6 then
+    return
+  end
+  vim.defer_fn(function()
+    restore_explorer(snapshot, attempt + 1)
+  end, 50)
 end
 
 local function write_json(path, value)
@@ -237,26 +313,40 @@ function M.save(opts)
     return false
   end
 
-  local p = paths()
+  local p = paths(opts.scope)
   if not ensure_dir(p.dir) then
     notify("[session] failed to create session directory", vim.log.levels.WARN)
     return false
   end
 
-  local ok, err = pcall(vim.cmd, "silent! mksession! " .. fn.fnameescape(p.session))
+  local ok, meta_ok, meta_err = with_detached_explorer(function(explorer_snapshot)
+    local session_ok, session_err = pcall(vim.cmd, "silent! mksession! " .. fn.fnameescape(p.session))
+    if not session_ok then
+      return false, session_err
+    end
+
+    local meta_ok, meta_err = write_json(p.meta, {
+      version = 2,
+      cwd = p.scope,
+      saved_at = os.time(),
+      tabline_order = collect_tabline_order(),
+      files = collect_known_files(),
+      explorer = explorer_snapshot,
+    })
+    return meta_ok, meta_err
+  end, { reopen = not opts.no_reopen })
+
   if not ok then
-    notify("[session] save failed: " .. tostring(err), vim.log.levels.WARN)
+    notify("[session] save failed: " .. tostring(meta_ok), vim.log.levels.WARN)
     return false
   end
 
-  local meta_ok, meta_err = write_json(p.meta, {
-    version = 1,
-    cwd = normalize(fn.getcwd()),
-    saved_at = os.time(),
-    tabline_order = collect_tabline_order(),
-    files = collect_known_files(),
-  })
   if not meta_ok then
+    notify("[session] save failed: " .. tostring(meta_err), vim.log.levels.WARN)
+    return false
+  end
+
+  if meta_err ~= nil then
     notify("[session] metadata save failed: " .. tostring(meta_err), vim.log.levels.WARN)
   end
 
@@ -268,7 +358,7 @@ end
 
 function M.restore(opts)
   opts = opts or {}
-  local p = paths()
+  local p = paths(opts.scope)
   if fn.filereadable(p.session) ~= 1 then
     return false
   end
@@ -277,6 +367,9 @@ function M.restore(opts)
   local meta = read_json(p.meta)
   local ok, err = pcall(vim.cmd, "silent! source " .. fn.fnameescape(p.session))
   cleanup_after_restore(meta)
+  if meta and meta.cwd and meta.cwd ~= "" and fn.isdirectory(meta.cwd) == 1 then
+    pcall(vim.cmd, "silent! cd " .. fn.fnameescape(meta.cwd))
+  end
   state.restoring = false
   state.restored = ok
 
@@ -284,6 +377,8 @@ function M.restore(opts)
     notify("[session] restore failed: " .. tostring(err), vim.log.levels.WARN)
     return false
   end
+
+  restore_explorer(meta and meta.explorer)
 
   if not opts.silent then
     notify("[session] restored")

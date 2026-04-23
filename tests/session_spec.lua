@@ -33,9 +33,12 @@ end
 local file_a = path("a.txt")
 local file_b = path("b.txt")
 local file_c = path("nested", "c.txt")
+local other_root = path("other-project")
+local other_file = path("other-project", "main.txt")
 write_file(file_a, "alpha")
 write_file(file_b, "beta")
 write_file(file_c, "gamma")
+write_file(other_file, "delta")
 
 vim.cmd("cd " .. vim.fn.fnameescape(root))
 
@@ -122,6 +125,24 @@ local function run()
   local ordered = listed_paths()
   assert_eq(ordered[1], file_a, "tabline order should preserve first buffer")
   assert_eq(ordered[#ordered], file_c, "tabline order should preserve final visible buffer")
+
+  vim.cmd("cd " .. vim.fn.fnameescape(other_root))
+  reset_layout()
+  vim.cmd("edit " .. vim.fn.fnameescape(other_file))
+  assert_ok(session.save({ silent = true }), "other project session save should succeed")
+
+  local other_saved = session.get_paths()
+  assert_ok(saved.session ~= other_saved.session, "session files should be scoped per cwd")
+  assert_ok(saved.meta ~= other_saved.meta, "session metadata should be scoped per cwd")
+
+  reset_layout()
+  assert_ok(session.restore({ silent = true }), "other project restore should succeed")
+  assert_eq(visible_paths(), { other_file }, "other project restore should only load that project")
+
+  vim.cmd("cd " .. vim.fn.fnameescape(root))
+  reset_layout()
+  assert_ok(session.restore({ silent = true }), "original project restore should still succeed")
+  assert_eq(visible_paths(), { file_a, file_c }, "original project restore should remain isolated")
 end
 
 local success, err = xpcall(run, debug.traceback)
