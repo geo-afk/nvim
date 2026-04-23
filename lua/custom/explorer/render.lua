@@ -210,8 +210,12 @@ function M.render()
           return
         end
         S.items = items
-        M._paint()
-        git.apply()
+        if S.search_active then
+          require("custom.explorer.search").on_items_updated()
+        else
+          M._paint()
+          git.apply()
+        end
         local target = S._reveal_target
         if target then
           S._reveal_target = nil

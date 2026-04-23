@@ -11,6 +11,7 @@ local M = {}
 local P = {
   buf = nil,
   win = nil,
+  return_win = nil,
   filter = "",
   cursor = 1,
   current_dir = nil,
@@ -24,7 +25,16 @@ local ICON_PREFIX = "     "
 local SEARCH_ICON = " 󰉋  "
 local PLACEHOLDER = "filter folders..."
 
-local function close()
+local function restore_focus(target)
+  if not (target and api.nvim_win_is_valid(target)) and S.win and api.nvim_win_is_valid(S.win) then
+    target = S.win
+  end
+  if target and api.nvim_win_is_valid(target) then
+    pcall(api.nvim_set_current_win, target)
+  end
+end
+
+local function reset_state()
   if P.win and api.nvim_win_is_valid(P.win) then
     pcall(api.nvim_win_close, P.win, true)
   end
@@ -33,12 +43,27 @@ local function close()
   end
   P.buf = nil
   P.win = nil
+  P.return_win = nil
   P.filter = ""
   P.cursor = 1
   P.current_dir = nil
   P.on_confirm = nil
   P.entries = {}
   P.filtered = {}
+end
+
+local function close(opts)
+  opts = opts or {}
+  local target = P.return_win
+  if api.nvim_get_mode().mode:sub(1, 1) == "i" then
+    pcall(vim.cmd, "stopinsert")
+  end
+  reset_state()
+  if opts.restore_focus ~= false then
+    vim.schedule(function()
+      restore_focus(target)
+    end)
+  end
 end
 
 local function relative_to_root(path)
@@ -212,7 +237,10 @@ local function move_cursor(delta)
   if #P.filtered == 0 then
     return
   end
-  P.cursor = math.max(1, math.min(#P.filtered, P.cursor + delta))
+  if delta == 0 then
+    return
+  end
+  P.cursor = ((P.cursor - 1 + delta) % #P.filtered) + 1
   paint_items()
   if P.win and api.nvim_win_is_valid(P.win) and api.nvim_get_mode().mode:sub(1, 1) == "i" then
     pcall(api.nvim_win_set_cursor, P.win, { 1, #ICON_PREFIX + #P.filter })
@@ -268,11 +296,12 @@ end
 
 function M.open(opts)
   opts = opts or {}
-  close()
+  close({ restore_focus = false })
   ui.ensure_hl()
 
   P.current_dir = opts.start_dir or S.root
   P.on_confirm = opts.on_confirm
+  P.return_win = opts.return_win or api.nvim_get_current_win()
 
   local buf = api.nvim_create_buf(false, true)
   P.buf = buf
@@ -367,10 +396,20 @@ function M.open(opts)
   vim.keymap.set({ "i", "n" }, "<Up>", function()
     move_cursor(-1)
   end, bopts)
+  vim.keymap.set("n", "j", function()
+    move_cursor(1)
+  end, bopts)
+  vim.keymap.set("n", "k", function()
+    move_cursor(-1)
+  end, bopts)
   vim.keymap.set({ "i", "n" }, "<CR>", enter_or_confirm, bopts)
   vim.keymap.set({ "i", "n" }, "l", enter_dir, bopts)
   vim.keymap.set({ "i", "n" }, "h", go_parent, bopts)
+  vim.keymap.set({ "i", "n" }, "<Right>", enter_dir, bopts)
+  vim.keymap.set({ "i", "n" }, "<Left>", go_parent, bopts)
   vim.keymap.set({ "i", "n" }, "-", go_parent, bopts)
+  vim.keymap.set({ "i", "n" }, "<Tab>", enter_or_confirm, bopts)
+  vim.keymap.set({ "i", "n" }, "<S-Tab>", go_parent, bopts)
   vim.keymap.set({ "i", "n" }, "y", confirm_move, bopts)
   vim.keymap.set({ "i", "n" }, "<Esc>", close, bopts)
   vim.keymap.set("n", "q", close, bopts)
@@ -389,6 +428,10 @@ function M.open(opts)
   refresh_entries()
   pcall(api.nvim_win_set_cursor, P.win, { 1, #ICON_PREFIX })
   vim.cmd("startinsert!")
+end
+
+function M.close()
+  close()
 end
 
 return M

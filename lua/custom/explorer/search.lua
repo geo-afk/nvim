@@ -236,11 +236,7 @@ local function rebuild_items()
           return
         end
         S.items = score_and_sort(items, S.filter)
-        -- Reset result cursor to top on every keystroke
-        S._search_cursor = #S.items > 0 and 1 or 0
-        render._paint_items_only()
-        render.paint_header()
-        paint_match_layer()
+        M.on_items_updated({ reset_cursor = true })
       end)
     )
   end)
@@ -335,6 +331,22 @@ function M.activate()
 
   api.nvim_win_set_cursor(S.win, { 1, #line_text })
   vim.cmd("startinsert!")
+  rebuild_items()
+end
+
+function M.on_items_updated(opts)
+  if not S.search_active then
+    return
+  end
+  if opts and opts.reset_cursor then
+    S._search_cursor = #S.items > 0 and 1 or 0
+  else
+    clamp_cursor()
+  end
+  render._paint_items_only()
+  render.paint_header()
+  paint_match_layer()
+  scroll_to_result_cursor()
 end
 
 -- ── deactivate (internal) ─────────────────────────────────────────────────
