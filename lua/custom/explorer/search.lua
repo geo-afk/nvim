@@ -3,8 +3,8 @@
 -- Inline search bar embedded as buffer line 1 — always visible,
 -- no floating windows required.
 --
--- Buffer line 0 always contains:  ICON_PREFIX .. (S.filter or "")
--- An OVERLAY extmark paints the search icon over ICON_PREFIX so the
+-- Buffer line 0 always contains:  INPUT_PREFIX .. (S.filter or "")
+-- An OVERLAY extmark paints the search chrome over INPUT_PREFIX so the
 -- cursor can never land inside the icon glyph.
 --
 -- ── What's new vs. the old substring filter ──────────────────────────────
@@ -24,7 +24,7 @@
 --   <Esc> / <C-c> clear filter and exit insert
 --   <C-u> / <C-l> wipe filter text, stay in insert
 --   <BS>          blocked when cursor is at/before icon boundary
---   <Home>/<C-a>  jump to start of filter text (col #ICON_PREFIX)
+--   <Home>/<C-a>  jump to start of filter text (col #INPUT_PREFIX)
 --   <C-v>/<S-Ins> paste from clipboard
 --   <C-j>/<C-n>/<Down>  move result cursor down one row
 --   <C-k>/<C-p>/<Up>    move result cursor up one row
@@ -32,11 +32,11 @@
 
 local S = require("custom.explorer.state")
 local render = require("custom.explorer.render")
+local search_ui = require("custom.explorer.search_ui")
 local tree = require("custom.explorer.tree")
 local api = vim.api
 
--- Mirror the constant from render so we never hard-code the prefix width.
-local ICON_PREFIX = render.ICON_PREFIX
+local INPUT_PREFIX = search_ui.INPUT_PREFIX
 
 local M = {}
 
@@ -121,8 +121,7 @@ local function scroll_to_result_cursor()
     return
   end
 
-  -- target_line is 1-based: header is line 1, first item is line 2
-  local target_line = idx + 1
+  local target_line = search_ui.line_for_item(idx)
   local height = api.nvim_win_get_height(S.win)
 
   -- Read, adjust, restore the scroll view without touching the cursor.
@@ -137,8 +136,8 @@ local function scroll_to_result_cursor()
   end)
 
   -- Ensure editor cursor stays pinned to the search bar.
-  local col = #ICON_PREFIX + #(S.filter or "")
-  pcall(api.nvim_win_set_cursor, S.win, { 1, col })
+  local col = #INPUT_PREFIX + #(S.filter or "")
+  pcall(api.nvim_win_set_cursor, S.win, { search_ui.INPUT_LNUM, col })
 end
 
 -- ── Match/cursor painting ─────────────────────────────────────────────────
@@ -152,12 +151,12 @@ local function paint_match_layer()
   if not (buf and api.nvim_buf_is_valid(buf)) then
     return
   end
-  api.nvim_buf_clear_namespace(buf, S.match_ns, 1, -1)
+  api.nvim_buf_clear_namespace(buf, S.match_ns, search_ui.HEADER_LINES, -1)
 
   -- a) Result cursor row highlight
   local idx = S._search_cursor
   if idx and idx >= 1 and idx <= #S.items then
-    pcall(api.nvim_buf_set_extmark, buf, S.match_ns, idx, 0, {
+      pcall(api.nvim_buf_set_extmark, buf, S.match_ns, search_ui.row_for_item(idx), 0, {
       end_col = -1,
       hl_group = "ExplorerSearchCursor",
       hl_eol = true,
@@ -173,7 +172,7 @@ local function paint_match_layer()
         for _, byte_pos in ipairs(positions) do
           -- byte_pos is 1-based within item.name; convert to buffer column
           local buf_col = item._col_name + byte_pos - 1
-          pcall(api.nvim_buf_set_extmark, buf, S.match_ns, i, buf_col, {
+          pcall(api.nvim_buf_set_extmark, buf, S.match_ns, search_ui.row_for_item(i), buf_col, {
             end_col = buf_col + 1,
             hl_group = "ExplorerSearchMatch",
             priority = 40,
@@ -261,13 +260,6 @@ local function set_buf_modifiable(buf, value)
   api.nvim_set_option_value("modifiable", value, { buf = buf })
 end
 
-local function strip_prefix(raw)
-  if raw:sub(1, #ICON_PREFIX) == ICON_PREFIX then
-    return raw:sub(#ICON_PREFIX + 1)
-  end
-  return raw
-end
-
 -- ── kill / restore completion engines ────────────────────────────────────
 
 local function kill_completion(buf)
@@ -305,12 +297,13 @@ function M.activate()
   if not (S.win and api.nvim_win_is_valid(S.win)) then
     return
   end
-  require("custom.explorer.win").apply_window_options(S.win)
+  search_ui.ensure_window()
 
   -- If already active, just move the cursor to end of the filter text
   if S.search_active then
-    local col = #ICON_PREFIX + #(S.filter or "")
-    api.nvim_win_set_cursor(S.win, { 1, col })
+    local col = #INPUT_PREFIX + #(S.filter or "")
+    api.nvim_set_current_win(S.win)
+    api.nvim_win_set_cursor(S.win, { search_ui.INPUT_LNUM, col })
     vim.cmd("startinsert!")
     return
   end
@@ -319,17 +312,17 @@ function M.activate()
   S._search_cursor = #S.items > 0 and 1 or 0
   kill_completion(S.buf)
 
-  local filter_text = S.filter or ""
-  local line_text = ICON_PREFIX .. filter_text
+  local line_text = search_ui.line_text(S.filter)
 
   set_buf_modifiable(S.buf, true)
-  api.nvim_buf_set_lines(S.buf, 0, 1, false, { line_text })
+  api.nvim_buf_set_lines(S.buf, search_ui.INPUT_ROW, search_ui.INPUT_ROW + 1, false, { line_text })
 
   -- paint_header reads search_active=true → switches to active bg/icon/badge
   render.paint_header()
   paint_match_layer()
 
-  api.nvim_win_set_cursor(S.win, { 1, #line_text })
+  api.nvim_set_current_win(S.win)
+  api.nvim_win_set_cursor(S.win, { search_ui.INPUT_LNUM, #line_text })
   vim.cmd("startinsert!")
   rebuild_items()
 end
@@ -363,8 +356,8 @@ local function deactivate(clear_filter, target_row)
     api.nvim_buf_clear_namespace(S.buf, S.match_ns, 0, -1)
   end
 
-  local raw = (S.buf and api.nvim_buf_is_valid(S.buf)) and (api.nvim_buf_get_lines(S.buf, 0, 1, false)[1] or "") or ""
-  local text = strip_prefix(raw)
+  local raw = (S.buf and api.nvim_buf_is_valid(S.buf)) and (api.nvim_buf_get_lines(S.buf, search_ui.INPUT_ROW, search_ui.INPUT_ROW + 1, false)[1] or "") or ""
+  local text = search_ui.strip_prefix(raw)
 
   S.filter = (not clear_filter and text ~= "") and text or nil
 
@@ -383,6 +376,7 @@ local function deactivate(clear_filter, target_row)
   end
   if S.win and api.nvim_win_is_valid(S.win) then
     require("custom.explorer.win").apply_window_options(S.win)
+    api.nvim_set_current_win(S.win)
   end
 
   render.render()
@@ -396,38 +390,40 @@ local function deactivate(clear_filter, target_row)
     end
     -- If <CR> passed a specific row, land there; otherwise ensure cursor ≥ row 2
     local desired = target_row or api.nvim_win_get_cursor(S.win)[1]
-    local row = math.max(2, math.min(desired, #S.items + 1))
+    local row = math.max(search_ui.HEADER_LINES + 1, math.min(desired, search_ui.line_for_item(#S.items)))
     pcall(api.nvim_win_set_cursor, S.win, { row, 0 })
   end)
 end
 
 -- ── setup: attach autocmds and buffer-local keymaps ──────────────────────
 
-function M.setup(buf)
-  local bopts = { buffer = buf, silent = true, noremap = true }
+function M.setup(explorer_buf)
+  local bopts = { buffer = explorer_buf, silent = true, noremap = true }
 
   -- Guard: keep cursor off row 0 in normal mode
   api.nvim_create_autocmd("CursorMoved", {
-    buffer = buf,
+    buffer = explorer_buf,
     callback = function()
       if S.search_active then
         return
       end
-      if not (S.win and api.nvim_win_is_valid(S.win)) then
-        return
-      end
-      if api.nvim_win_get_cursor(S.win)[1] == 1 then
-        pcall(api.nvim_win_set_cursor, S.win, {
-          math.max(2, #S.items > 0 and 2 or 1),
-          0,
-        })
+      search_ui.lock_tree_view()
+    end,
+  })
+
+  api.nvim_create_autocmd({ "WinScrolled", "BufWinEnter" }, {
+    buffer = explorer_buf,
+    callback = function()
+      if S.win and api.nvim_win_is_valid(S.win) then
+        search_ui.lock_tree_view()
+        search_ui.paint()
       end
     end,
   })
 
   -- Live filter: rebuild tree on every keystroke in the search bar
   api.nvim_create_autocmd("TextChangedI", {
-    buffer = buf,
+    buffer = explorer_buf,
     callback = function()
       if not S.search_active then
         return
@@ -435,19 +431,38 @@ function M.setup(buf)
       if not (S.win and api.nvim_win_is_valid(S.win)) then
         return
       end
-      if api.nvim_win_get_cursor(S.win)[1] ~= 1 then
+      if api.nvim_get_current_win() ~= S.win then
         return
       end
-      local raw = api.nvim_buf_get_lines(buf, 0, 1, false)[1] or ""
-      local t = strip_prefix(raw)
+      local raw = api.nvim_buf_get_lines(explorer_buf, search_ui.INPUT_ROW, search_ui.INPUT_ROW + 1, false)[1] or ""
+      local t = search_ui.strip_prefix(raw)
       S.filter = t ~= "" and t or nil
       rebuild_items()
     end,
   })
 
+  api.nvim_create_autocmd("CursorMovedI", {
+    buffer = explorer_buf,
+    callback = function()
+      if not S.search_active then
+        return
+      end
+      if not (S.win and api.nvim_win_is_valid(S.win)) then
+        return
+      end
+      if api.nvim_get_current_win() ~= S.win then
+        return
+      end
+      local col = api.nvim_win_get_cursor(S.win)[2]
+      if api.nvim_win_get_cursor(S.win)[1] ~= search_ui.INPUT_LNUM then
+        pcall(api.nvim_win_set_cursor, S.win, { search_ui.INPUT_LNUM, math.max(#INPUT_PREFIX, col) })
+      end
+    end,
+  })
+
   -- InsertLeave: commit or discard the filter and land cursor on chosen result
   api.nvim_create_autocmd("InsertLeave", {
-    buffer = buf,
+    buffer = explorer_buf,
     callback = vim.schedule_wrap(function()
       if not S.search_active then
         return
@@ -483,9 +498,9 @@ function M.setup(buf)
     end
     S._search_clear_on_leave = false
     -- Communicate the target buffer line to the InsertLeave handler.
-    -- +1 because header is line 1, items start at line 2.
+    -- Cursor lands on the selected tree row below the 3-line header.
     local idx = S._search_cursor or 0
-    S._post_search_row = idx > 0 and (idx + 1) or nil
+    S._post_search_row = idx > 0 and search_ui.line_for_item(idx) or nil
     vim.cmd("stopinsert")
   end, bopts)
 
@@ -505,10 +520,11 @@ function M.setup(buf)
     if not S.search_active then
       return
     end
-    api.nvim_buf_set_lines(buf, 0, 1, false, { ICON_PREFIX })
+    set_buf_modifiable(explorer_buf, true)
+    api.nvim_buf_set_lines(explorer_buf, search_ui.INPUT_ROW, search_ui.INPUT_ROW + 1, false, { search_ui.line_text(nil) })
     S.filter = nil
     S._search_cursor = 0
-    api.nvim_win_set_cursor(S.win, { 1, #ICON_PREFIX })
+    api.nvim_win_set_cursor(S.win, { search_ui.INPUT_LNUM, #INPUT_PREFIX })
     render.paint_header()
     rebuild_items()
   end
@@ -521,18 +537,18 @@ function M.setup(buf)
       return "<BS>"
     end
     local col = api.nvim_win_get_cursor(S.win)[2]
-    if col <= #ICON_PREFIX then
+    if col <= #INPUT_PREFIX then
       return ""
     end
     return "<BS>"
-  end, { buffer = buf, silent = true, noremap = true, expr = true })
+  end, { buffer = explorer_buf, silent = true, noremap = true, expr = true })
 
   -- ── <Home> / <C-a>: jump to start of filter text ─────────────────────
   local function to_filter_start()
     if not S.search_active then
       return
     end
-    api.nvim_win_set_cursor(S.win, { 1, #ICON_PREFIX })
+    api.nvim_win_set_cursor(S.win, { search_ui.INPUT_LNUM, #INPUT_PREFIX })
   end
   vim.keymap.set("i", "<Home>", to_filter_start, bopts)
   vim.keymap.set("i", "<C-a>", to_filter_start, bopts)
@@ -590,7 +606,9 @@ function M.clear()
   S.search_active = false
   S._search_cursor = nil
   if S.buf and api.nvim_buf_is_valid(S.buf) then
-    pcall(api.nvim_set_option_value, "modifiable", false, { buf = S.buf })
+    set_buf_modifiable(S.buf, true)
+    api.nvim_buf_set_lines(S.buf, 0, search_ui.HEADER_LINES, false, search_ui.header_lines(nil))
+    set_buf_modifiable(S.buf, false)
     api.nvim_buf_clear_namespace(S.buf, S.match_ns, 0, -1)
   end
   render.render()

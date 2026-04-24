@@ -25,6 +25,7 @@
 
 local S   = require 'custom.explorer.state'
 local cfg = require 'custom.explorer.config'
+local search_ui = require("custom.explorer.search_ui")
 local api = vim.api
 
 local M = {}
@@ -196,8 +197,7 @@ function M.apply()
     end
 
     if ch then
-      -- S.items[i] → 0-based row i  (header = row 0, item 1 = row 1)
-      pcall(api.nvim_buf_set_extmark, buf, S.git_ns, i, 0, {
+      pcall(api.nvim_buf_set_extmark, buf, S.git_ns, search_ui.row_for_item(i), 0, {
         end_col       = SIGN_WIDTH,
         virt_text     = { { M.sign_str(ch), SIGN_HL[ch] or 'Comment' } },
         virt_text_pos = 'overlay',

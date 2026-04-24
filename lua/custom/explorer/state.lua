@@ -5,6 +5,8 @@ local api = vim.api
 local S = {
   buf = nil,
   win = nil,
+  search_buf = nil,
+  search_win = nil,
   root = nil,
   prev_win = nil,
 

@@ -8,6 +8,7 @@ local render = require("custom.explorer.render")
 local git = require("custom.explorer.git")
 local win = require("custom.explorer.win")
 local search = require("custom.explorer.search")
+local search_ui = require("custom.explorer.search_ui")
 local icons = require("custom.explorer.icons")
 local store = require("custom.explorer.project_store")
 local nvim_utils = require("utils.nvim")
@@ -195,10 +196,11 @@ function M.reveal(path)
     for i, it in ipairs(S.items) do
       if it.path == path then
         local cur_row = api.nvim_win_get_cursor(S.win)[1]
-        if cur_row == i + 1 then
+        local target_line = search_ui.line_for_item(i)
+        if cur_row == target_line then
           return
         end -- already there, nothing to do
-        pcall(api.nvim_win_set_cursor, S.win, { i + 1, 0 })
+        pcall(api.nvim_win_set_cursor, S.win, { target_line, 0 })
         pcall(api.nvim_win_call, S.win, function()
           vim.cmd("normal! zz")
         end)
@@ -245,7 +247,6 @@ function M.open(opts)
   if not (S.buf and api.nvim_buf_is_valid(S.buf)) then
     S.buf = win.make_buf()
     win.setup_keymaps(S.buf)
-    search.setup(S.buf)
   end
 
   S.icon_fn = icons.resolve()
@@ -255,9 +256,15 @@ function M.open(opts)
   else
     win.update_winbar()
   end
+  search_ui.ensure_window()
+  if S.buf and api.nvim_buf_is_valid(S.buf) and not vim.b[S.buf]._explorer_search_setup then
+    search.setup(S.buf)
+    vim.b[S.buf]._explorer_search_setup = true
+  end
 
   -- Always schedule a render so the tree is populated.
   render.render()
+  search_ui.paint()
   git.fetch()
   watch_start()
 
@@ -281,6 +288,7 @@ end
 function M.close(opts)
   opts = opts or {}
   search.close()
+  search_ui.close()
   watch_stop()
   if S.win and api.nvim_win_is_valid(S.win) then
     local w = S.win
@@ -348,7 +356,11 @@ function M.restore_session(snapshot)
     S.buf = buf
     win.apply_window_options(winid)
     win.setup_keymaps(buf)
-    search.setup(buf)
+    search_ui.ensure_window()
+    if S.buf and api.nvim_buf_is_valid(S.buf) and not vim.b[S.buf]._explorer_search_setup then
+      search.setup(buf)
+      vim.b[S.buf]._explorer_search_setup = true
+    end
     win.update_winbar()
   else
     local current = api.nvim_get_current_win()
@@ -416,7 +428,17 @@ function M.setup(opts)
       S.icon_fn = icons.resolve()
       if S.buf and api.nvim_buf_is_valid(S.buf) then
         render._paint()
+        search_ui.paint()
         git.apply()
+      end
+    end,
+  })
+
+  nvim_utils.autocmd({ "VimResized", "WinResized" }, {
+    desc = "explorer: reposition persistent search UI",
+    callback = function()
+      if S.win and api.nvim_win_is_valid(S.win) then
+        search_ui.paint()
       end
     end,
   })
@@ -491,6 +513,7 @@ function M.setup(opts)
         S.win = nil
         watch_stop()
         search.close()
+        search_ui.close()
       end
       vim.schedule(function()
         local wins = vim.tbl_filter(function(w)

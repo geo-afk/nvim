@@ -35,6 +35,7 @@ local cfg = require("custom.explorer.config")
 local tree = require("custom.explorer.tree")
 local git = require("custom.explorer.git")
 local icons = require("custom.explorer.icons")
+local search_ui = require("custom.explorer.search_ui")
 
 local api = vim.api
 local M = {}
@@ -43,17 +44,7 @@ local function set_buf_modifiable(buf, value)
   api.nvim_set_option_value("modifiable", value, { buf = buf })
 end
 
--- ── Search bar constants ───────────────────────────────────────────────────
---
--- Display layout:  ' 󰍉  '  = 1 sp + icon(2 cols) + 2 sp = 5 display cols
--- ICON_PREFIX      = 5 plain spaces written into the buffer (col 0-4)
---
-local SEARCH_ICON = " 󰍉  " -- overlay (5 display cols)
-local ICON_PREFIX = "     " -- 5 spaces in the buffer
-local PLACEHOLDER = "filter files…"
-
--- Exported so search.lua can mirror this constant.
-M.ICON_PREFIX = ICON_PREFIX
+M.ICON_PREFIX = search_ui.INPUT_PREFIX
 
 -- ── Sign column constant ───────────────────────────────────────────────────
 --
@@ -66,105 +57,7 @@ local SIGN_PH_WIDTH = #SIGN_PH
 -- ── paint_header ──────────────────────────────────────────────────────────
 
 function M.paint_header()
-  local buf = S.buf
-  if not (buf and api.nvim_buf_is_valid(buf)) then
-    return
-  end
-  api.nvim_buf_clear_namespace(buf, S.hdr_ns, 0, -1)
-
-  local c = cfg.get()
-  local is_active = S.search_active
-  local has_filter = S.filter and S.filter ~= ""
-  local line0 = api.nvim_buf_get_lines(buf, 0, 1, false)[1] or ""
-
-  local bg_hl = is_active and "ExplorerSearchBgActive" or "ExplorerSearchBg"
-  local ico_hl = is_active and "ExplorerSearchIconActive" or "ExplorerSearchIcon"
-  local sep_hl = is_active and "ExplorerSearchBorderActive" or "ExplorerSearchBorder"
-
-  -- 1. Background wash
-  pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, 0, 0, {
-    end_col = -1,
-    hl_group = bg_hl,
-    hl_eol = true,
-    priority = 5,
-  })
-
-  -- 2. Icon overlay
-  pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, 0, 0, {
-    virt_text = { { SEARCH_ICON, ico_hl } },
-    virt_text_pos = "overlay",
-    priority = 100,
-  })
-
-  -- 3a. Placeholder (idle, no filter)
-  if line0 == ICON_PREFIX and not is_active then
-    pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, 0, #ICON_PREFIX, {
-      virt_text = { { PLACEHOLDER, "ExplorerSearchPlaceholder" } },
-      virt_text_pos = "overlay",
-      priority = 50,
-    })
-  end
-
-  -- 3b. Filter text highlight (filter set, not typing)
-  if has_filter and not is_active and #line0 > #ICON_PREFIX then
-    pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, 0, #ICON_PREFIX, {
-      end_row = 0,
-      end_col = #line0,
-      hl_group = "ExplorerSearchActiveText",
-      priority = 60,
-    })
-  end
-
-  -- 4. Match-count / result-position badge
-  if has_filter and c.search_count then
-    local total = #S.items
-    local label, badge_hl
-
-    if is_active then
-      badge_hl = "ExplorerSearchCountActive"
-      if total == 0 then
-        label = " no matches "
-      else
-        local cur = S._search_cursor or 0
-        label = cur > 0 and (" " .. cur .. "/" .. total .. " ") or (" " .. total .. " ")
-      end
-    else
-      badge_hl = "ExplorerSearchCount"
-      label = total == 0 and " no matches " or (" " .. total .. (total == 1 and " match " or " matches "))
-    end
-
-    pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, 0, 0, {
-      virt_text = { { label, badge_hl } },
-      virt_text_pos = "right_align",
-      priority = 70,
-    })
-  end
-
-  -- 5. Separator virt_line below the search bar
-  --    ╌╌╌ idle (no filter)
-  --    ─── filter active but user not typing
-  --    ━━━ user currently typing (insert mode) — heavy line for emphasis
-  local win_w = c.width
-  if S.win and api.nvim_win_is_valid(S.win) then
-    win_w = api.nvim_win_get_width(S.win)
-  end
-  local sep_char, sep_hl
-  if is_active then
-    sep_char = "━"
-    sep_hl = "ExplorerSearchBorderActive"
-  elseif has_filter then
-    sep_char = "─"
-    sep_hl = "ExplorerSearchBorderFilter"
-  else
-    sep_char = "╌"
-    sep_hl = "ExplorerSearchBorder"
-  end
-  local sep = sep_char:rep(win_w)
-
-  pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, 0, 0, {
-    virt_lines = { { { sep, sep_hl } } },
-    priority = 100,
-  })
+  search_ui.paint()
 end
 
 -- ── _reveal_cursor ────────────────────────────────────────────────────────
@@ -175,7 +68,7 @@ function M._reveal_cursor(path)
   end
   for i, it in ipairs(S.items) do
     if it.path == path then
-      local target_row = i + 1
+      local target_row = search_ui.line_for_item(i)
       pcall(api.nvim_win_set_cursor, S.win, { target_row, 0 })
       pcall(api.nvim_win_call, S.win, function()
         vim.cmd("normal! zz")
@@ -269,7 +162,7 @@ local function build_item_lines()
     item._col_name_end = name_col + #item.name
 
     -- 0-based row = index into S.items
-    local row = #lines
+    local row = search_ui.row_for_item(#lines)
     local c0 = sp_w
     local c1 = c0 + #prefix
 
@@ -303,8 +196,9 @@ function M._paint()
   local cursor_path
   if S.win and api.nvim_win_is_valid(S.win) then
     local r = api.nvim_win_get_cursor(S.win)[1]
-    if r >= 2 then
-      local it = S.items[r - 1]
+    local idx = search_ui.item_index_from_line(r)
+    if idx then
+      local it = S.items[idx]
       if it then
         cursor_path = it.path
       end
@@ -312,8 +206,7 @@ function M._paint()
   end
 
   local item_lines, hls = build_item_lines()
-  local header_text = ICON_PREFIX .. (S.filter or "")
-  local all_lines = { header_text }
+  local all_lines = search_ui.spacer_lines()
   vim.list_extend(all_lines, item_lines)
 
   set_buf_modifiable(buf, true)
@@ -329,6 +222,7 @@ function M._paint()
   set_buf_modifiable(buf, false)
 
   M.paint_header()
+  search_ui.lock_tree_view()
 
   -- Restore cursor to the same file, clamped to valid range
   if S.win and api.nvim_win_is_valid(S.win) then
@@ -336,17 +230,17 @@ function M._paint()
     if cursor_path then
       for i, item in ipairs(S.items) do
         if item.path == cursor_path then
-          target = i + 1
+          target = search_ui.line_for_item(i)
           break
         end
       end
     end
     local total = #all_lines
-    if total < 2 then
+    if total <= search_ui.HEADER_LINES then
       return
     end
     local cur = api.nvim_win_get_cursor(S.win)[1]
-    local row = target and math.min(target, total) or math.max(2, math.min(cur, total))
+    local row = target and math.min(target, total) or math.max(search_ui.HEADER_LINES + 1, math.min(cur, total))
     pcall(api.nvim_win_set_cursor, S.win, { row, 0 })
   end
 end
@@ -365,8 +259,8 @@ function M._paint_items_only()
   local item_lines, hls = build_item_lines()
 
   set_buf_modifiable(buf, true)
-  api.nvim_buf_set_lines(buf, 1, -1, false, item_lines)
-  api.nvim_buf_clear_namespace(buf, S.ns, 1, -1)
+  api.nvim_buf_set_lines(buf, search_ui.HEADER_LINES, -1, false, item_lines)
+  api.nvim_buf_clear_namespace(buf, S.ns, search_ui.HEADER_LINES, -1)
   for _, h in ipairs(hls) do
     pcall(api.nvim_buf_set_extmark, buf, S.ns, h[1], h[2], {
       end_col = h[3],

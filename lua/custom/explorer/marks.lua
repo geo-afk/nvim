@@ -2,6 +2,7 @@
 -- S.items[i] → 0-based row = i  (header row 0, item 1 at row 1)
 
 local S = require 'custom.explorer.state'
+local search_ui = require("custom.explorer.search_ui")
 local api = vim.api
 
 local M = {}
@@ -28,7 +29,32 @@ function M.clear()
   M.apply()
 end
 
+function M.prune()
+  local changed = false
+  for path in pairs(S.marks) do
+    if not vim.uv.fs_stat(path) then
+      S.marks[path] = nil
+      changed = true
+    end
+  end
+  if changed then
+    M.apply()
+  end
+end
+
+function M.replace(old_path, new_path)
+  if not old_path or not new_path or old_path == new_path then
+    return
+  end
+  if S.marks[old_path] then
+    S.marks[old_path] = nil
+    S.marks[new_path] = true
+    M.apply()
+  end
+end
+
 function M.selection(fallback)
+  M.prune()
   local paths = vim.tbl_keys(S.marks)
   if #paths > 0 then
     return paths
@@ -47,8 +73,7 @@ function M.apply()
   api.nvim_buf_clear_namespace(buf, S.mark_ns, 0, -1)
   for i, item in ipairs(S.items) do
     if S.marks[item.path] then
-      -- row = i  (item 1 is at row 1, header is row 0)
-      pcall(api.nvim_buf_set_extmark, buf, S.mark_ns, i, 0, {
+      pcall(api.nvim_buf_set_extmark, buf, S.mark_ns, search_ui.row_for_item(i), 0, {
         end_col = 2,
         virt_text = { { MARK_SIGN, MARK_HL } },
         virt_text_pos = 'overlay',

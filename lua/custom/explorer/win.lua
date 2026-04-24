@@ -105,6 +105,7 @@ function M.ensure_hl()
   def("ExplorerSearchBorder", { fg = blend(dim_fg, sidebar_bg, 0.55) })
   def("ExplorerSearchBorderFilter", { fg = blend(accent, dim_fg, 0.30) })
   def("ExplorerSearchBorderActive", { fg = accent })
+  def("ExplorerSearchTitle", { fg = blend(accent, normal_fg, 0.20), bold = true })
   def("ExplorerSearchPlaceholder", { fg = blend(dim_fg, sidebar_bg, 0.6), italic = true, bg = search_bg })
   def("ExplorerSearchActiveText", { fg = str_fg, bold = true })
   def("ExplorerSearchCount", { fg = blend(accent, dim_fg, 0.5), italic = true })
@@ -170,6 +171,7 @@ function M.reset_hl()
     "ExplorerSearchBorder",
     "ExplorerSearchBorderFilter",
     "ExplorerSearchBorderActive",
+    "ExplorerSearchTitle",
     "ExplorerSearchIcon",
     "ExplorerSearchIconActive",
     "ExplorerSearchPlaceholder",

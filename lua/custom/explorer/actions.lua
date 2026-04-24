@@ -9,11 +9,48 @@ local marks = require("custom.explorer.marks")
 local move_picker = require("custom.explorer.move")
 local store = require("custom.explorer.project_store")
 local ui = require("custom.explorer.ui")
+local search_ui = require("custom.explorer.search_ui")
 
 local api = vim.api
 local fn = vim.fn
 
 local A = {}
+
+local function path_exists(path)
+  return path and vim.uv.fs_stat(path) ~= nil
+end
+
+local function shell_quote_pwsh(path)
+  return "'" .. tostring(path):gsub("'", "''") .. "'"
+end
+
+local function selected_paths(paths)
+  local seen = {}
+  local out = {}
+  table.sort(paths, function(a, b)
+    if #a ~= #b then
+      return #a < #b
+    end
+    return a < b
+  end)
+  for _, path in ipairs(paths) do
+    path = tree.norm(path)
+    if path ~= "" and not seen[path] and path_exists(path) then
+      local nested = false
+      for _, kept in ipairs(out) do
+        if path == kept or vim.startswith(path, kept .. "/") then
+          nested = true
+          break
+        end
+      end
+      if not nested then
+        seen[path] = true
+        out[#out + 1] = path
+      end
+    end
+  end
+  return out
+end
 
 local function is_explorer_like_buffer(buf)
   if not (buf and api.nvim_buf_is_valid(buf)) then
@@ -89,24 +126,82 @@ local function copy_dir_recursive(src, dest)
   return true
 end
 
+local is_subpath
+
 local function copy_path(src, dest)
   local stat = vim.uv.fs_stat(src)
   if not stat then
     return false, "missing source: " .. src
   end
+  src = tree.norm(src)
+  dest = tree.norm(dest)
+  if dest == src then
+    return false, "destination is the same as source: " .. src
+  end
+  if vim.uv.fs_stat(dest) then
+    return false, "destination already exists: " .. dest
+  end
   if stat.type == "directory" then
+    if is_subpath(dest, src) then
+      return false, "cannot copy a folder into itself: " .. src
+    end
     return copy_dir_recursive(src, dest)
   end
   return copy_file(src, dest)
 end
 
-local function is_subpath(path, parent)
+is_subpath = function(path, parent)
   if not path or not parent then
     return false
   end
   path = tree.norm(path)
   parent = tree.norm(parent)
   return path == parent or vim.startswith(path, parent .. "/")
+end
+
+local function delete_path(path)
+  if not path_exists(path) then
+    return true
+  end
+
+  if cfg.get().delete_to_trash ~= false then
+    if fn.has("win32") == 1 then
+      local is_dir = vim.uv.fs_stat(path).type == "directory"
+      local cmd = is_dir
+          and ([[Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory(%s, 'OnlyErrorDialogs', 'SendToRecycleBin')]])
+            :format(shell_quote_pwsh(path))
+        or ([[Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile(%s, 'OnlyErrorDialogs', 'SendToRecycleBin')]])
+          :format(shell_quote_pwsh(path))
+      local out = vim.system({ "powershell", "-NoProfile", "-NonInteractive", "-Command", cmd }, { text = true }):wait()
+      if out.code == 0 then
+        return true
+      end
+      return false, (out.stderr and vim.trim(out.stderr) ~= "" and vim.trim(out.stderr)) or "failed to move to recycle bin"
+    end
+
+    for _, cmd in ipairs({
+      { "gio", "trash", path },
+      { "trash-put", path },
+      { "trash", path },
+    }) do
+      if fn.executable(cmd[1]) == 1 then
+        local out = vim.system(cmd, { text = true }):wait()
+        if out.code == 0 then
+          return true
+        end
+      end
+    end
+  end
+
+  local stat = vim.uv.fs_stat(path)
+  if not stat then
+    return true
+  end
+  local flags = stat.type == "directory" and "rf" or ""
+  if fn.delete(path, flags) == 0 then
+    return true
+  end
+  return false, "failed to delete: " .. path
 end
 
 local function notify_lsp_rename(old_path, new_path)
@@ -126,6 +221,7 @@ local function notify_lsp_rename(old_path, new_path)
 end
 
 local function move_paths(paths, dest_dir)
+  paths = selected_paths(paths)
   dest_dir = tree.norm(dest_dir or "")
   if dest_dir == "" then
     return false, "missing destination folder"
@@ -167,16 +263,17 @@ function A.current_item()
     return nil
   end
   local row = api.nvim_win_get_cursor(S.win)[1] -- 1-based
-  if row < 2 then
+  local idx = search_ui.item_index_from_line(row)
+  if not idx then
     return nil
   end
-  return S.items[row - 1]
+  return S.items[idx]
 end
 
 function A.jump_to(path)
   for i, it in ipairs(S.items) do
     if it.path == path then
-      pcall(api.nvim_win_set_cursor, S.win, { i + 1, 0 })
+      pcall(api.nvim_win_set_cursor, S.win, { search_ui.line_for_item(i), 0 })
       return true
     end
   end
@@ -246,7 +343,7 @@ function A.open_or_toggle()
     if S.win and api.nvim_win_is_valid(S.win) then
       vim.schedule(function()
         if S.win and api.nvim_win_is_valid(S.win) and A.current_item() == nil and #S.items > 0 then
-          pcall(api.nvim_win_set_cursor, S.win, { 2, 0 })
+          pcall(api.nvim_win_set_cursor, S.win, { search_ui.line_for_item(1), 0 })
         end
       end)
     end
@@ -416,6 +513,7 @@ end
 
 function A.delete()
   local item = A.current_item()
+  marks.prune()
   local mc = marks.count()
 
   local paths
@@ -426,6 +524,7 @@ function A.delete()
   else
     return
   end
+  paths = selected_paths(paths)
   if #paths == 0 then
     return
   end
@@ -443,12 +542,9 @@ function A.delete()
       return
     end
     for _, p in ipairs(paths) do
-      local stat = vim.uv.fs_stat(p)
-      if stat then
-        local flags = stat.type == "directory" and "rf" or ""
-        if fn.delete(p, flags) ~= 0 then
-          vim.notify("[explorer] failed to delete: " .. p, vim.log.levels.ERROR)
-        end
+      local ok, err = delete_path(p)
+      if not ok then
+        vim.notify("[explorer] " .. tostring(err), vim.log.levels.ERROR)
       end
     end
     marks.clear()
@@ -471,12 +567,21 @@ function A.rename()
       return
     end
     dest = tree.norm(dest)
+    if vim.uv.fs_stat(dest) then
+      vim.notify("[explorer] rename target already exists: " .. dest, vim.log.levels.ERROR)
+      return
+    end
+    if item.is_dir and is_subpath(dest, item.path) then
+      vim.notify("[explorer] cannot move a folder into itself: " .. item.path, vim.log.levels.ERROR)
+      return
+    end
     fn.mkdir(tree.parent(dest), "p")
     if fn.rename(item.path, dest) ~= 0 then
       vim.notify("[explorer] rename failed: " .. item.path .. " → " .. dest, vim.log.levels.ERROR)
       return
     end
     notify_lsp_rename(item.path, dest)
+    marks.replace(item.path, dest)
     A.refresh()
     vim.schedule(function()
       require("custom.explorer").reveal(dest)
@@ -488,6 +593,7 @@ A._move_paths = move_paths
 
 function A.move()
   local item = A.current_item()
+  marks.prune()
   local mc = marks.count()
 
   -- Mirrors A.delete(): include directories in the fallback (single-item) path.
@@ -501,6 +607,7 @@ function A.move()
   else
     return
   end
+  paths = selected_paths(paths)
   if #paths == 0 then
     return
   end
@@ -529,6 +636,7 @@ end
 function A.copy()
   local item = A.current_item()
   local paths = marks.selection(item)
+  paths = selected_paths(paths)
   if #paths == 0 then
     return
   end
@@ -595,6 +703,7 @@ end
 
 local function git_op(item, args_fn, msg)
   local paths = marks.selection(item)
+  paths = selected_paths(paths)
   if #paths == 0 then
     return
   end
@@ -682,6 +791,7 @@ function A.copy_path()
 end
 
 function A.refresh()
+  marks.prune()
   git.fetch()
   render.render()
 end

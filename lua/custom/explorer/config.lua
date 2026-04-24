@@ -23,6 +23,7 @@ M.defaults = {
   show_git = true,
   follow_file = true,
   auto_close = false,
+  delete_to_trash = true,
 
   icons = { style = "auto" },
 
