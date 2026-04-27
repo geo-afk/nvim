@@ -87,6 +87,3 @@ end, { desc = "Update plugins" })
 
 map("n", "<leader>uu", "<cmd>Undotree<CR>", { desc = "Undotree" })
 map("n", "<leader>nd", "<cmd>DiffTool<CR>", { desc = "DiffTool" })
-map("n", "<leader>nr", function()
-  require("custom.session").restart()
-end, { desc = "Restart Neovim" })
