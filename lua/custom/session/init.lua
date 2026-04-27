@@ -476,6 +476,10 @@ function M.setup(opts)
       end,
     })
   end
+
+  vim.keymap.set("n", "<leader>nr", function()
+    require("custom.session").restart()
+  end, { desc = "Restart Neovim" })
 end
 
 return M
