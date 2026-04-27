@@ -73,6 +73,8 @@ local ok_search, search = pcall(require, "custom.explorer.search")
 assert_ok(ok_search, search)
 local ok_move, move = pcall(require, "custom.explorer.move")
 assert_ok(ok_move, move)
+local ok_search_ui, search_ui = pcall(require, "custom.explorer.search_ui")
+assert_ok(ok_search_ui, search_ui)
 
 explorer.setup({
   follow_file = false,
@@ -98,7 +100,10 @@ local function run()
 
   wait_for("search should render its result list while active", function()
     local lines = vim.api.nvim_buf_get_lines(S.buf, 0, -1, false)
-    return S.search_active and #lines > 2 and lines[2] ~= nil and lines[2] ~= ""
+    return S.search_active
+      and #lines > search_ui.HEADER_LINES
+      and lines[search_ui.HEADER_LINES + 1] ~= nil
+      and lines[search_ui.HEADER_LINES + 1] ~= ""
   end)
 
   search.clear()
@@ -108,7 +113,7 @@ local function run()
     return not S.search_active and vim.api.nvim_get_current_win() == S.win
   end)
 
-  vim.api.nvim_win_set_cursor(S.win, { 2, 0 })
+  vim.api.nvim_win_set_cursor(S.win, { search_ui.line_for_item(1), 0 })
   actions.move()
 
   wait_for("move picker should open as a floating window", function()
@@ -126,11 +131,11 @@ local function run()
     return vim.api.nvim_get_mode().mode == "n"
   end)
 
-  vim.api.nvim_win_set_cursor(S.win, { 2, 0 })
+  vim.api.nvim_win_set_cursor(S.win, { search_ui.line_for_item(1), 0 })
   vim.cmd("normal! j")
 
   wait_for("explorer navigation should work after the move picker closes", function()
-    return vim.api.nvim_win_get_cursor(S.win)[1] == 3
+    return vim.api.nvim_win_get_cursor(S.win)[1] == search_ui.line_for_item(2)
   end)
 end
 
