@@ -82,32 +82,43 @@ local function ensure_buf(t)
   end
 end
 
+function M.show_in_win(t, win)
+  if not t or not utils.win_ok(win) then
+    return
+  end
+
+  ensure_buf(t)
+  vim.api.nvim_win_set_buf(win, t.buf)
+  if not utils.term_alive(t.buf) then
+    spawn_in_win(t, win)
+  end
+
+  require("custom.terminal_manager.sidebar").render()
+  require("custom.terminal_manager.winbar").update_all()
+end
+
 -- ── Public ────────────────────────────────────────────────────────────────────
 
 --- Show terminal `t` in the primary pane, rebuilding the panel if needed.
 function M.show(t)
   if not t then
-    return
+    return false
+  end
+  if state.display_mode == "float" then
+    return require("custom.terminal_manager.float").open(t)
   end
   if not require("custom.terminal_manager.panel").ensure() then
-    return
+    return false
   end
 
   state.active_id = t.id
-  ensure_buf(t)
-
-  vim.api.nvim_win_set_buf(state.ui.term_win, t.buf)
-  if not utils.term_alive(t.buf) then
-    spawn_in_win(t, state.ui.term_win)
-  end
-
-  require("custom.terminal_manager.sidebar").render()
-  require("custom.terminal_manager.winbar").update_all()
+  M.show_in_win(t, state.ui.term_win)
 
   if utils.win_ok(state.ui.term_win) then
     vim.api.nvim_set_current_win(state.ui.term_win)
     vim.cmd("startinsert")
   end
+  return true
 end
 
 --- Kill the shell and restart in the same slot.

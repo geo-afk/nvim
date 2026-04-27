@@ -26,8 +26,12 @@ local function bar_for(t, hints)
     venv_str = string.format(" %%#TermManagerWinbarHint# %s%%*", t.venv.display)
   end
 
-  -- Split mode indicator
-  local split_str = state.split_mode and " %%#TermManagerWinbarHint#[split]%%*" or ""
+  local mode_str = ""
+  if state.display_mode == "float" then
+    mode_str = " %%#TermManagerWinbarHint#[float]%%*"
+  elseif state.split_mode then
+    mode_str = " %%#TermManagerWinbarHint#[split]%%*"
+  end
 
   return string.format(
     " %%#%s#%s %%#TermManagerWinbar#%s %s%%#TermManagerWinbarHint# [%s]%%*%s%s" .. "%%=%%#TermManagerWinbarHint# %s ",
@@ -37,13 +41,14 @@ local function bar_for(t, hints)
     t.name,
     profname,
     venv_str,
-    split_str,
+    mode_str,
     hints
   )
 end
 
 local PRIMARY_HINTS = "<Esc><Esc> normal  ·  <C-f> search  ·  <leader>zT sidebar"
 local SECONDARY_HINTS = "<Esc><Esc> normal  ·  <C-f> search  ·  <leader>z| split"
+local FLOAT_HINTS = "<Esc><Esc> normal  ·  <C-f> search  ·  <leader>zf panel"
 
 function M.update_all()
   -- Primary pane
@@ -55,6 +60,10 @@ function M.update_all()
   if state.split_mode and utils.win_ok(state.ui.term_win2) then
     local t2 = utils.find_term(state.active_id2)
     utils.win_opt(state.ui.term_win2, "winbar", bar_for(t2, SECONDARY_HINTS))
+  end
+  if state.display_mode == "float" and utils.win_ok(state.ui.float_win) then
+    local tf = utils.find_term(state.active_id)
+    utils.win_opt(state.ui.float_win, "winbar", bar_for(tf, FLOAT_HINTS))
   end
 end
 

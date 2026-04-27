@@ -13,10 +13,13 @@ M.ui = {
   sidebar_win = nil,
   term_win = nil, -- primary terminal pane
   term_win2 = nil, -- secondary terminal pane (split mode only)
+  float_win = nil, -- floating terminal window
 }
 
 M.split_mode = false
 M.panel_hidden = false -- set by hide(); cleared by show()
+M.display_mode = "panel" -- "panel" | "float"
+M.float_id = nil
 
 M.sidebar_meta = {
   term_rows = {},

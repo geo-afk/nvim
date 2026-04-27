@@ -16,6 +16,9 @@ function M.setup()
   vim.keymap.set("n", "<leader>zT", function()
     require("custom.terminal_manager").focus_sidebar()
   end, { desc = "terminal: focus sidebar" })
+  vim.keymap.set("n", "<leader>zf", function()
+    require("custom.terminal_manager").toggle_mode()
+  end, { desc = "terminal: toggle floating mode" })
   vim.keymap.set("n", "<leader>zn", function()
     require("custom.terminal_manager").new_term()
   end, { desc = "terminal: new terminal" })
@@ -86,6 +89,14 @@ function M.setup()
     require("custom.terminal_manager.split").toggle()
   end, { desc = "Toggle split terminal pane" })
 
+  vim.api.nvim_create_user_command("TerminalFloat", function()
+    require("custom.terminal_manager").set_mode("float")
+  end, { desc = "Switch terminal manager to floating mode" })
+
+  vim.api.nvim_create_user_command("TerminalPanel", function()
+    require("custom.terminal_manager").set_mode("panel")
+  end, { desc = "Switch terminal manager to panel mode" })
+
   vim.api.nvim_create_user_command("TerminalHide", function()
     require("custom.terminal_manager").hide()
   end, { desc = "Hide the terminal panel" })
@@ -94,7 +105,7 @@ function M.setup()
     local st = require("custom.terminal_manager.state")
     local t = require("custom.terminal_manager.utils").find_term(st.active_id)
     if t and t.buf then
-      local win = st.ui.term_win
+      local win = st.display_mode == "float" and st.ui.float_win or st.ui.term_win
       require("custom.terminal_manager.search").open(t.buf, win)
     else
       vim.notify("TermManager: no active terminal", vim.log.levels.WARN)

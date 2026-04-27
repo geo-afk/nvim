@@ -75,10 +75,13 @@ function M.setup()
           state.split_mode = false
           state.active_id2 = nil
         end
+        if closed == state.ui.float_win and not utils.win_ok(state.ui.float_win) then
+          utils.reset_float_handles()
+        end
         if closed == state.help_win_h and not utils.win_ok(state.help_win_h) then
           state.help_win_h = nil
         end
-        if not utils.panel_open() then
+        if not utils.panel_open() and not utils.float_open() then
           utils.reset_panel_handles()
         end
       end)

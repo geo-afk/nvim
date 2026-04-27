@@ -201,7 +201,7 @@ local function link_at_cursor(buf)
 end
 
 local function is_panel_win(win)
-  return win == state.ui.sidebar_win or win == state.ui.term_win or win == state.ui.term_win2
+  return win == state.ui.sidebar_win or win == state.ui.term_win or win == state.ui.term_win2 or win == state.ui.float_win
 end
 
 local function is_editor_win(win)

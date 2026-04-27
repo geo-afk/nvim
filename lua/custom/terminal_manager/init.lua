@@ -19,12 +19,14 @@
 --   <CR>           select terminal     s          toggle split
 --   j/k            navigate            H          hide panel
 --   n              new terminal        P          profile manager
+--   f              float selected term
 --   d/r/R          del/rename/restart  ?          toggle help
 --   <Tab>          focus/cycle panes   q          close panel
 --
 -- KEYMAPS (global, normal mode)
 --   <leader>zt     toggle panel        <leader>z|   toggle split
 --   <leader>zh     hide panel          <leader>z<   focus pane 1
+--   <leader>zf     toggle float mode
 --   <leader>zn     new terminal        <leader>z>   focus pane 2
 --   <leader>zT     focus sidebar       <leader>zx   swap panes
 --   <leader>zp     pick profile        <leader>z1-9 jump to #N
@@ -40,7 +42,7 @@
 -- COMMANDS
 --   :TerminalNew [name]   :TerminalProfiles   :TerminalProfileNew
 --   :TerminalAutomation   :TerminalSplit       :TerminalHide
---   :TerminalSearch
+--   :TerminalSearch       :TerminalFloat       :TerminalPanel
 --
 -- MODULES
 --   init.lua            entry point
@@ -83,6 +85,8 @@ M.close = api.close
 M.hide = api.hide
 M.show = api.show
 M.toggle = api.toggle
+M.set_mode = api.set_mode
+M.toggle_mode = api.toggle_mode
 M.new_term = api.new_term
 M.new_automation_term = api.new_automation_term
 M.delete_term = api.delete_term

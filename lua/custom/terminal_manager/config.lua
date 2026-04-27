@@ -12,6 +12,14 @@ M.defaults = {
   panel_height = 0.33, -- fraction of total screen lines
   min_panel_lines = 6, -- hard minimum (lines)
   max_panel_frac = 0.60, -- hard maximum (fraction)
+  float = {
+    width = 0.80,
+    height = 0.80,
+    border = "rounded",
+    title_pos = "center",
+    zindex = 60,
+    winblend = 0,
+  },
 
   -- ── Shell / env ───────────────────────────────────────────────────────────
   shell = nil, -- nil → vim.o.shell; applies to profiles with shell=nil

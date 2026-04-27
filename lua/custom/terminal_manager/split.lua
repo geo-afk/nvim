@@ -73,6 +73,10 @@ end
 --- available terminal (or the same one if only one exists).
 ---@param t table|nil   terminal entry to show in pane 2
 function M.open(t)
+  if state.display_mode == "float" then
+    vim.notify("TermManager: split panes are only available in panel mode", vim.log.levels.INFO)
+    return
+  end
   if not utils.win_ok(state.ui.term_win) then
     vim.notify("TermManager: open the panel first (<leader>zt)", vim.log.levels.WARN)
     return

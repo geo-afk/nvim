@@ -27,7 +27,12 @@ function M.render()
   local hls = {}
 
   -- Title – show split mode indicator
-  local title_suffix = state.split_mode and " [split]" or ""
+  local title_suffix = ""
+  if state.display_mode == "float" then
+    title_suffix = " [float]"
+  elseif state.split_mode then
+    title_suffix = " [split]"
+  end
   lines[1] = string.format("  ▌ TERMINALS (%d)%s", cnt, title_suffix)
   hls[#hls + 1] = { 0, 0, -1, "TermManagerHeader" }
   lines[2] = ""
@@ -196,6 +201,15 @@ function M.select_pane2()
   end
   local t = state.terminals[idx]
   require("custom.terminal_manager.split").show_in_pane(t, 2)
+end
+
+function M.float_selected()
+  local idx = M.cursor_term_idx()
+  if not idx then
+    return
+  end
+  state.active_id = state.terminals[idx].id
+  require("custom.terminal_manager").set_mode("float")
 end
 
 function M.delete()

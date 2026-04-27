@@ -39,6 +39,10 @@ function M.panel_complete()
   return M.win_ok(state.ui.sidebar_win) and M.win_ok(state.ui.term_win)
 end
 
+function M.float_open()
+  return M.win_ok(state.ui.float_win)
+end
+
 function M.panel_height()
   local cfg = require("custom.terminal_manager").config
   local h = math.floor(vim.o.lines * cfg.panel_height)
@@ -75,6 +79,11 @@ function M.reset_panel_handles()
   state.split_mode = false
 end
 
+function M.reset_float_handles()
+  state.ui.float_win = nil
+  state.float_id = nil
+end
+
 --- Return which panel pane (1=primary, 2=secondary) is currently focused,
 --- or nil if neither is focused.
 function M.focused_pane()
@@ -84,6 +93,9 @@ function M.focused_pane()
   end
   if cur == state.ui.term_win2 then
     return 2
+  end
+  if cur == state.ui.float_win then
+    return 1
   end
   return nil
 end
