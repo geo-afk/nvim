@@ -1,6 +1,25 @@
-local capabilities = require("blink.cmp").get_lsp_capabilities()
+-- Start with base LSP capabilities
+local capabilities = vim.lsp.protocol.make_client_capabilities()
+
+-- Try to enhance with blink.cmp if available
+local ok, blink = pcall(require, "blink.cmp")
+if ok and blink and type(blink.get_lsp_capabilities) == "function" then
+  capabilities = blink.get_lsp_capabilities(capabilities)
+end
+
+-- Ensure nested tables exist before mutation
+capabilities.textDocument = capabilities.textDocument or {}
+capabilities.textDocument.completion = capabilities.textDocument.completion or {}
+capabilities.textDocument.completion.completionItem =
+  capabilities.textDocument.completion.completionItem or {}
+
+-- Safe capability extensions
 capabilities.textDocument.completion.completionItem.snippetSupport = true
-capabilities.textDocument.colorProvider = { dynamicRegistration = false }
+
+capabilities.textDocument.colorProvider = {
+  dynamicRegistration = false,
+}
+
 capabilities.textDocument.foldingRange = {
   dynamicRegistration = false,
   lineFoldingOnly = true,
@@ -8,8 +27,23 @@ capabilities.textDocument.foldingRange = {
 
 return {
   cmd = { "tailwindcss-language-server", "--stdio" },
-  filetypes = { "html", "htmlangular", "css", "scss", "javascript", "javascriptreact", "typescript", "typescriptreact" },
-  root_markers = { "tailwind.config.js", "tailwind.config.ts", "postcss.config.js", "package.json", ".git" },
+  filetypes = {
+    "html",
+    "htmlangular",
+    "css",
+    "scss",
+    "javascript",
+    "javascriptreact",
+    "typescript",
+    "typescriptreact",
+  },
+  root_markers = {
+    "tailwind.config.js",
+    "tailwind.config.ts",
+    "postcss.config.js",
+    "package.json",
+    ".git",
+  },
   capabilities = capabilities,
   settings = {
     tailwindCSS = {
@@ -24,7 +58,13 @@ return {
         invalidTailwindDirective = "error",
         recommendedVariantOrder = "warning",
       },
-      classAttributes = { "class", "className", "classList", "ngClass", ":class" },
+      classAttributes = {
+        "class",
+        "className",
+        "classList",
+        "ngClass",
+        ":class",
+      },
       experimental = {
         classRegex = {
           "tw`([^`]*)`",

@@ -1,4 +1,16 @@
+local fn = vim.fn
 local opt = vim.opt
+
+local function ensure_writable_dir(path)
+  if fn.isdirectory(path) ~= 1 then
+    local ok = pcall(fn.mkdir, path, "p")
+    if not ok then
+      return false
+    end
+  end
+
+  return fn.filewritable(path) == 2
+end
 
 vim.o.cmdheight = 0 -- Hide command line unless needed
 
@@ -12,7 +24,6 @@ opt.scrolloff = 8
 opt.sidescrolloff = 8
 opt.termguicolors = true
 opt.showmode = false
-opt.cmdheight = 0 -- 0.12 UI/message handling makes the reserved cmdline row unnecessary
 opt.laststatus = 3
 opt.winborder = "rounded"
 opt.guicursor = { -- from old: fine‑tuned cursor shapes
@@ -72,16 +83,22 @@ opt.inccommand = "split" -- from old: live substitution preview
 opt.maxsearchcount = 999
 
 -- ── Files / persistence ───────────────────────────────────────────────────────
+local data_dir = fn.stdpath("data")
+local undo_dir = data_dir .. "/undo"
+
 opt.backup = false
 opt.writebackup = false
 opt.swapfile = false
-opt.undofile = true
-opt.undodir = vim.fn.stdpath("data") .. "/undo"
+opt.undofile = ensure_writable_dir(undo_dir)
+opt.undodir = undo_dir
 opt.sessionoptions = "blank,buffers,curdir,folds,help,tabpages,winsize,terminal,localoptions,skiprtp"
 opt.autowriteall = true
 
 -- [0.12-changed] 'shada' default excludes /tmp etc.
 opt.shada = "!,'100,<50,s10,h,r/tmp,r/private"
+if not ensure_writable_dir(data_dir) then
+  opt.shadafile = "NONE"
+end
 
 -- quickfix stack size
 opt.chistory = 10
@@ -166,8 +183,6 @@ vim.bo.commentstring = "-- %s"
 
 -- ── Shell configuration (preserved from old config) ───────────────────────────
 -- Uses NuShell if available, falls back to PowerShell 7+
-local fn = vim.fn
-
 opt.shelltemp = false
 opt.shellquote = ""
 opt.shellxquote = ""
