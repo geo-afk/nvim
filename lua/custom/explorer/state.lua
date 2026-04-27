@@ -24,22 +24,21 @@ local S = {
   open_dirs = {},
 
   git = {},
+  git_dirty_dirs = {},
   filter = nil,
   marks = {},
   recent_roots = {},
 
-  ns       = api.nvim_create_namespace 'explorer_tree',
-  git_ns   = api.nvim_create_namespace 'explorer_git',
-  mark_ns  = api.nvim_create_namespace 'explorer_marks',
-  hdr_ns   = api.nvim_create_namespace 'explorer_header',
-  match_ns = api.nvim_create_namespace 'explorer_match',
+  ns = api.nvim_create_namespace("explorer_tree"),
+  git_ns = api.nvim_create_namespace("explorer_git"),
+  mark_ns = api.nvim_create_namespace("explorer_marks"),
+  hdr_ns = api.nvim_create_namespace("explorer_header"),
+  match_ns = api.nvim_create_namespace("explorer_match"),
 
-  icon_fn   = nil,
+  icon_fn = nil,
   build_tok = 0,
-  close_fn  = nil,
-
-  -- Path to move the cursor to after the next build completes.
-  -- Set by M.reveal(); consumed and cleared by render._reveal_cursor().
+  close_fn = nil,
+  _tree_guard_id = nil,
   _reveal_target = nil,
 }
 

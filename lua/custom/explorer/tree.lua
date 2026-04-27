@@ -1,8 +1,8 @@
 -- custom/explorer/tree.lua
 -- Serial depth-first async tree builder with live-filter support.
 
-local S = require 'custom.explorer.state'
-local cfg = require 'custom.explorer.config'
+local S = require("custom.explorer.state")
+local cfg = require("custom.explorer.config")
 
 local M = {}
 local uv = vim.uv
@@ -10,18 +10,18 @@ local uv = vim.uv
 -- ── Path helpers ──────────────────────────────────────────────────────────
 
 M.norm = function(p)
-  p = p:gsub('\\', '/') -- normalise backslashes (Windows / WSL paths)
-  p = p:gsub('//+', '/') -- collapse consecutive forward-slashes
-  if p == '/' then
+  p = p:gsub("\\", "/") -- normalise backslashes (Windows / WSL paths)
+  p = p:gsub("//+", "/") -- collapse consecutive forward-slashes
+  if p == "/" then
     return p
   end -- preserve filesystem root
-  return (p:gsub('/$', '')) -- strip trailing slash
+  return (p:gsub("/$", "")) -- strip trailing slash
 end
 M.join = function(a, b)
-  return M.norm(a .. '/' .. b)
+  return M.norm(a .. "/" .. b)
 end
 M.parent = function(p)
-  return p:match '^(.*)/[^/]+$' or '/'
+  return p:match("^(.*)/[^/]+$") or "/"
 end
 
 -- ── Directory scan ────────────────────────────────────────────────────────
@@ -31,7 +31,7 @@ local function scan(path, show_hidden, cb)
     path,
     vim.schedule_wrap(function(err, handle)
       if err or not handle then
-        cb {}
+        cb({})
         return
       end
       local entries = {}
@@ -40,18 +40,18 @@ local function scan(path, show_hidden, cb)
         if not name then
           break
         end
-        if show_hidden or name:sub(1, 1) ~= '.' then
+        if show_hidden or name:sub(1, 1) ~= "." then
           local abs = M.join(path, name)
-          if t == 'link' then
+          if t == "link" then
             local s = uv.fs_stat(abs)
-            t = s and s.type or 'link'
+            t = s and s.type or "link"
           end
           entries[#entries + 1] = { name = name, type = t, path = abs }
         end
       end
       table.sort(entries, function(a, b)
-        local ad = a.type == 'directory' and 0 or 1
-        local bd = b.type == 'directory' and 0 or 1
+        local ad = a.type == "directory" and 0 or 1
+        local bd = b.type == "directory" and 0 or 1
         if ad ~= bd then
           return ad < bd
         end
@@ -65,7 +65,7 @@ end
 -- ── Filter helper ─────────────────────────────────────────────────────────
 
 local function matches(name, filter)
-  if not filter or filter == '' then
+  if not filter or filter == "" then
     return true
   end
   return name:lower():find(filter:lower(), 1, true) ~= nil
@@ -99,9 +99,9 @@ local function walk(path, depth, parents_last, tok, result, filter, on_done)
         local e = entries[i]
         local is_last = (i == n)
         local is_open = S.open_dirs[e.path] == true
-        local filtering = filter and filter ~= ''
+        local filtering = filter and filter ~= ""
 
-        if e.type == 'directory' then
+        if e.type == "directory" then
           if filtering then
             -- Collect children first; only show dir if it yields matches
             local sub = {}

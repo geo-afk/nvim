@@ -248,6 +248,27 @@ function M.open(opts)
     S.buf = win.make_buf()
     win.setup_keymaps(S.buf)
   end
+  if S.buf and api.nvim_buf_is_valid(S.buf) then
+    if S._tree_guard_id then
+      pcall(api.nvim_del_autocmd, S._tree_guard_id)
+      S._tree_guard_id = nil
+    end
+    -- S._tree_guard_id = api.nvim_create_autocmd("CursorMoved", {
+    --   buffer = S.buf,
+    --   callback = function()
+    --     if S.search_active then
+    --       return
+    --     end
+    --     if not (S.win and api.nvim_win_is_valid(S.win)) then
+    --       return
+    --     end
+    --     local row = api.nvim_win_get_cursor(S.win)[1]
+    --     if row <= search_ui.HEADER_LINES and #S.items > 0 then
+    --       pcall(api.nvim_win_set_cursor, S.win, { search_ui.line_for_item(1), 0 })
+    --     end
+    --   end,
+    -- })
+  end
 
   S.icon_fn = icons.resolve()
 
@@ -256,10 +277,10 @@ function M.open(opts)
   else
     win.update_winbar()
   end
-  search_ui.ensure_window()
-  if S.buf and api.nvim_buf_is_valid(S.buf) and not vim.b[S.buf]._explorer_search_setup then
-    search.setup(S.buf)
-    vim.b[S.buf]._explorer_search_setup = true
+  local _, search_buf = search_ui.ensure_window()
+  if search_buf and api.nvim_buf_is_valid(search_buf) and not vim.b[search_buf]._explorer_search_setup then
+    search.setup(search_buf)
+    vim.b[search_buf]._explorer_search_setup = true
   end
 
   -- Always schedule a render so the tree is populated.
@@ -356,10 +377,10 @@ function M.restore_session(snapshot)
     S.buf = buf
     win.apply_window_options(winid)
     win.setup_keymaps(buf)
-    search_ui.ensure_window()
-    if S.buf and api.nvim_buf_is_valid(S.buf) and not vim.b[S.buf]._explorer_search_setup then
-      search.setup(buf)
-      vim.b[S.buf]._explorer_search_setup = true
+    local _, search_buf = search_ui.ensure_window()
+    if search_buf and api.nvim_buf_is_valid(search_buf) and not vim.b[search_buf]._explorer_search_setup then
+      search.setup(search_buf)
+      vim.b[search_buf]._explorer_search_setup = true
     end
     win.update_winbar()
   else
@@ -424,7 +445,7 @@ function M.setup(opts)
     callback = function()
       win.reset_hl()
       win.ensure_hl()
-      git.clear_sign_cache()   -- glyph widths may differ across fonts/themes
+      git.clear_sign_cache() -- glyph widths may differ across fonts/themes
       S.icon_fn = icons.resolve()
       if S.buf and api.nvim_buf_is_valid(S.buf) then
         render._paint()
@@ -438,6 +459,20 @@ function M.setup(opts)
     desc = "explorer: reposition persistent search UI",
     callback = function()
       if S.win and api.nvim_win_is_valid(S.win) then
+        search_ui.paint()
+      end
+    end,
+  })
+
+  nvim_utils.autocmd("WinScrolled", {
+    desc = "explorer: repaint search header only when explorer window width changes",
+    callback = function()
+      if not (S.win and api.nvim_win_is_valid(S.win)) then
+        return
+      end
+      local ev = vim.v.event
+      local changed = ev and ev[tostring(S.win)]
+      if changed and (changed.width or 0) ~= 0 then
         search_ui.paint()
       end
     end,

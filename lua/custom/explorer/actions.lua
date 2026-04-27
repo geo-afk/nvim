@@ -168,15 +168,18 @@ local function delete_path(path)
     if fn.has("win32") == 1 then
       local is_dir = vim.uv.fs_stat(path).type == "directory"
       local cmd = is_dir
-          and ([[Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory(%s, 'OnlyErrorDialogs', 'SendToRecycleBin')]])
-            :format(shell_quote_pwsh(path))
-        or ([[Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile(%s, 'OnlyErrorDialogs', 'SendToRecycleBin')]])
-          :format(shell_quote_pwsh(path))
+          and ([[Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory(%s, 'OnlyErrorDialogs', 'SendToRecycleBin')]]):format(
+            shell_quote_pwsh(path)
+          )
+        or ([[Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile(%s, 'OnlyErrorDialogs', 'SendToRecycleBin')]]):format(
+          shell_quote_pwsh(path)
+        )
       local out = vim.system({ "powershell", "-NoProfile", "-NonInteractive", "-Command", cmd }, { text = true }):wait()
       if out.code == 0 then
         return true
       end
-      return false, (out.stderr and vim.trim(out.stderr) ~= "" and vim.trim(out.stderr)) or "failed to move to recycle bin"
+      return false,
+        (out.stderr and vim.trim(out.stderr) ~= "" and vim.trim(out.stderr)) or "failed to move to recycle bin"
     end
 
     for _, cmd in ipairs({
