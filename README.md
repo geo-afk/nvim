@@ -6,6 +6,10 @@ modules** that replace or extend the stock editor experience.
 
 ## At a Glance
 
+> [!IP]
+> **Main UI Overview Image Placeholder**
+> _Insert a screenshot showing the dashboard/editor with explorer, statusline, and tabline visible._
+
 - Requires **Neovim >= 0.12**
 - Uses **`vim.pack`** instead of `lazy.nvim` or `packer.nvim`
 - Uses **Mason** for installing many LSP servers and CLI tools
@@ -15,8 +19,12 @@ modules** that replace or extend the stock editor experience.
   - floating command line / search UI
   - custom code action picker
   - custom statusline with partial invalidation
-  - custom tabline with session persistence
+  - custom tabline (bufferline)
+  - persistent session manager
+  - GUI plugin manager for `vim.pack`
+  - managed terminal panel with profile support
   - floating terminal wrapper used by LazyGit and Go tools
+  - Markdown preview via Glow
 - Includes language-specific extras for:
   - Go
   - Markdown
@@ -40,6 +48,8 @@ modules** that replace or extend the stock editor experience.
   - required for `<leader>gg`
 - `chafa`
   - optional image preview backend used by `<leader>ii` / `:ChafaImage`
+- `glow`
+  - required for Markdown preview features (`<leader>ip`)
 
 ### Optional but used by specific features
 
@@ -102,6 +112,7 @@ Inside Neovim:
 :checkhealth vim.lsp
 :Mason
 :LspConfigs
+:PackManager
 ```
 
 ## Repository Layout
@@ -135,15 +146,17 @@ Inside Neovim:
     │   ├── glow.lua
     │   ├── image_view.lua
     │   ├── lazygit.lua
-    │   ├── codelenjqjs.lua
+    │   ├── codelens.lua
     │   ├── cmdline/
     │   ├── code_action/
     │   ├── explorer/
     │   ├── float_term/
-    │   ├── lazygit.lua
     │   ├── lsp_keymapper/
+    │   ├── pack_manager/
+    │   ├── session/
     │   ├── statusline/
-    │   └── tabline/
+    │   ├── tabline/
+    │   └── terminal_manager/
     ├── plugins/
     └── utils/
 ```
@@ -152,133 +165,34 @@ Inside Neovim:
 
 `init.lua` loads modules in this order:
 
-1. `plugins`
-2. `config.options`
+1. `config.options`
+2. `plugins` (plugin registration)
 3. `config.keymaps`
 4. `config.autocmds`
-5. `config.lsp`
-6. `config.ui`
-7. custom modules:
-   - `custom.explorer`
-   - `custom.lazygit`
-   - `custom.cmdline`
-   - `custom.code_action`
-   - `custom.lsp_keymapper`
-   - `custom.statusline`
-   - `custom.tabline`
-   - `custom.autoclose`
-   - `custom.image_view`
-
-That means this config is not just “plugins plus some mappings”. A large amount
-of the editor behavior is defined in local Lua modules under `lua/custom`.
-
-## Image Preview
-
-The Chafa-backed image preview lives in [`lua/custom/image_view.lua`](./lua/custom/image_view.lua).
-
-- `<leader>ii`
-  - preview the current image buffer, or an image path under the cursor
-- `<leader>iI`
-  - prompt for an image path and preview it
-- `:ChafaImage [path]`
-  - preview an explicit file path
-
-## Core Editor Behavior
-
-Configured in [`lua/config/options.lua`](./lua/config/options.lua):
-
-- relative line numbers outside insert mode
-- rounded borders for floating windows and popup menus
-- global statusline
-- visible listchars and custom fold characters
-- `cmdheight = 0`
-- `autowriteall = true`
-- undo files enabled
-- no swapfile / backup
-- clipboard integration when not in SSH
-- `exrc = true` for project-local config
-- shell integration that prefers `nu`, then `pwsh`
-
-Notable editor automation from [`lua/config/autocmds.lua`](./lua/config/autocmds.lua):
-
-- trailing whitespace cleanup on save
-- delayed auto-save on insert leave / text change / focus loss / buffer leave
-- restore cursor to last position on reopen
-- split equalization on resize
-- spell check for text, markdown, and TeX
-- yank highlighting
-- smart `hlsearch` behavior
-- terminal buffers marked busy
-- demonstrations of new 0.12 events such as:
-  - `MarkSet`
-  - `SessionLoadPre`
-  - `TabClosedPre`
-  - `CmdlineLeavePre`
-  - `LspProgress`
-
-## Plugin Stack
-
-Plugins are loaded from [`lua/plugins/init.lua`](./lua/plugins/init.lua).
-
-### UI and appearance
-
-- `folke/tokyonight.nvim`
-- `echasnovski/mini.icons`
-- `folke/which-key.nvim`
-- `sphamba/smear-cursor.nvim`
-- `geo-afk/nhc-forked` for inline color previews
-
-### Syntax and text objects
-
-- `nvim-treesitter/nvim-treesitter`
-- `HiPhish/rainbow-delimiters.nvim`
-- `windwp/nvim-ts-autotag`
-
-### LSP, completion, snippets
-
-- `neovim/nvim-lspconfig`
-- `mason-org/mason.nvim`
-- `mason-org/mason-lspconfig.nvim`
-- `WhoIsSethDaniel/mason-tool-installer.nvim`
-- `folke/lazydev.nvim`
-- `saghen/blink.cmp`
-- `xzbdmw/colorful-menu.nvim`
-- `L3MON4D3/LuaSnip`
-- `rafamadriz/friendly-snippets`
-
-### Formatting, linting, diagnostics, search
-
-- `stevearc/conform.nvim`
-- `mfussenegger/nvim-lint`
-- `folke/trouble.nvim`
-- `nvim-telescope/telescope.nvim`
-- `nvim-telescope/telescope-fzf-native.nvim`
-- `nvim-telescope/telescope-ui-select.nvim`
-- `folke/flash.nvim`
-
-### Git and terminals
-
-- `lewis6991/gitsigns.nvim`
-- `akinsho/toggleterm.nvim`
-- custom LazyGit wrapper via `lua/custom/lazygit.lua`
-
-### Dev workflow
-
-- `geo-afk/dev-server`
-
-### Built-in Neovim optional packages enabled
-
-These are activated with `packadd`:
-
-- `nvim.undotree`
-- `nvim.difftool`
-- `nvim.tohtml`
+5. `custom.statusline`
+6. `custom.tabline`
+7. `custom.session`
+8. `config.lsp`
+9. `config.ui`
+10. custom modules:
+    - `custom.explorer`
+    - `custom.lazygit`
+    - `custom.cmdline`
+    - `custom.code_action`
+    - `custom.lsp_keymapper`
+    - `custom.autoclose`
+    - `custom.glow`
+    - `custom.image_view`
+    - `custom.pack_manager`
+    - `custom.terminal_manager`
 
 ## Custom Modules
 
-The most important part of this config lives in `lua/custom`.
-
 ### `custom.explorer`
+
+> [!TIP]
+> **File Explorer Image Placeholder**
+> _Insert screenshot showing the explorer with Git icons and project pinning._
 
 A custom file explorer with:
 
@@ -294,35 +208,11 @@ A custom file explorer with:
 - popup inputs for create / rename / copy support clipboard paste
 - file copy operations implemented in Lua for Windows-friendly behavior
 
-Default top-level keymaps from [`lua/custom/explorer/config.lua`](./lua/custom/explorer/config.lua):
-
-- `<leader>e` toggle explorer
-- inside the explorer buffer:
-  - `<CR>` / `l` open
-  - `h` close directory
-  - `-` go to parent directory
-  - `v` vertical split
-  - `s` horizontal split
-  - `t` open in tab
-  - `a` add file
-  - `d` delete
-  - `r` rename
-  - `c` copy
-  - `.` toggle hidden
-  - `R` refresh
-  - `P` add or pin project depending on context
-  - `y` copy path
-  - `m` mark
-  - `W` collapse all
-  - `E` expand all
-  - `gs` stage via Git
-  - `gr` restore via Git
-  - `/` search
-  - `gp` open project switcher
-  - `q` quit
-  - `?` help
-
 ### `custom.cmdline`
+
+> [!TIP]
+> **Cmdline Image Placeholder**
+> _Insert screenshot showing the floating cmdline with completion._
 
 Replaces the default command line and search UI with a floating interface.
 
@@ -336,12 +226,11 @@ Features:
 - search live preview and range preview
 - custom highlight groups that re-apply on `ColorScheme`
 
-Commands:
-
-- `:NvimCmdline`
-- `:NvimCmdlineClose`
-
 ### `custom.code_action`
+
+> [!TIP]
+> **Code Action Image Placeholder**
+> _Insert screenshot showing the code action menu._
 
 A custom floating code action picker with:
 
@@ -349,11 +238,6 @@ A custom floating code action picker with:
 - range-aware code actions
 - source-specific highlights and icons
 - cursor-navigable popup UI
-
-Keymaps / commands:
-
-- `<leader>ca`
-- `:CodeActionMenu`
 
 ### `custom.lsp_keymapper`
 
@@ -366,17 +250,11 @@ Features:
 - persists custom bindings per LSP client
 - reapplies saved bindings on future attaches
 
-Commands:
-
-- `:LspKeymapBrowse`
-- `:LspKeymapReset`
-- `:LspKeymapShow`
-
-Default keymap:
-
-- `<leader>ck`
-
 ### `custom.statusline`
+
+> [!TIP]
+> **Statusline Image Placeholder**
+> _Insert close-up screenshot of the statusline._
 
 A hand-rolled statusline with component-level dirty tracking.
 
@@ -389,79 +267,82 @@ Displayed components:
 - system state
 - cursor position
 
-Important implementation detail:
-
-- Neovim still redraws the full row, but this statusline caches component
-  render output and only recomputes the pieces that changed.
-
 ### `custom.tabline`
+
+> [!TIP]
+> **Tabline Image Placeholder**
+> _Insert close-up screenshot of the tabline/bufferline._
 
 A custom tabline / bufferline with:
 
 - next / previous buffer navigation
 - close current buffer
 - move buffer left / right
-- persistent per-directory sessions
+
+### `custom.session`
+
+A dedicated session manager for persistent workflows.
+
+Features:
+
+- per-directory session persistence
 - automatic session restore on startup when launched without file arguments
+- captures state of custom modules like the file explorer
+- powers the Neovim restart functionality
 
 Commands:
 
-- `:TablineNext`
-- `:TablinePrev`
-- `:TablineClose`
-- `:TablineMoveLeft`
-- `:TablineMoveRight`
-- `:TablineSessionSave`
-- `:TablineSessionRestore`
-- `:TablineSessionDelete`
-- `:TablineSessionList`
+- `:SessionSave`
+- `:SessionRestore`
+- `:SessionDelete`
+- `:SessionRestart`
 
-Default keymaps:
+### `custom.pack_manager`
 
-- `<Tab>` next buffer
-- `<S-Tab>` previous buffer
-- `<A-c>` close buffer
-- `<leader>b<` move buffer left
-- `<leader>b>` move buffer right
+> [!TIP]
+> **Pack Manager Image Placeholder**
+> _Insert screenshot of the GUI plugin manager._
 
-### `custom.float_term` and `custom.lazygit`
+A custom GUI for managing `vim.pack` plugins, inspired by `lazy.nvim`.
 
-Floating terminal wrapper used by:
+Features:
 
-- LazyGit
-- Go tooling commands
-- other ad-hoc command runners
+- browse installed and active plugins
+- check for lockfile drift
+- update individual or all plugins
+- view plugin config snippets directly in the UI
+- offline update review support
 
-Keymap:
+### `custom.terminal_manager`
 
-- `<leader>gg` open LazyGit in a floating terminal
-
-### `custom.terminal`
+> [!TIP]
+> **Terminal Manager Image Placeholder**
+> _Insert screenshot of the managed terminal panel and sidebar._
 
 A VS Code-style managed terminal panel with:
 
 - a sidebar terminal list plus terminal pane
 - colored terminal state indicators and a titled winbar
-- `?` help inside the sidebar
 - profile-based terminal creation with per-profile shell, args, env, cwd, icon, and color
-- default and automation-profile support
-- recovery when one side of the panel is closed externally
+- virtual environment detection (Python, Node, Go, Rust, etc.)
+- search within terminal output
 
-Keymaps and commands:
+### `custom.glow`
 
-- `<leader>zt` toggle the managed terminal panel
-- `<leader>zn` create a managed terminal
-- `<leader>zp` create a managed terminal from a selected profile
-- `<leader>zT` focus the terminal sidebar
-- visual `<leader>zs` send selection to the active managed terminal
-- `:TerminalNew [name]`
-- `:TerminalProfiles`
-- `:TerminalAutomation [name]`
+> [!TIP]
+> **Glow Preview Image Placeholder**
+> _Insert screenshot showing a markdown preview float._
+
+Integration for [Charmbracelet Glow](https://github.com/charmbracelet/glow).
+
+- Preview current buffer in a floating window
+- Preview visual selection
+- Preview markdown URLs
+- Toggle auto-preview on save
 
 ### `custom.autoclose`
 
-Local auto-pair / auto-close behavior implemented in Lua rather than via a
-dedicated external plugin.
+Local auto-pair / auto-close behavior implemented in Lua.
 
 ## LSP Setup
 
@@ -674,6 +555,11 @@ Features:
 
 Keymaps:
 
+- `<C-/>` toggle terminal
+- `<leader>tf` floating terminal
+- `<leader>th` horizontal terminal
+- `<leader>tv` vertical terminal
+
 ### Dev server plugin
 
 Configured in [`lua/plugins/dev-server.lua`](./lua/plugins/dev-server.lua).
@@ -682,13 +568,13 @@ Currently documented server preset:
 
 - Angular: `ng serve`
 
-Configured dev-server keymaps in the plugin file:
+Configured dev-server keymaps:
 
 - `<leader>rt` toggle server window
-- `<leader>rr` restart
-- `<leader>rs` stop
-- `<leader>rS` status
-- `<leader>ri` `:DevServerStatus`
+- `<leader>rr` restart server
+- `<leader>rs` stop server
+- `<leader>rS` show server status
+- `<leader>ri` open `:DevServerStatus`
 
 ## Language-Specific Workflow
 
@@ -706,46 +592,16 @@ Implemented in [`ftplugin/go.lua`](./ftplugin/go.lua):
 - `go doc` floating window
 - `govulncheck`
 - Delve integration with DAP fallback when available
-- helpers for:
-  - `gotests`
-  - `gomodifytags`
-  - `iferr`
-  - `fillstruct`
-  - `fillswitch`
-  - `go mod tidy`
-  - `go generate`
-  - project run
-  - targeted test execution
+- helpers for `gotests`, `gomodifytags`, `iferr`, `fillstruct`, `fillswitch`, `go mod tidy`, `go generate`
+- project run and targeted test execution
 
 Go commands:
 
-- `:GoTests`
-- `:GoModifyTags`
-- `:GoIfErr`
-- `:GoOrganizeImports`
-- `:GoRun`
-- `:GoTestRun`
-- `:GoTestRunCurrent`
-- `:GoAlternate`
-- `:GoModTidy`
-- `:GoGenerate`
-- `:GoFillStruct`
-- `:GoFillSwitch`
-- `:GoDoc`
-- `:GoDocBrowser`
-- `:GoVulnCheck`
-- `:GoDlvDebug`
-- `:GoDlvTest`
-- `:GoDlvBreakpoint`
-- `:GoDlvCondBreakpoint`
-- `:GoDlvClearBreakpoints`
-- `:GoDlvAttach`
-- `:GoDlvRepl`
-- `:GoDlvStepOver`
-- `:GoDlvStepInto`
-- `:GoDlvStepOut`
-- `:GoDlvTerminate`
-- `:GoDlvUI`
+- `:GoTests`, `:GoModifyTags`, `:GoIfErr`, `:GoOrganizeImports`
+- `:GoRun`, `:GoTestRun`, `:GoTestRunCurrent`, `:GoAlternate`
+- `:GoModTidy`, `:GoGenerate`, `:GoFillStruct`, `:GoFillSwitch`
+- `:GoDoc`, `:GoDocBrowser`, `:GoVulnCheck`
+- `:GoDlvDebug`, `:GoDlvTest`, `:GoDlvBreakpoint`, etc.
 
 ### Markdown
 
@@ -756,20 +612,20 @@ Features:
 - `textwidth = 80`
 - spell checking enabled
 - heading highlight customization
-- list manipulation helpers for the current line or visual selection
-- heading toggles for heading levels 1 through 6
-- task completion / reopening helpers
+- list manipulation helpers and heading toggles
+- integrated preview via `custom.glow`
 
-Examples:
+Keymaps:
 
+- `<leader>ip` preview current file (Glow)
+- `<leader>iv` preview selection (Glow)
+- `<leader>it` open Glow TUI
 - `tn` toggle numbered list
 - `tb` toggle bullets
 - `tc` toggle checkbox
 - `tt` toggle task state
 - `tl` smart list conversion
 - `<leader>tc` mark all tasks done
-  <!-- - `<leader>tu` mark all tasks undone -->
-  <!-- - `<leader>h1` through `<leader>h6` toggle heading levels -->
 
 ### Angular
 
@@ -783,28 +639,42 @@ Angular-specific behavior appears in multiple places:
 
 ## Notable Global Keymaps
 
-From [`lua/config/keymaps.lua`](./lua/config/keymaps.lua) and plugin modules:
+### Editor Essentials
 
-- `<leader>ww` save
-- `<leader>wa` `:wall ++p`
-- `<C-h> <C-j> <C-k> <C-l>` window navigation
-- `<C-Up> <C-Down> <C-Left> <C-Right>` resize windows
-- `<leader>pu` update all plugins with `vim.pack.update()`
-- `<leader>pm` open Mason
+- `<leader>ww` or `<C-s>` save current file
+- `<leader>wa` save all (creating parent directories if needed via `++p`)
+- `<leader>P` paste without replacing clipboard (visual mode)
+- `<A-j>` / `<A-k>` move current line or selection down / up
+- `<C-h/j/k/l>` window navigation
+- `<C-Up/Down/Left/Right>` resize windows
 - `<leader>uu` open built-in undo tree
 - `<leader>nd` open built-in DiffTool
-- `<leader>nr` restart Neovim
+- `<leader>nr` restart Neovim (powered by `custom.session`)
+
+### UI & Custom Modules
+
+- `<leader>e` toggle file explorer
+- `<leader>pp` open Pack Manager GUI
+- `<leader>ca` open Code Action picker
+- `<leader>zt` toggle managed terminal panel
+- `<leader>gg` open LazyGit
+- `<leader>ii` preview current image
+- `<leader>ni` open Neovim 0.12 info float
+
+### LSP & Diagnostics
+
+- `gd` / `gD` definition / declaration
+- `gi` peek implementation
+- `gm` peek diagnostics
+- `<S-j>` peek definition
+- `<leader>cr` rename all instances
+- `<leader>ch` toggle inlay hints
+- `<leader>ck` open LSP keymapper
 - `<leader>df` diagnostic float
 - `[d` / `]d` previous / next diagnostic
 - `<leader>dq` diagnostics to quickfix
 - `<leader>ds` diagnostic summary
 - `<leader>dw` workspace diagnostics
-- `<leader>ch` toggle inlay hints
-- `<leader>ck` open the LSP keymapper
-- `<leader>gg` open LazyGit
-- `<leader>ii` preview the current image
-- `<leader>rt` toggle the dev server
-- `<leader>?` show buffer-local which-key popup
 
 ## Useful Demo Commands for Neovim 0.12 APIs
 
