@@ -64,21 +64,17 @@ function M.ensure_hl()
   local comment = get("Comment")
   local cursor = get("CursorLine")
   local pmenu = get("Pmenu")
-  local tabline = get("TabLineFill")
 
   local editor_bg = normal.bg or 0x1e1e2e
-  local sidebar_bg = float_.bg or pmenu.bg or nudge(editor_bg, -10)
+  local sidebar_bg = float_.bg or pmenu.bg or nudge(editor_bg, -8)
   if sidebar_bg == editor_bg then
-    sidebar_bg = nudge(editor_bg, -12)
+    sidebar_bg = nudge(editor_bg, -10)
   end
-
-  local winbar_bg = tabline.bg or nudge(sidebar_bg, -8)
 
   local normal_fg = normal.fg or 0xcdd6f4
   local dim_fg = comment.fg or 0x585b70
-
   local accent = fg_of("Function", "@function", "Special", "Statement") or 0xcba6f7
-  local dir_fg = fg_of("Directory", "@namespace", "Constant") or 0x89b4fa
+  local dir_fg = fg_of("Directory", "@namespace", "Special") or 0x89b4fa
   local str_fg = fg_of("String", "@string", "Constant") or 0xa6e3a1
   local keyword_fg = fg_of("Keyword", "@keyword", "Statement") or 0xf38ba8
   local number_fg = fg_of("Number", "@number", "Constant") or 0xfab387
@@ -87,55 +83,43 @@ function M.ensure_hl()
   local note_fg = fg_of("DiagnosticInfo", "MoreMsg", "Special") or 0x74c7ec
   local warn_fg = fg_of("DiagnosticWarn", "WarningMsg", "Special") or 0xf9e2af
   local err_fg = fg_of("DiagnosticError", "ErrorMsg", "Special") or 0xf38ba8
-  local hint_fg = fg_of("DiagnosticHint", "Special") or 0xcba6f7
   local git_fg = fg_of("DiffChange", "GitSignsChange", "Conditional") or 0xf9e2af
 
-  -- ── Core sidebar ────────────────────────────────────────────────────────
+  -- ── Core sidebar ────────────────────────────────────────────────────
   def("ExplorerNormal", { bg = sidebar_bg, fg = normal_fg })
-  def("ExplorerEndOfBuf", { bg = sidebar_bg, fg = sidebar_bg })
-
-  local cursor_bg = cursor.bg or blend(accent, sidebar_bg, 0.12)
+  local cursor_bg = cursor.bg or blend(accent, sidebar_bg, 0.10)
   def("ExplorerCursorLine", { bg = cursor_bg })
   def("ExplorerDirectory", { fg = dir_fg, bold = true })
-  def("ExplorerDirectoryOpen", { fg = blend(dir_fg, accent, 0.25), bold = true })
-  def("ExplorerFile", { fg = blend(normal_fg, sidebar_bg, 0.15) })
+  def("ExplorerFile", { fg = blend(normal_fg, sidebar_bg, 0.18) })
   def("ExplorerFileAccent", { fg = normal_fg, bold = true })
-  def("ExplorerConnector", { fg = blend(dim_fg, sidebar_bg, 0.42) })
-  def("ExplorerIndentGuide", { fg = blend(dim_fg, sidebar_bg, 0.28) })
+  def("ExplorerConnector", { fg = blend(dim_fg, sidebar_bg, 0.35) })
 
-  -- ── Search / filter bar ─────────────────────────────────────────────────
-  local search_bg = blend(accent, sidebar_bg, 0.06)
-  local search_active_bg = blend(accent, sidebar_bg, 0.13)
+  -- ── Inline search bar ────────────────────────────────────────────────
+  local search_bg = blend(accent, sidebar_bg, 0.055)
+  local search_active_bg = blend(accent, sidebar_bg, 0.10)
 
-  def("ExplorerSearchNormal", { bg = sidebar_bg, fg = normal_fg })
   def("ExplorerSearchBg", { bg = search_bg, fg = normal_fg })
   def("ExplorerSearchBgActive", { bg = search_active_bg, fg = normal_fg })
-  def("ExplorerSearchBorder", { fg = blend(dim_fg, sidebar_bg, 0.50), bg = sidebar_bg })
-  def("ExplorerSearchBorderFilter", { fg = blend(accent, dim_fg, 0.35), bg = sidebar_bg })
-  def("ExplorerSearchBorderActive", { fg = accent, bg = sidebar_bg })
-  def("ExplorerSearchIcon", { fg = blend(accent, dim_fg, 0.45), bg = search_bg })
+  def("ExplorerSearchIcon", { fg = blend(accent, dim_fg, 0.40), bg = search_bg })
   def("ExplorerSearchIconActive", { fg = accent, bold = true, bg = search_active_bg })
-  def("ExplorerSearchTitle", { fg = blend(accent, normal_fg, 0.30), bold = true, bg = sidebar_bg })
-  def("ExplorerSearchPlaceholder", { fg = blend(dim_fg, sidebar_bg, 0.55), italic = true, bg = search_bg })
+  def("ExplorerSearchBorder", { fg = blend(dim_fg, sidebar_bg, 0.55) })
+  def("ExplorerSearchBorderFilter", { fg = blend(accent, dim_fg, 0.30) })
+  def("ExplorerSearchBorderActive", { fg = accent })
+  def("ExplorerSearchTitle", { fg = blend(accent, normal_fg, 0.20), bold = true })
+  def("ExplorerSearchPlaceholder", { fg = blend(dim_fg, sidebar_bg, 0.6), italic = true, bg = search_bg })
   def("ExplorerSearchActiveText", { fg = str_fg, bold = true })
-  def("ExplorerSearchMatch", { fg = accent, bold = true, underline = true })
-  def("ExplorerSearchCount", { fg = blend(accent, dim_fg, 0.55), italic = true })
+  def("ExplorerSearchCount", { fg = blend(accent, dim_fg, 0.5), italic = true })
   def("ExplorerSearchCountActive", { fg = accent, bold = true, bg = search_active_bg })
-  def("ExplorerSearchCursor", { bg = blend(accent, sidebar_bg, 0.25) })
+  def("ExplorerSearchCursor", { bg = blend(accent, sidebar_bg, 0.22) })
+  def("ExplorerSearchMatch", { fg = accent, bold = true, underline = true })
 
-  -- ── Winbar ──────────────────────────────────────────────────────────────
-  def("ExplorerWinbar", { bg = winbar_bg, fg = blend(accent, normal_fg, 0.40), bold = true })
-  def("ExplorerWinbarBranch", { bg = winbar_bg, fg = blend(dim_fg, normal_fg, 0.55), italic = true })
-  def("ExplorerWinbarSep", { bg = winbar_bg, fg = blend(dim_fg, winbar_bg, 0.40) })
-  def("ExplorerWinbarCount", { bg = winbar_bg, fg = blend(accent, dim_fg, 0.50) })
-
-  -- ── File-type icons ─────────────────────────────────────────────────────
+  -- ── File-type icons ──────────────────────────────────────────────────
   def("ExplorerIconDir", { fg = dir_fg, bold = true })
-  def("ExplorerIconDirOpen", { fg = blend(dir_fg, accent, 0.35), bold = true })
+  def("ExplorerIconDirOpen", { fg = blend(dir_fg, accent, 0.45), bold = true })
   def("ExplorerIconLink", { fg = note_fg, italic = true })
-  def("ExplorerIconDefault", { fg = blend(normal_fg, sidebar_bg, 0.15) })
+  def("ExplorerIconDefault", { fg = blend(normal_fg, sidebar_bg, 0.12) })
   def("ExplorerIconLua", { fg = note_fg })
-  def("ExplorerIconVim", { fg = blend(str_fg, accent, 0.30) })
+  def("ExplorerIconVim", { fg = warn_fg })
   def("ExplorerIconShell", { fg = str_fg })
   def("ExplorerIconPowerShell", { fg = prop_fg })
   def("ExplorerIconWeb", { fg = keyword_fg })
@@ -143,66 +127,61 @@ function M.ensure_hl()
   def("ExplorerIconData", { fg = number_fg })
   def("ExplorerIconCompiled", { fg = type_fg })
   def("ExplorerIconDotnet", { fg = type_fg })
-  def("ExplorerIconJava", { fg = blend(keyword_fg, number_fg, 0.50) })
+  def("ExplorerIconJava", { fg = keyword_fg })
   def("ExplorerIconGo", { fg = note_fg })
   def("ExplorerIconRust", { fg = number_fg })
   def("ExplorerIconPython", { fg = warn_fg })
   def("ExplorerIconRuby", { fg = err_fg })
-  def("ExplorerIconPhp", { fg = hint_fg })
-  def("ExplorerIconDocs", { fg = blend(str_fg, normal_fg, 0.70) })
-  def("ExplorerIconImage", { fg = blend(keyword_fg, warn_fg, 0.40) })
-  def("ExplorerIconMedia", { fg = blend(prop_fg, accent, 0.30) })
+  def("ExplorerIconPhp", { fg = keyword_fg })
+  def("ExplorerIconDocs", { fg = blend(str_fg, normal_fg, 0.75) })
+  def("ExplorerIconImage", { fg = blend(keyword_fg, warn_fg, 0.45) })
+  def("ExplorerIconMedia", { fg = blend(prop_fg, accent, 0.35) })
   def("ExplorerIconArchive", { fg = warn_fg })
   def("ExplorerIconDatabase", { fg = number_fg })
-  def("ExplorerIconLog", { fg = blend(dim_fg, normal_fg, 0.40) })
+  def("ExplorerIconLog", { fg = blend(dim_fg, normal_fg, 0.3) })
   def("ExplorerIconLock", { fg = err_fg })
   def("ExplorerIconGit", { fg = git_fg })
   def("ExplorerIconDocker", { fg = note_fg })
-  def("ExplorerIconPackage", { fg = blend(keyword_fg, accent, 0.30) })
+  def("ExplorerIconPackage", { fg = keyword_fg })
   def("ExplorerIconEnv", { fg = str_fg })
   def("ExplorerIconBuild", { fg = warn_fg })
 
-  -- ── Diagnostics (right-aligned virtual text per item) ───────────────────
-  def("ExplorerDiagError", { fg = err_fg })
-  def("ExplorerDiagWarn", { fg = warn_fg })
-  def("ExplorerDiagInfo", { fg = note_fg })
-  def("ExplorerDiagHint", { fg = hint_fg })
+  -- ── Winbar ───────────────────────────────────────────────────────────
+  def("ExplorerWinbar", { bg = sidebar_bg, fg = blend(accent, normal_fg, 0.25) })
+  def("ExplorerWinbarBranch", { bg = sidebar_bg, fg = blend(dim_fg, normal_fg, 0.5), italic = true })
 
-  -- ── Git + marks ─────────────────────────────────────────────────────────
+  -- ── Git + marks ──────────────────────────────────────────────────────
   git.setup_hl()
   marks.setup_hl()
 end
 
 function M.reset_hl()
+  -- NOTE: Explorer*Line groups have been intentionally removed.
+  -- Git status is now shown only via the sign-column icon; there are no
+  -- line-level background tints or filename colour overrides.
   local names = {
     "ExplorerNormal",
-    "ExplorerEndOfBuf",
     "ExplorerCursorLine",
     "ExplorerDirectory",
-    "ExplorerDirectoryOpen",
     "ExplorerFile",
     "ExplorerFileAccent",
     "ExplorerConnector",
-    "ExplorerIndentGuide",
-    "ExplorerSearchNormal",
     "ExplorerSearchBg",
     "ExplorerSearchBgActive",
     "ExplorerSearchBorder",
     "ExplorerSearchBorderFilter",
     "ExplorerSearchBorderActive",
+    "ExplorerSearchTitle",
     "ExplorerSearchIcon",
     "ExplorerSearchIconActive",
-    "ExplorerSearchTitle",
     "ExplorerSearchPlaceholder",
     "ExplorerSearchActiveText",
-    "ExplorerSearchMatch",
     "ExplorerSearchCount",
     "ExplorerSearchCountActive",
     "ExplorerSearchCursor",
+    "ExplorerSearchMatch",
     "ExplorerWinbar",
     "ExplorerWinbarBranch",
-    "ExplorerWinbarSep",
-    "ExplorerWinbarCount",
     "ExplorerPopupNormal",
     "ExplorerPopupBorder",
     "ExplorerPopupTitle",
@@ -218,10 +197,6 @@ function M.reset_hl()
     "ExplorerGitUntracked",
     "ExplorerGitConflict",
     "ExplorerGitIgnored",
-    "ExplorerDiagError",
-    "ExplorerDiagWarn",
-    "ExplorerDiagInfo",
-    "ExplorerDiagHint",
     "ExplorerMark",
   }
   vim.list_extend(names, icons.GROUPS)
@@ -252,6 +227,8 @@ end
 
 -- ── Window ────────────────────────────────────────────────────────────────
 
+-- Async git branch: shows the root name immediately, then adds the branch
+-- once the git process responds — never blocks the UI thread.
 local function git_branch_async(root, callback)
   vim.system(
     { "git", "-C", root, "branch", "--show-current" },
@@ -266,42 +243,22 @@ local function git_branch_async(root, callback)
   )
 end
 
-local function item_count_str()
-  local n = #S.items
-  if n == 0 then
-    return ""
-  end
-  return tostring(n) .. (n == 1 and " item" or " items")
-end
-
 local function winbar_string(root_name, branch)
-  -- 󰉋  root  ·   branch                  n items
-  local bar = "%#ExplorerWinbar# 󰉋  " .. root_name
-
+  local bar = "%#ExplorerWinbar# 󰉋 " .. root_name
   if branch then
-    bar = bar .. " %#ExplorerWinbarSep#·" .. "%#ExplorerWinbarBranch#  " .. branch
+    bar = bar .. " %#ExplorerWinbarBranch#   " .. branch
   end
-
-  local count = item_count_str()
-  if count ~= "" then
-    bar = bar .. "%=%#ExplorerWinbarCount# " .. count .. " "
-  else
-    bar = bar .. "%#ExplorerWinbar# "
-  end
-
-  return bar
+  return bar .. "%#ExplorerWinbar# "
 end
 
 local function refresh_winbar_async()
   local root = S.root or vim.fn.getcwd()
   local root_name = vim.fn.fnamemodify(root, ":t")
-
   if S.win and api.nvim_win_is_valid(S.win) then
     pcall(function()
       vim.wo[S.win].winbar = winbar_string(root_name, nil)
     end)
   end
-
   git_branch_async(root, function(branch)
     if not (S.win and api.nvim_win_is_valid(S.win)) then
       return
@@ -325,8 +282,6 @@ function M.apply_window_options(win)
   wo.spell = false
   wo.list = false
   wo.cursorline = true
-  wo.scrolloff = 2
-  wo.sidescrolloff = 0
   wo.fillchars = "eob: "
   pcall(function()
     wo.statuscolumn = ""
@@ -339,7 +294,6 @@ function M.apply_window_options(win)
     "CursorLine:ExplorerCursorLine",
     "WinBar:ExplorerWinbar",
     "WinBarNC:ExplorerWinbar",
-    "EndOfBuffer:ExplorerEndOfBuf",
   }, ",")
 end
 
@@ -352,6 +306,7 @@ function M.make_win(buf)
   api.nvim_win_set_buf(win, buf)
   M.apply_window_options(win)
   S.icon_fn = icons.resolve()
+  -- Async winbar: root shows immediately; branch appended once git replies
   refresh_winbar_async()
   return win
 end

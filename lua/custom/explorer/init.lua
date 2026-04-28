@@ -253,21 +253,28 @@ function M.open(opts)
       pcall(api.nvim_del_autocmd, S._tree_guard_id)
       S._tree_guard_id = nil
     end
-    -- S._tree_guard_id = api.nvim_create_autocmd("CursorMoved", {
-    --   buffer = S.buf,
-    --   callback = function()
-    --     if S.search_active then
-    --       return
-    --     end
-    --     if not (S.win and api.nvim_win_is_valid(S.win)) then
-    --       return
-    --     end
-    --     local row = api.nvim_win_get_cursor(S.win)[1]
-    --     if row <= search_ui.HEADER_LINES and #S.items > 0 then
-    --       pcall(api.nvim_win_set_cursor, S.win, { search_ui.line_for_item(1), 0 })
-    --     end
-    --   end,
-    -- })
+    S._tree_guard_id = api.nvim_create_autocmd("CursorMoved", {
+      buffer = S.buf,
+      callback = function()
+        if S.search_active then
+          return
+        end
+        if not (S.win and api.nvim_win_is_valid(S.win)) then
+          return
+        end
+        -- Clamp cursor to valid item range (line 1 .. #S.items)
+        local item_count = #S.items
+        if item_count == 0 then
+          return
+        end
+        local line = api.nvim_win_get_cursor(S.win)[1]
+        if line < 1 then
+          pcall(api.nvim_win_set_cursor, S.win, { 1, 0 })
+        elseif line > item_count then
+          pcall(api.nvim_win_set_cursor, S.win, { item_count, 0 })
+        end
+      end,
+    })
   end
 
   S.icon_fn = icons.resolve()
@@ -301,7 +308,13 @@ function M.open(opts)
     M.reveal(path)
   end
 
-  api.nvim_set_current_win(S.win)
+  -- Only move focus to the explorer when explicitly requested (the toggle
+  -- keymap sets opts.focus = true) or when the user was already inside the
+  -- explorer window.  In all other cases (e.g. follow_file autocmd, project
+  -- switch) we keep focus in the editor window so the user can keep typing.
+  if opts.focus or cw == S.win then
+    api.nvim_set_current_win(S.win)
+  end
 end
 
 -- ── close ────────────────────────────────────────────────────────────────
@@ -331,7 +344,9 @@ function M.toggle(opts)
   if S.win and api.nvim_win_is_valid(S.win) then
     M.close()
   else
-    M.open(opts)
+    -- Merge focus=true so open() moves focus to the explorer.
+    -- Direct calls to M.open() without opts.focus leave focus in the editor.
+    M.open(vim.tbl_extend("force", opts or {}, { focus = true }))
   end
 end
 
@@ -465,14 +480,9 @@ function M.setup(opts)
   })
 
   nvim_utils.autocmd("WinScrolled", {
-    desc = "explorer: repaint search header only when explorer window width changes",
+    desc = "explorer: keep search UI pinned to explorer window",
     callback = function()
-      if not (S.win and api.nvim_win_is_valid(S.win)) then
-        return
-      end
-      local ev = vim.v.event
-      local changed = ev and ev[tostring(S.win)]
-      if changed and (changed.width or 0) ~= 0 then
+      if S.win and api.nvim_win_is_valid(S.win) then
         search_ui.paint()
       end
     end,

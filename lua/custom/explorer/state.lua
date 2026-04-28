@@ -24,7 +24,6 @@ local S = {
   open_dirs = {},
 
   git = {},
-  git_dirty_dirs = {},
   filter = nil,
   marks = {},
   recent_roots = {},
@@ -38,7 +37,9 @@ local S = {
   icon_fn = nil,
   build_tok = 0,
   close_fn = nil,
-  _tree_guard_id = nil,
+
+  -- Path to move the cursor to after the next build completes.
+  -- Set by M.reveal(); consumed and cleared by render._reveal_cursor().
   _reveal_target = nil,
 }
 

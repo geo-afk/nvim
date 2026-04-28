@@ -377,7 +377,7 @@ function M.activate()
   local line_text = search_ui.line_text(filter_text)
 
   set_buf_modifiable(search_target_buf, true)
-  api.nvim_buf_set_lines(search_target_buf, 0, search_ui.HEADER_LINES, false, search_ui.header_lines(filter_text))
+  api.nvim_buf_set_lines(search_target_buf, 0, -1, false, search_ui.header_lines(filter_text))
 
   -- paint_header reads search_active=true → switches to active bg/icon/badge
   render.paint_header()
