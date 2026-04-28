@@ -248,12 +248,8 @@ function M.open(opts)
     S.buf = win.make_buf()
     win.setup_keymaps(S.buf)
   end
-  if S.buf and api.nvim_buf_is_valid(S.buf) then
-    if S._tree_guard_id then
-      pcall(api.nvim_del_autocmd, S._tree_guard_id)
-      S._tree_guard_id = nil
-    end
-    S._tree_guard_id = api.nvim_create_autocmd("CursorMoved", {
+  if S.buf and api.nvim_buf_is_valid(S.buf) and not vim.b[S.buf]._explorer_tree_guard then
+    api.nvim_create_autocmd("CursorMoved", {
       buffer = S.buf,
       callback = function()
         if S.search_active then
@@ -262,19 +258,13 @@ function M.open(opts)
         if not (S.win and api.nvim_win_is_valid(S.win)) then
           return
         end
-        -- Clamp cursor to valid item range (line 1 .. #S.items)
-        local item_count = #S.items
-        if item_count == 0 then
-          return
-        end
-        local line = api.nvim_win_get_cursor(S.win)[1]
-        if line < 1 then
-          pcall(api.nvim_win_set_cursor, S.win, { 1, 0 })
-        elseif line > item_count then
-          pcall(api.nvim_win_set_cursor, S.win, { item_count, 0 })
+        local row = api.nvim_win_get_cursor(S.win)[1]
+        if row <= search_ui.HEADER_LINES and #S.items > 0 then
+          pcall(api.nvim_win_set_cursor, S.win, { search_ui.line_for_item(1), 0 })
         end
       end,
     })
+    vim.b[S.buf]._explorer_tree_guard = true
   end
 
   S.icon_fn = icons.resolve()
@@ -284,10 +274,11 @@ function M.open(opts)
   else
     win.update_winbar()
   end
-  local _, search_buf = search_ui.ensure_window()
-  if search_buf and api.nvim_buf_is_valid(search_buf) and not vim.b[search_buf]._explorer_search_setup then
-    search.setup(search_buf)
-    vim.b[search_buf]._explorer_search_setup = true
+
+  -- Wire search keymaps/autocmds to S.buf once per buffer lifetime.
+  if S.buf and api.nvim_buf_is_valid(S.buf) and not vim.b[S.buf]._explorer_search_setup then
+    search.setup(S.buf)
+    vim.b[S.buf]._explorer_search_setup = true
   end
 
   -- Always schedule a render so the tree is populated.
@@ -308,13 +299,7 @@ function M.open(opts)
     M.reveal(path)
   end
 
-  -- Only move focus to the explorer when explicitly requested (the toggle
-  -- keymap sets opts.focus = true) or when the user was already inside the
-  -- explorer window.  In all other cases (e.g. follow_file autocmd, project
-  -- switch) we keep focus in the editor window so the user can keep typing.
-  if opts.focus or cw == S.win then
-    api.nvim_set_current_win(S.win)
-  end
+  api.nvim_set_current_win(S.win)
 end
 
 -- ── close ────────────────────────────────────────────────────────────────
@@ -322,7 +307,6 @@ end
 function M.close(opts)
   opts = opts or {}
   search.close()
-  search_ui.close()
   watch_stop()
   if S.win and api.nvim_win_is_valid(S.win) then
     local w = S.win
@@ -344,9 +328,7 @@ function M.toggle(opts)
   if S.win and api.nvim_win_is_valid(S.win) then
     M.close()
   else
-    -- Merge focus=true so open() moves focus to the explorer.
-    -- Direct calls to M.open() without opts.focus leave focus in the editor.
-    M.open(vim.tbl_extend("force", opts or {}, { focus = true }))
+    M.open(opts)
   end
 end
 
@@ -392,10 +374,9 @@ function M.restore_session(snapshot)
     S.buf = buf
     win.apply_window_options(winid)
     win.setup_keymaps(buf)
-    local _, search_buf = search_ui.ensure_window()
-    if search_buf and api.nvim_buf_is_valid(search_buf) and not vim.b[search_buf]._explorer_search_setup then
-      search.setup(search_buf)
-      vim.b[search_buf]._explorer_search_setup = true
+    if not vim.b[buf]._explorer_search_setup then
+      search.setup(buf)
+      vim.b[buf]._explorer_search_setup = true
     end
     win.update_winbar()
   else
@@ -480,9 +461,14 @@ function M.setup(opts)
   })
 
   nvim_utils.autocmd("WinScrolled", {
-    desc = "explorer: keep search UI pinned to explorer window",
+    desc = "explorer: repaint header only on width change",
     callback = function()
-      if S.win and api.nvim_win_is_valid(S.win) then
+      if not (S.win and api.nvim_win_is_valid(S.win)) then
+        return
+      end
+      local ev = vim.v.event
+      local changed = ev and ev[tostring(S.win)]
+      if changed and (changed.width or 0) ~= 0 then
         search_ui.paint()
       end
     end,
@@ -558,7 +544,6 @@ function M.setup(opts)
         S.win = nil
         watch_stop()
         search.close()
-        search_ui.close()
       end
       vim.schedule(function()
         local wins = vim.tbl_filter(function(w)

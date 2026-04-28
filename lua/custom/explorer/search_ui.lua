@@ -1,3 +1,25 @@
+-- custom/explorer/search_ui.lua
+--
+-- The search header is embedded directly in S.buf as the first 3 lines.
+-- No separate window or buffer is used.  S.win shows everything.
+--
+-- Buffer layout (1-based lines / 0-based rows):
+--
+--   row 0  line 1  ╭──── Filter Files ────╮   top border
+--   row 1  line 2  │ 󰍉  <query>       n/m │   input row  ← cursor here when active
+--   row 2  line 3  ╰──────────────────────╯   bottom border
+--   row 3  line 4  S.items[1]
+--   row 4  line 5  S.items[2]
+--   …
+--
+-- lock_tree_view() pins topline to HEADER_LINES+1 (line 4) so the header
+-- is always visible regardless of how far the user scrolls.
+--
+-- When search is active:
+--   • S.buf is made modifiable
+--   • cursor is placed on line 2 (INPUT_LNUM) of S.win and insert starts
+--   • no window switch occurs — focus stays in S.win the whole time
+
 local S = require("custom.explorer.state")
 local cfg = require("custom.explorer.config")
 
@@ -6,128 +28,98 @@ local fn = vim.fn
 
 local M = {}
 
--- ---------------------------------------------------------------------------
--- Visual constants — snacks-inspired style
---
--- Layout of the 3-line header:
---
---   ╭────────────── Filter Files ───────────────╮   ← top border, title centred
---   │ 󰍉  <query text or centred placeholder>  n │   ← input row, fully boxed
---   ╰───────────────────────────────────────────╯   ← bottom border
---
--- The input row carries explicit │ on both sides so the box is fully closed.
--- Left │ is written into the buffer line; right │ is a right-aligned virt_text.
--- ---------------------------------------------------------------------------
+-- ── Visual constants ──────────────────────────────────────────────────────
 
 local BORDER_CHAR = "│"
-local BORDER_CHAR_BYTES = #BORDER_CHAR -- 3 bytes (UTF-8: E2 94 82)
+local BORDER_CHAR_BYTES = #BORDER_CHAR -- 3 bytes (UTF-8 E2 94 82)
 
 local SEARCH_ICON = "󰍉"
-local SEARCH_ICON_BYTES = #SEARCH_ICON -- 4 bytes (UTF-8 Nerd Font glyph)
+local SEARCH_ICON_BYTES = #SEARCH_ICON -- 4 bytes
 
-local PROMPT_GAP = "  " -- two spaces between icon and text
+local PROMPT_GAP = "  " -- two spaces after icon
 
--- Full prefix written into every input row:   │ 󰍉
--- Byte layout: [│:3][space:1][icon:4][gap:2] = 10 bytes total
+-- Full prefix on the input row:  │ 󰍉
+-- [│:3][space:1][icon:4][gap:2] = 10 bytes
 local INPUT_PREFIX = BORDER_CHAR .. " " .. SEARCH_ICON .. PROMPT_GAP
 local INPUT_PREFIX_BYTES = #INPUT_PREFIX -- 10
 
--- Byte offset where the icon starts inside INPUT_PREFIX.
--- Used to place the icon highlight without hard-coding a number.
-local ICON_BYTE_OFFSET = BORDER_CHAR_BYTES + 1 -- +1 for the literal space
+local ICON_BYTE_OFFSET = BORDER_CHAR_BYTES + 1
 
 local PLACEHOLDER = "Filter files..."
-local TITLE = " Filter Files " -- flanking spaces become border dashes
+local TITLE = " Filter Files "
 
--- ---------------------------------------------------------------------------
--- Public surface consumed by other modules
--- ---------------------------------------------------------------------------
+-- ── Public constants ──────────────────────────────────────────────────────
 
 M.INPUT_PREFIX = INPUT_PREFIX
--- The search header lives entirely in S.search_win / S.search_buf (a separate
--- split window above the tree).  The tree buffer S.buf has NO header lines —
--- items start at line 1 (row 0).  HEADER_LINES = 0 keeps all coordinate
--- helpers correct without changing any call-sites.
-M.HEADER_LINES = 0
+M.INPUT_PREFIX_BYTES = INPUT_PREFIX_BYTES
 
--- These constants describe the layout inside S.search_buf, not S.buf.
-M.INPUT_ROW = 1
-M.INPUT_LNUM = 2
-M.ITEM_ROW_OFFSET = 0 -- row_for_item(i) = i - 1
+-- Header occupies the first 3 lines of S.buf.
+M.HEADER_LINES = 3
 
-local SEARCH_BUF_LINES = 3
-local BOTTOM_BORDER_ROW = 2
+M.INPUT_ROW = 1 -- 0-based row of the input line
+M.INPUT_LNUM = 2 -- 1-based line number of the input line
+M.ITEM_ROW_OFFSET = 3 -- row_for_item(i) = ITEM_ROW_OFFSET + i - 1
 
--- ---------------------------------------------------------------------------
--- Index helpers  (operate on S.buf coordinates)
--- ---------------------------------------------------------------------------
+local BOTTOM_ROW = 2 -- 0-based row of the bottom border
+
+-- ── Index helpers ─────────────────────────────────────────────────────────
 
 function M.line_for_item(index)
-  return index
-end -- 1-based
+  return M.HEADER_LINES + index
+end
 function M.row_for_item(index)
-  return index - 1
-end -- 0-based
+  return M.ITEM_ROW_OFFSET + index - 1
+end
 
 function M.item_index_from_line(line)
-  return line >= 1 and line or nil
+  local idx = line - M.HEADER_LINES
+  return idx >= 1 and idx or nil
 end
 
--- No spacer lines — items start at line 1 of S.buf.
 function M.spacer_lines()
-  return {}
+  local t = {}
+  for _ = 1, M.HEADER_LINES do
+    t[#t + 1] = ""
+  end
+  return t
 end
 
--- ---------------------------------------------------------------------------
--- Highlight resolver — single source of truth for border highlight group names
--- ---------------------------------------------------------------------------
-
-local function resolve_border_hl(is_active, has_filter)
-  if is_active then
-    return "ExplorerSearchBorderActive"
-  end
-  if has_filter then
-    return "ExplorerSearchBorderFilter"
-  end
-  return "ExplorerSearchBorder"
-end
-
--- ---------------------------------------------------------------------------
--- Window / buffer guards
--- ---------------------------------------------------------------------------
-
-local function has_search_window()
-  return S.search_win and api.nvim_win_is_valid(S.search_win)
-end
-
-local function safe_set_win(win)
-  if not (win and api.nvim_win_is_valid(win)) then
-    return
-  end
-  local ok, err = pcall(api.nvim_set_current_win, win)
-  if not ok then
-    vim.notify("search_ui: cannot focus window: " .. tostring(err), vim.log.levels.WARN)
-  end
-end
-
--- ---------------------------------------------------------------------------
--- Tree-view cursor / scroll locking
--- ---------------------------------------------------------------------------
+-- ── Scroll / cursor lock ──────────────────────────────────────────────────
+--
+-- Called after every paint.  Ensures:
+--   1. topline >= HEADER_LINES + 1  → header is never scrolled off-screen
+--   2. cursor is inside the item zone (lines HEADER_LINES+1 .. HEADER_LINES+#items)
+--
+-- When all content fits in the window we skip the topline manipulation to
+-- avoid the WinScrolled feedback loop.
 
 function M.lock_tree_view()
   if not (S.win and api.nvim_win_is_valid(S.win)) then
     return
   end
 
+  local n_lines = (S.buf and api.nvim_buf_is_valid(S.buf)) and api.nvim_buf_line_count(S.buf) or M.HEADER_LINES
+  local win_h = api.nvim_win_get_height(S.win)
+
+  if n_lines > win_h then
+    api.nvim_win_call(S.win, function()
+      local view = fn.winsaveview()
+      local min_top = M.HEADER_LINES + 1
+      if view.topline < min_top then
+        view.topline = min_top
+        fn.winrestview(view)
+      end
+    end)
+  end
+
+  -- Clamp cursor into the item zone
   local item_count = #S.items
   if item_count == 0 then
     return
   end
-
   local line = api.nvim_win_get_cursor(S.win)[1]
-  local min_line = 1
-  local max_line = item_count
-
+  local min_line = M.HEADER_LINES + 1
+  local max_line = M.HEADER_LINES + item_count
   if line < min_line then
     pcall(api.nvim_win_set_cursor, S.win, { min_line, 0 })
   elseif line > max_line then
@@ -135,13 +127,7 @@ function M.lock_tree_view()
   end
 end
 
--- ---------------------------------------------------------------------------
--- Width helpers
---
--- NOTE: win_width() reads S.win (the tree window), not S.search_win.
--- The search bar is a horizontal split of the same column, so it always
--- shares the identical display width — no separate query needed.
--- ---------------------------------------------------------------------------
+-- ── Width helper ──────────────────────────────────────────────────────────
 
 local function win_width()
   if S.win and api.nvim_win_is_valid(S.win) then
@@ -150,34 +136,29 @@ local function win_width()
   return 10
 end
 
--- Rounded top border with a centred title.
--- Truncates the title with "…" when the window is too narrow.
+-- ── Border builders ───────────────────────────────────────────────────────
+
 local function build_top_border(width, title)
   local inner = math.max(width - 2, 0)
   local label = title or ""
   local label_w = fn.strdisplaywidth(label)
-
   if label_w == 0 or inner == 0 then
     return "╭" .. ("─"):rep(inner) .. "╮"
   end
-
   if label_w > inner then
     label = fn.strcharpart(label, 0, math.max(inner - 1, 0)) .. "…"
     label_w = fn.strdisplaywidth(label)
   end
-
-  local left_dashes = math.floor((inner - label_w) / 2)
-  local right_dashes = inner - label_w - left_dashes
-  return "╭" .. ("─"):rep(left_dashes) .. label .. ("─"):rep(right_dashes) .. "╮"
+  local left = math.floor((inner - label_w) / 2)
+  local right = inner - label_w - left
+  return "╭" .. ("─"):rep(left) .. label .. ("─"):rep(right) .. "╮"
 end
 
 local function build_bottom_border(width)
   return "╰" .. ("─"):rep(math.max(width - 2, 0)) .. "╯"
 end
 
--- ---------------------------------------------------------------------------
--- Text helpers
--- ---------------------------------------------------------------------------
+-- ── Text helpers ──────────────────────────────────────────────────────────
 
 function M.line_text(filter)
   return INPUT_PREFIX .. (filter or "")
@@ -199,17 +180,35 @@ function M.strip_prefix(raw)
   return raw
 end
 
--- ---------------------------------------------------------------------------
--- Right-side count + closing │
--- All state is passed in explicitly — no hidden global reads.
--- ---------------------------------------------------------------------------
+-- ── No-op window lifecycle (callers still call these; now they do nothing) ─
+
+function M.ensure_window()
+  -- The header lives in S.buf / S.win — nothing to create.
+  return S.win, S.buf
+end
+
+function M.close()
+  -- Nothing to close.
+end
+
+-- ── Border highlight resolver ─────────────────────────────────────────────
+
+local function resolve_border_hl(is_active, has_filter)
+  if is_active then
+    return "ExplorerSearchBorderActive"
+  end
+  if has_filter then
+    return "ExplorerSearchBorderFilter"
+  end
+  return "ExplorerSearchBorder"
+end
+
+-- ── Right-side count chunks ───────────────────────────────────────────────
 
 local function right_chunks(is_active, has_filter, total, cursor)
   local show_count = cfg.get().search_count and has_filter
   local border_hl = resolve_border_hl(is_active, has_filter)
 
-  -- When no count is shown, the chunk still ends with " │" so the right
-  -- border column never shifts depending on whether a count is visible.
   if not show_count then
     return { { " │", border_hl } }
   end
@@ -234,132 +233,27 @@ local function right_chunks(is_active, has_filter, total, cursor)
   }
 end
 
--- ---------------------------------------------------------------------------
--- Buffer / window lifecycle (both idempotent)
--- ---------------------------------------------------------------------------
+-- ── Layout maths ──────────────────────────────────────────────────────────
 
-local function ensure_buf()
-  if S.search_buf and api.nvim_buf_is_valid(S.search_buf) then
-    return S.search_buf
-  end
-
-  local buf = api.nvim_create_buf(false, true)
-  pcall(api.nvim_buf_set_name, buf, "explorer-search://")
-
-  local bo = vim.bo[buf]
-  bo.buftype = "nofile"
-  bo.bufhidden = "wipe"
-  bo.buflisted = false
-  bo.swapfile = false
-  bo.filetype = "explorer_search"
-  bo.modifiable = false
-
-  S.search_buf = buf
-  return buf
-end
-
-local function apply_win_opts()
-  if not has_search_window() then
-    return
-  end
-  local wo = vim.wo[S.search_win]
-  wo.number = false
-  wo.relativenumber = false
-  wo.signcolumn = "no"
-  wo.wrap = false
-  wo.spell = false
-  wo.list = false
-  wo.cursorline = false
-  wo.foldcolumn = "0"
-  wo.statuscolumn = ""
-  wo.winfixheight = true
-  wo.winhl = "Normal:ExplorerNormal,WinBar:ExplorerNormal,WinBarNC:ExplorerNormal"
-end
-
-local function ensure_win(buf)
-  if has_search_window() then
-    api.nvim_win_set_buf(S.search_win, buf)
-    apply_win_opts()
-    return S.search_win
-  end
-
-  -- Create the search split above the tree window.
-  -- We must restore focus to wherever the user was (prev_win) once done —
-  -- leaving focus on the search split or the tree window would break editing.
-  local prev_win = api.nvim_get_current_win()
-  safe_set_win(S.win)
-  vim.cmd("noautocmd keepalt leftabove " .. SEARCH_BUF_LINES .. "split")
-  S.search_win = api.nvim_get_current_win()
-  api.nvim_win_set_buf(S.search_win, buf)
-  pcall(api.nvim_win_set_height, S.search_win, SEARCH_BUF_LINES)
-  apply_win_opts()
-
-  -- Always return focus to prev_win.  If prev_win was the tree (S.win),
-  -- focus goes back there; if it was an editor window it goes there.
-  if prev_win and api.nvim_win_is_valid(prev_win) then
-    pcall(api.nvim_set_current_win, prev_win)
-  end
-
-  return S.search_win
-end
-
-function M.ensure_window()
-  if not (S.win and api.nvim_win_is_valid(S.win)) then
-    return nil, nil
-  end
-  local buf = ensure_buf()
-  local win = ensure_win(buf)
-  return win, buf
-end
-
--- ---------------------------------------------------------------------------
--- Close
--- ---------------------------------------------------------------------------
-
-function M.close()
-  if S.search_win and api.nvim_win_is_valid(S.search_win) then
-    pcall(api.nvim_win_close, S.search_win, true)
-  end
-  if S.search_buf and api.nvim_buf_is_valid(S.search_buf) then
-    pcall(api.nvim_buf_delete, S.search_buf, { force = true })
-  end
-  S.search_win = nil
-  S.search_buf = nil
-end
-
--- ---------------------------------------------------------------------------
--- Layout maths
---
--- Returns:
---   text_byte_start  – byte column where user text begins in the input line
---   area_w           – display columns available for user text / placeholder
---
--- The left side of the input row occupies:
---   │(1) + space(1) + icon(w) + gap(2)  cells
--- which equals fn.strdisplaywidth(INPUT_PREFIX) in total.
--- The right side is occupied by the count + │ chunk passed in.
--- ---------------------------------------------------------------------------
+local _prefix_display_w = nil -- cached once
 
 local function text_area_info(width, count_display_w)
-  local prefix_w = fn.strdisplaywidth(INPUT_PREFIX)
-  local area_w = math.max(width - prefix_w - count_display_w, 0)
+  if not _prefix_display_w then
+    _prefix_display_w = fn.strdisplaywidth(INPUT_PREFIX)
+  end
+  local area_w = math.max(width - _prefix_display_w - count_display_w, 0)
   return INPUT_PREFIX_BYTES, area_w
 end
 
--- ---------------------------------------------------------------------------
--- Paint helpers — one function per visual region of the header
--- ---------------------------------------------------------------------------
+-- ── Paint helpers ─────────────────────────────────────────────────────────
 
 local function paint_top_border(buf, lines, border_hl)
-  -- Full-row border colour
   pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, 0, 0, {
     end_col = -1,
     hl_group = border_hl,
     hl_eol = true,
     priority = 5,
   })
-
-  -- Overlay a distinct highlight on the title text inside the dashes.
   local top_line = lines[1] or ""
   local title_pos = top_line:find(TITLE, 1, true)
   if title_pos then
@@ -380,7 +274,6 @@ local function paint_input_row(buf, lines, is_active, has_filter, chunks)
   local input_line = lines[M.INPUT_LNUM] or ""
   local input_line_bytes = #input_line
 
-  -- Measure the right-side chunks so we can size the text area correctly.
   local count_label = ""
   for _, chunk in ipairs(chunks) do
     count_label = count_label .. chunk[1]
@@ -394,15 +287,13 @@ local function paint_input_row(buf, lines, is_active, has_filter, chunks)
     hl_eol = true,
     priority = 5,
   })
-
-  -- 2. Left border character │  (matches the right-side │ from right_chunks)
+  -- 2. Left border │
   pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, M.INPUT_ROW, 0, {
     end_col = BORDER_CHAR_BYTES,
     hl_group = border_hl,
     priority = 15,
   })
-
-  -- 3. Search icon  (starts after │ + the literal space that follows it)
+  -- 3. Search icon
   pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, M.INPUT_ROW, ICON_BYTE_OFFSET, {
     end_col = ICON_BYTE_OFFSET + SEARCH_ICON_BYTES,
     hl_group = icon_hl,
@@ -411,18 +302,16 @@ local function paint_input_row(buf, lines, is_active, has_filter, chunks)
 
   local text_byte_start, area_w = text_area_info(width, count_w)
 
-  -- 4a. Centred placeholder when the input is empty
+  -- 4a. Placeholder
   if input_line == INPUT_PREFIX then
     local ph_w = fn.strdisplaywidth(PLACEHOLDER)
     local pad_left = math.max(math.floor((area_w - ph_w) / 2), 0)
-
     pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, M.INPUT_ROW, text_byte_start, {
-      virt_text = { { string.rep(" ", pad_left) .. PLACEHOLDER, "ExplorerSearchPlaceholder" } },
+      virt_text = { { (" "):rep(pad_left) .. PLACEHOLDER, "ExplorerSearchPlaceholder" } },
       virt_text_pos = "overlay",
       priority = 50,
     })
-
-  -- 4b. Highlight the stored query when inactive but a filter exists
+  -- 4b. Active filter text highlight
   elseif has_filter and not is_active and input_line_bytes > INPUT_PREFIX_BYTES then
     pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, M.INPUT_ROW, text_byte_start, {
       end_row = M.INPUT_ROW,
@@ -432,7 +321,7 @@ local function paint_input_row(buf, lines, is_active, has_filter, chunks)
     })
   end
 
-  -- 5. Right-aligned count label + closing │
+  -- 5. Right-aligned count + closing │
   pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, M.INPUT_ROW, 0, {
     virt_text = chunks,
     virt_text_pos = "right_align",
@@ -441,7 +330,7 @@ local function paint_input_row(buf, lines, is_active, has_filter, chunks)
 end
 
 local function paint_bottom_border(buf, border_hl)
-  pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, BOTTOM_BORDER_ROW, 0, {
+  pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, BOTTOM_ROW, 0, {
     end_col = -1,
     hl_group = border_hl,
     hl_eol = true,
@@ -449,27 +338,28 @@ local function paint_bottom_border(buf, border_hl)
   })
 end
 
--- ---------------------------------------------------------------------------
--- Paint — main entry point
--- ---------------------------------------------------------------------------
+-- ── Main paint entry point ────────────────────────────────────────────────
 
 function M.paint()
-  local _, buf = M.ensure_window()
+  local buf = S.buf
   if not (buf and api.nvim_buf_is_valid(buf)) then
     return
   end
 
   local lines = M.header_lines(S.filter)
 
-  api.nvim_set_option_value("modifiable", true, { buf = buf })
-  api.nvim_buf_set_lines(buf, 0, SEARCH_BUF_LINES, false, lines)
-  if not S.search_active then
+  -- Write header rows into S.buf (modifiable already set by caller when active)
+  local was_modifiable = vim.bo[buf].modifiable
+  if not was_modifiable then
+    api.nvim_set_option_value("modifiable", true, { buf = buf })
+  end
+  api.nvim_buf_set_lines(buf, 0, M.HEADER_LINES, false, lines)
+  if not was_modifiable and not S.search_active then
     api.nvim_set_option_value("modifiable", false, { buf = buf })
   end
 
   api.nvim_buf_clear_namespace(buf, S.hdr_ns, 0, -1)
 
-  -- Snapshot shared state once so all helpers see a consistent picture.
   local is_active = S.search_active
   local has_filter = S.filter ~= nil and S.filter ~= ""
   local border_hl = resolve_border_hl(is_active, has_filter)
@@ -479,7 +369,6 @@ function M.paint()
   paint_input_row(buf, lines, is_active, has_filter, chunks)
   paint_bottom_border(buf, border_hl)
 
-  -- Avoid clobbering the tree cursor on every keypress during active input.
   if not is_active then
     M.lock_tree_view()
   end

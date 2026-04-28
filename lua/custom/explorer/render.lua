@@ -190,9 +190,9 @@ function M._paint()
   end
   if S.search_active then
     return
-  end
+  end -- don't overwrite while user is typing
 
-  -- Snapshot cursor by file path so we can restore after rewrite
+  -- Snapshot cursor position by file path so we can restore it after rewrite
   local cursor_path
   if S.win and api.nvim_win_is_valid(S.win) then
     local r = api.nvim_win_get_cursor(S.win)[1]
@@ -206,9 +206,11 @@ function M._paint()
   end
 
   local item_lines, hls = build_item_lines()
+  local all_lines = search_ui.spacer_lines()
+  vim.list_extend(all_lines, item_lines)
 
   set_buf_modifiable(buf, true)
-  api.nvim_buf_set_lines(buf, 0, -1, false, item_lines)
+  api.nvim_buf_set_lines(buf, 0, -1, false, all_lines)
   api.nvim_buf_clear_namespace(buf, S.ns, 0, -1)
   for _, h in ipairs(hls) do
     pcall(api.nvim_buf_set_extmark, buf, S.ns, h[1], h[2], {
@@ -224,10 +226,6 @@ function M._paint()
 
   -- Restore cursor to the same file, clamped to valid range
   if S.win and api.nvim_win_is_valid(S.win) then
-    local total = #item_lines
-    if total == 0 then
-      return
-    end
     local target
     if cursor_path then
       for i, item in ipairs(S.items) do
@@ -237,8 +235,12 @@ function M._paint()
         end
       end
     end
+    local total = #all_lines
+    if total <= search_ui.HEADER_LINES then
+      return
+    end
     local cur = api.nvim_win_get_cursor(S.win)[1]
-    local row = target and math.min(target, total) or math.max(1, math.min(cur, total))
+    local row = target and math.min(target, total) or math.max(search_ui.HEADER_LINES + 1, math.min(cur, total))
     pcall(api.nvim_win_set_cursor, S.win, { row, 0 })
   end
 end
@@ -257,8 +259,11 @@ function M._paint_items_only()
   local item_lines, hls = build_item_lines()
 
   set_buf_modifiable(buf, true)
-  api.nvim_buf_set_lines(buf, 0, -1, false, item_lines)
-  api.nvim_buf_clear_namespace(buf, S.ns, 0, -1)
+  if api.nvim_buf_line_count(buf) < search_ui.HEADER_LINES then
+    api.nvim_buf_set_lines(buf, 0, -1, false, search_ui.spacer_lines())
+  end
+  api.nvim_buf_set_lines(buf, search_ui.HEADER_LINES, -1, false, item_lines)
+  api.nvim_buf_clear_namespace(buf, S.ns, search_ui.HEADER_LINES, -1)
   for _, h in ipairs(hls) do
     pcall(api.nvim_buf_set_extmark, buf, S.ns, h[1], h[2], {
       end_col = h[3],
@@ -267,6 +272,8 @@ function M._paint_items_only()
     })
   end
 
+  -- Only re-lock if the user is no longer typing.
+  -- deactivate() handles the lock when InsertLeave fires.
   if not S.search_active then
     set_buf_modifiable(buf, false)
   end

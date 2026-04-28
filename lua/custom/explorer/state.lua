@@ -5,12 +5,10 @@ local api = vim.api
 local S = {
   buf = nil,
   win = nil,
-  search_buf = nil,
-  search_win = nil,
   root = nil,
   prev_win = nil,
 
-  -- true while the user is typing in the search bar (line 1, insert mode)
+  -- true while the user is typing in the search bar (line 2, insert mode in S.win)
   search_active = false,
   -- Set true by <Esc> so InsertLeave knows to clear the filter
   _search_clear_on_leave = false,
