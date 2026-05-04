@@ -33,7 +33,7 @@ function M.load()
     return normalize({})
   end
 
-  local ok_decode, decoded = pcall(fn.json_decode, table.concat(content, "\n"))
+  local ok_decode, decoded = pcall(vim.json.decode, table.concat(content, "\n"))
   if not ok_decode then
     return normalize({})
   end
@@ -44,7 +44,7 @@ end
 function M.save(data)
   local p = path()
   fn.mkdir(fn.fnamemodify(p, ":h"), "p")
-  fn.writefile({ fn.json_encode(normalize(data)) }, p)
+  fn.writefile({ vim.json.encode(normalize(data)) }, p)
 end
 
 local function normalized_path(raw)
