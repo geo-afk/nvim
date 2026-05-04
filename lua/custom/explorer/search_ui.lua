@@ -1,24 +1,12 @@
 -- custom/explorer/search_ui.lua
 --
 -- The search header is embedded directly in S.buf as the first 3 lines.
--- No separate window or buffer is used.  S.win shows everything.
+-- S.win shows everything.
 --
--- Buffer layout (1-based lines / 0-based rows):
---
---   row 0  line 1  ╭──── Filter Files ────╮   top border
---   row 1  line 2  │ 󰍉  <query>       n/m │   input row  ← cursor here when active
---   row 2  line 3  ╰──────────────────────╯   bottom border
---   row 3  line 4  S.items[1]
---   row 4  line 5  S.items[2]
---   …
---
--- lock_tree_view() pins topline to HEADER_LINES+1 (line 4) so the header
--- is always visible regardless of how far the user scrolls.
---
--- When search is active:
---   • S.buf is made modifiable
---   • cursor is placed on line 2 (INPUT_LNUM) of S.win and insert starts
---   • no window switch occurs — focus stays in S.win the whole time
+-- Buffer layout:
+--   row 0  ╭──── SEARCH ────╮
+--   row 1  │    <query> n/m │
+--   row 2  ╰────────────────╯
 
 local S = require("custom.explorer.state")
 local cfg = require("custom.explorer.config")
@@ -31,36 +19,32 @@ local M = {}
 -- ── Visual constants ──────────────────────────────────────────────────────
 
 local BORDER_CHAR = "│"
-local BORDER_CHAR_BYTES = #BORDER_CHAR -- 3 bytes (UTF-8 E2 94 82)
+local BORDER_CHAR_BYTES = #BORDER_CHAR
 
-local SEARCH_ICON = "󰍉"
-local SEARCH_ICON_BYTES = #SEARCH_ICON -- 4 bytes
+local SEARCH_ICON = ""
+local SEARCH_ICON_BYTES = #SEARCH_ICON
 
-local PROMPT_GAP = "  " -- two spaces after icon
+local PROMPT_GAP = "  " -- Two spaces after icon
 
--- Full prefix on the input row:  │ 󰍉
--- [│:3][space:1][icon:4][gap:2] = 10 bytes
-local INPUT_PREFIX = BORDER_CHAR .. " " .. SEARCH_ICON .. PROMPT_GAP
-local INPUT_PREFIX_BYTES = #INPUT_PREFIX -- 10
+-- Full prefix: │    
+local INPUT_PREFIX = BORDER_CHAR .. "  " .. SEARCH_ICON .. PROMPT_GAP
+local INPUT_PREFIX_BYTES = #INPUT_PREFIX
 
-local ICON_BYTE_OFFSET = BORDER_CHAR_BYTES + 1
+local ICON_BYTE_OFFSET = BORDER_CHAR_BYTES + 2
 
-local PLACEHOLDER = "Filter files..."
-local TITLE = " Filter Files "
+local TITLE = " SEARCH "
 
 -- ── Public constants ──────────────────────────────────────────────────────
 
 M.INPUT_PREFIX = INPUT_PREFIX
 M.INPUT_PREFIX_BYTES = INPUT_PREFIX_BYTES
 
--- Header occupies the first 3 lines of S.buf.
 M.HEADER_LINES = 3
+M.INPUT_ROW = 1
+M.INPUT_LNUM = 2
+M.ITEM_ROW_OFFSET = 3
 
-M.INPUT_ROW = 1 -- 0-based row of the input line
-M.INPUT_LNUM = 2 -- 1-based line number of the input line
-M.ITEM_ROW_OFFSET = 3 -- row_for_item(i) = ITEM_ROW_OFFSET + i - 1
-
-local BOTTOM_ROW = 2 -- 0-based row of the bottom border
+local BOTTOM_ROW = 2
 
 -- ── Index helpers ─────────────────────────────────────────────────────────
 
@@ -85,13 +69,6 @@ function M.spacer_lines()
 end
 
 -- ── Scroll / cursor lock ──────────────────────────────────────────────────
---
--- Called after every paint.  Ensures:
---   1. topline >= HEADER_LINES + 1  → header is never scrolled off-screen
---   2. cursor is inside the item zone (lines HEADER_LINES+1 .. HEADER_LINES+#items)
---
--- When all content fits in the window we skip the topline manipulation to
--- avoid the WinScrolled feedback loop.
 
 function M.lock_tree_view()
   if not (S.win and api.nvim_win_is_valid(S.win)) then
@@ -112,7 +89,6 @@ function M.lock_tree_view()
     end)
   end
 
-  -- Clamp cursor into the item zone
   local item_count = #S.items
   if item_count == 0 then
     return
@@ -180,16 +156,13 @@ function M.strip_prefix(raw)
   return raw
 end
 
--- ── No-op window lifecycle (callers still call these; now they do nothing) ─
+-- ── No-op window lifecycle ────────────────────────────────────────────────
 
 function M.ensure_window()
-  -- The header lives in S.buf / S.win — nothing to create.
   return S.win, S.buf
 end
 
-function M.close()
-  -- Nothing to close.
-end
+function M.close() end
 
 -- ── Border highlight resolver ─────────────────────────────────────────────
 
@@ -210,7 +183,7 @@ local function right_chunks(is_active, has_filter, total, cursor)
   local border_hl = resolve_border_hl(is_active, has_filter)
 
   if not show_count then
-    return { { " │", border_hl } }
+    return { { "  │", border_hl } }
   end
 
   local label, count_hl
@@ -224,25 +197,13 @@ local function right_chunks(is_active, has_filter, total, cursor)
     end
   else
     count_hl = "ExplorerSearchCount"
-    label = total == 0 and " 0 results " or (" " .. total .. (total == 1 and " result " or " results "))
+    label = total == 0 and " 0 " or (" " .. total .. " ")
   end
 
   return {
     { label, count_hl },
-    { "│", border_hl },
+    { " │", border_hl },
   }
-end
-
--- ── Layout maths ──────────────────────────────────────────────────────────
-
-local _prefix_display_w = nil -- cached once
-
-local function text_area_info(width, count_display_w)
-  if not _prefix_display_w then
-    _prefix_display_w = fn.strdisplaywidth(INPUT_PREFIX)
-  end
-  local area_w = math.max(width - _prefix_display_w - count_display_w, 0)
-  return INPUT_PREFIX_BYTES, area_w
 end
 
 -- ── Paint helpers ─────────────────────────────────────────────────────────
@@ -270,15 +231,8 @@ local function paint_input_row(buf, lines, is_active, has_filter, chunks)
   local icon_hl = is_active and "ExplorerSearchIconActive" or "ExplorerSearchIcon"
   local border_hl = resolve_border_hl(is_active, has_filter)
 
-  local width = win_width()
   local input_line = lines[M.INPUT_LNUM] or ""
   local input_line_bytes = #input_line
-
-  local count_label = ""
-  for _, chunk in ipairs(chunks) do
-    count_label = count_label .. chunk[1]
-  end
-  local count_w = fn.strdisplaywidth(count_label)
 
   -- 1. Full-row background
   pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, M.INPUT_ROW, 0, {
@@ -300,19 +254,10 @@ local function paint_input_row(buf, lines, is_active, has_filter, chunks)
     priority = 20,
   })
 
-  local text_byte_start, area_w = text_area_info(width, count_w)
+  local text_byte_start = INPUT_PREFIX_BYTES
 
-  -- 4a. Placeholder
-  if input_line == INPUT_PREFIX then
-    local ph_w = fn.strdisplaywidth(PLACEHOLDER)
-    local pad_left = math.max(math.floor((area_w - ph_w) / 2), 0)
-    pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, M.INPUT_ROW, text_byte_start, {
-      virt_text = { { (" "):rep(pad_left) .. PLACEHOLDER, "ExplorerSearchPlaceholder" } },
-      virt_text_pos = "overlay",
-      priority = 50,
-    })
-  -- 4b. Active filter text highlight
-  elseif has_filter and not is_active and input_line_bytes > INPUT_PREFIX_BYTES then
+  -- 4. Active filter text highlight
+  if has_filter and not is_active and input_line_bytes > INPUT_PREFIX_BYTES then
     pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, M.INPUT_ROW, text_byte_start, {
       end_row = M.INPUT_ROW,
       end_col = input_line_bytes,
@@ -348,7 +293,6 @@ function M.paint()
 
   local lines = M.header_lines(S.filter)
 
-  -- Write header rows into S.buf (modifiable already set by caller when active)
   local was_modifiable = vim.bo[buf].modifiable
   if not was_modifiable then
     api.nvim_set_option_value("modifiable", true, { buf = buf })
