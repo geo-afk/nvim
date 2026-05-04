@@ -156,7 +156,7 @@ local function open_float_terminal(args)
 
   -- Create a scratch buffer for the terminal
   local buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe")
+  vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
 
   local win = vim.api.nvim_open_win(buf, true, {
     relative = "editor",
@@ -181,15 +181,15 @@ local function open_float_terminal(args)
       -- Allow 'q' to close the float after glow exits
       vim.schedule(function()
         if vim.api.nvim_buf_is_valid(buf) then
-          vim.api.nvim_buf_set_keymap(buf, "n", "q", "", {
+          vim.keymap.set("n", "q", close_float, {
             noremap = true,
             silent = true,
-            callback = close_float,
+            buffer = buf,
           })
-          vim.api.nvim_buf_set_keymap(buf, "t", "q", "", {
+          vim.keymap.set("t", "q", close_float, {
             noremap = true,
             silent = true,
-            callback = close_float,
+            buffer = buf,
           })
         end
       end)
@@ -288,7 +288,7 @@ function M.open_tui(dir)
   -- Open a new horizontal split with a terminal
   vim.cmd("botright 20new")
   local buf = vim.api.nvim_get_current_buf()
-  vim.api.nvim_buf_set_option(buf, "bufhidden", "wipe")
+  vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
 
   local cmd = "glow -t " .. vim.fn.shellescape(target)
   vim.fn.termopen(cmd, {
