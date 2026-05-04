@@ -159,9 +159,9 @@ M.registry = {
   inlayHintProvider = {
     label = "Toggle Inlay Hints",
     description = "Toggle LSP inlay hints in the current buffer",
-    handler = "vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled())",
+    handler = "vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled({ bufnr = 0 }), { bufnr = 0 })",
     fn = function()
-      vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled())
+      vim.lsp.inlay_hint.enable(not vim.lsp.inlay_hint.is_enabled({ bufnr = 0 }), { bufnr = 0 })
     end,
     modes = { "n" },
     suggested = "<leader>ch",

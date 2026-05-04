@@ -18,7 +18,7 @@ function M.load_all()
     return {}
   end
   local raw = table.concat(content, '\n')
-  local decoded = vim.fn.json_decode(raw)
+  local decoded = vim.json.decode(raw)
   return type(decoded) == 'table' and decoded or {}
 end
 
@@ -45,7 +45,7 @@ function M.save(client_name, cap_key, lhs)
   table.insert(filtered, { cap_key = cap_key, lhs = lhs })
   all[client_name] = filtered
 
-  local encoded = vim.fn.json_encode(all)
+  local encoded = vim.json.encode(all)
   vim.fn.writefile({ encoded }, path)
 end
 
@@ -73,7 +73,7 @@ function M.delete(client_name, cap_key)
     end
   end
   all[client_name] = filtered
-  vim.fn.writefile({ vim.fn.json_encode(all) }, path)
+  vim.fn.writefile({ vim.json.encode(all) }, path)
 end
 
 --- Wipe all saved bindings for a client (useful for resetting).
@@ -83,7 +83,7 @@ function M.clear(client_name)
   local path = data_path()
   local all = M.load_all()
   all[client_name] = nil
-  vim.fn.writefile({ vim.fn.json_encode(all) }, path)
+  vim.fn.writefile({ vim.json.encode(all) }, path)
 end
 
 return M
