@@ -1,12 +1,9 @@
 --- custom/float_term/floating.lua
---- Floating Window Factory — creates, manages, and destroys floating
---- windows with consistent styling, focus trapping, and auto-close behaviour.
+--- Floating Window Factory
 
 local M = {}
 
--- ─── Registry of open floats ─────────────────────────────────────────────────
-
-local floats = {} -- id -> { buf, win, opts }
+local floats = {}
 local id_seq = 0
 
 local function new_id()
@@ -14,25 +11,16 @@ local function new_id()
   return id_seq
 end
 
--- ─── Geometry Helpers ────────────────────────────────────────────────────────
+-- ─── Geometry ────────────────────────────────────────────────────────────────
 
 local function editor_size()
   return vim.o.columns, vim.o.lines - vim.o.cmdheight - 1
-end
-
-local function center_pos(width, height)
-  local cols, rows = editor_size()
-  return {
-    row = math.floor((rows - height) / 2),
-    col = math.floor((cols - width) / 2),
-  }
 end
 
 local function clamp(v, lo, hi)
   return math.max(lo, math.min(hi, v))
 end
 
---- Fraction (0 < n < 1) → percentage of total; integer ≥ 1 → absolute.
 local function resolve_size(spec, total)
   if spec > 0 and spec < 1 then
     return math.floor(total * spec)
@@ -40,25 +28,14 @@ local function resolve_size(spec, total)
   return math.floor(spec)
 end
 
--- ─── Float Spec ──────────────────────────────────────────────────────────────
--- opts accepted by M.open():
---   position   "center"|"top"|"bottom"|"cursor"|{row,col}   default: "center"
---   width      number (abs or 0–1 fraction)                  default: 0.7
---   height     number (abs or 0–1 fraction)                  default: 0.6
---   border     string|nil   default: nil (inherits vim.o.winborder in 0.12+)
---   title      string
---   title_pos  "left"|"center"|"right"                       default: "center"
---   footer     string
---   footer_pos "left"|"center"|"right"                       default: "center"
---   focusable  boolean                                        default: true
---   enter      boolean                                        default: true
---   buf        integer      use existing buffer
---   filetype   string
---   lines      string[]     set buffer lines
---   modifiable boolean                                        default: false
---   on_close   fn()
---   style      "minimal"|nil
---   zindex     number                                         default: 50
+local function center_pos(cols, rows, width, height)
+  return {
+    row = math.floor((rows - height) / 2),
+    col = math.floor((cols - width) / 2),
+  }
+end
+
+-- ─── Win config ──────────────────────────────────────────────────────────────
 
 local DEFAULTS = {
   position = "center",
@@ -80,7 +57,7 @@ local function build_win_config(opts, width, height)
   local row, col
 
   if pos == "center" then
-    local p = center_pos(width, height)
+    local p = center_pos(cols, rows, width, height)
     row, col = p.row, p.col
   elseif pos == "top" then
     row = 2
@@ -103,7 +80,7 @@ local function build_win_config(opts, width, height)
     row = pos.row or 0
     col = pos.col or 0
   else
-    local p = center_pos(width, height)
+    local p = center_pos(cols, rows, width, height)
     row, col = p.row, p.col
   end
 
@@ -137,7 +114,7 @@ end
 -- ─── Public API ───────────────────────────────────────────────────────────────
 
 --- Open a floating window.
---- @param opts table  (see spec above)
+--- @param opts table
 --- @return integer id, integer buf, integer win
 function M.open(opts)
   opts = vim.tbl_deep_extend("keep", opts or {}, DEFAULTS)
@@ -146,7 +123,6 @@ function M.open(opts)
   local width = clamp(resolve_size(opts.width, cols), 10, cols - 4)
   local height = clamp(resolve_size(opts.height, rows), 3, rows - 4)
 
-  -- Buffer
   local buf = opts.buf
   if not buf or not vim.api.nvim_buf_is_valid(buf) then
     buf = vim.api.nvim_create_buf(false, true)
@@ -164,11 +140,9 @@ function M.open(opts)
     vim.bo[buf].modifiable = opts.modifiable or false
   end
 
-  -- Window
   local wc = build_win_config(opts, width, height)
   local win = vim.api.nvim_open_win(buf, opts.enter ~= false, wc)
 
-  -- Window options
   vim.wo[win].wrap = false
   vim.wo[win].cursorline = true
   vim.wo[win].number = false
@@ -176,11 +150,11 @@ function M.open(opts)
   vim.wo[win].signcolumn = "no"
   vim.wo[win].foldcolumn = "0"
 
-  -- Register
   local id = new_id()
   floats[id] = { buf = buf, win = win, opts = opts }
 
-  -- Auto-close on BufLeave when not focusable
+  -- Only auto-close on BufLeave for non-focusable (popup-style) windows.
+  -- Focusable windows (terminals, pickers) must be closed explicitly.
   if not opts.focusable then
     vim.api.nvim_create_autocmd("BufLeave", {
       buffer = buf,
@@ -191,7 +165,7 @@ function M.open(opts)
     })
   end
 
-  -- Default close keymaps (callers may override on the same buffer)
+  -- Default close keymaps — callers (e.g. term.lua) should override these.
   vim.keymap.set("n", "q", function()
     M.close(id)
   end, { buffer = buf, silent = true, nowait = true })
@@ -222,14 +196,12 @@ function M.close(id)
   floats[id] = nil
 end
 
---- Close all open floats.
 function M.close_all()
   for id in pairs(floats) do
     M.close(id)
   end
 end
 
---- Update a float's content.
 function M.set_lines(id, lines)
   local f = floats[id]
   if not f or not vim.api.nvim_buf_is_valid(f.buf) then
@@ -240,7 +212,6 @@ function M.set_lines(id, lines)
   vim.bo[f.buf].modifiable = false
 end
 
---- Resize a float.
 function M.resize(id, width, height)
   local f = floats[id]
   if not f or not vim.api.nvim_win_is_valid(f.win) then
@@ -249,20 +220,17 @@ function M.resize(id, width, height)
   vim.api.nvim_win_set_config(f.win, { width = width, height = height })
 end
 
---- Check if a float is still open.
 function M.is_open(id)
   local f = floats[id]
   return f ~= nil and vim.api.nvim_win_is_valid(f.win)
 end
 
---- Get the buf/win table of a float.
 function M.get(id)
   return floats[id]
 end
 
 -- ─── Named Presets ───────────────────────────────────────────────────────────
 
---- Open a large centred dialog.
 function M.dialog(title, lines, opts)
   return M.open(vim.tbl_extend("force", {
     title = title,
@@ -273,17 +241,16 @@ function M.dialog(title, lines, opts)
   }, opts or {}))
 end
 
---- Open a small popup near the cursor.
 function M.popup(lines, opts)
   return M.open(vim.tbl_extend("force", {
     lines = lines,
     width = math.min(60, vim.o.columns - 4),
     height = #lines + 2,
     position = "cursor",
+    focusable = false,
   }, opts or {}))
 end
 
---- Fullscreen overlay.
 function M.fullscreen(title, lines, opts)
   local cols, rows = editor_size()
   return M.open(vim.tbl_extend("force", {

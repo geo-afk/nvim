@@ -1,8 +1,5 @@
 -- =============================================================================
---  custom/float_term/term.lua  ·  Floating terminal helper  (Neovim 0.12+)
---
---  Public API: M.setup(opts)  and  M.create_terminal(cmd, opts)
---  Window management is delegated to custom.float_term.floating.
+--  custom/float_term/term.lua  ·  Floating terminal helper  (Neovim 0.10+)
 -- =============================================================================
 
 local ok, floating = pcall(require, "custom.float_term.floating")
@@ -10,7 +7,6 @@ if not ok then
   error("[float_term] Could not load custom.float_term.floating: " .. tostring(floating))
 end
 
--- 0.12: detect version once
 local nvim_012 = vim.fn.has("nvim-0.12") == 1
 
 local M = {}
@@ -20,9 +16,7 @@ local M = {}
 local config = {
   width_ratio = 0.7,
   height_ratio = 0.9,
-  -- border = nil  →  inherits vim.o.winborder (0.12 global default)
-  -- set to e.g. "rounded" to override per-window
-  border = nil,
+  border = nil, -- nil = inherit vim.o.winborder (Neovim 0.12+)
   title = "Terminal",
   title_pos = "center",
   zindex = 50,
@@ -69,8 +63,9 @@ end
 -- ─── Public: create_terminal ─────────────────────────────────────────────────
 
 --- Open a floating terminal that runs `cmd`.
---- @param cmd  string|string[]  command to execute
---- @param opts table?           optional { title = string }
+--- The window only closes on explicit user action (q / <Esc> in normal mode).
+--- @param cmd   string|string[]
+--- @param opts  table?  { title = string }
 --- @return integer job_id, integer buf, integer win
 function M.create_terminal(cmd, opts)
   opts = opts or {}
@@ -79,33 +74,26 @@ function M.create_terminal(cmd, opts)
   local cols = vim.o.columns
   local rows = vim.o.lines - vim.o.cmdheight - 1
 
-  -- 0.12: pass border = nil to inherit vim.o.winborder unless overridden
   local float_id, buf, win = floating.open({
     title = title,
     title_pos = config.title_pos,
     width = math.floor(cols * config.width_ratio),
     height = math.floor(rows * config.height_ratio),
-    border = config.border, -- nil = global winborder (0.12)
+    border = config.border,
     zindex = config.zindex,
     position = "center",
     modifiable = true,
     enter = true,
     style = "minimal",
     focusable = true,
+    -- No on_close hook needed; closure is user-driven only.
   })
 
-  -- Transparency
   if config.winblend > 0 then
     vim.wo[win].winblend = config.winblend
   end
 
-  -- Custom highlight groups
-  vim.wo[win].winhighlight = table.concat({
-    "Normal:FloatTermNormal",
-    "FloatBorder:FloatTermBorder",
-    "FloatTitle:FloatTermTitle",
-  }, ",")
-
+  vim.wo[win].winhighlight = "Normal:FloatTermNormal,FloatBorder:FloatTermBorder,FloatTitle:FloatTermTitle"
   vim.wo[win].wrap = false
   vim.wo[win].number = false
   vim.wo[win].relativenumber = false
@@ -118,60 +106,73 @@ function M.create_terminal(cmd, opts)
     return vim.fn.jobstart(shell_cmd, {
       term = true,
       on_exit = function(_, exit_code)
-        -- 0.12: busy is a number (0 = idle)
-        if vim.api.nvim_buf_is_valid(buf) then
-          pcall(function()
-            vim.bo[buf].busy = 0
-          end)
-        end
+        -- Terminal buffers cannot accept nvim_buf_set_lines; we feed the
+        -- status line through the pty channel instead.
+        vim.schedule(function()
+          if not vim.api.nvim_buf_is_valid(buf) then
+            return
+          end
 
-        if not vim.api.nvim_buf_is_valid(buf) then
-          return
-        end
-        vim.bo[buf].modifiable = true
-        local msg = exit_code == 0 and "✓ Process completed successfully. Press q or <Esc> to close"
-          or string.format("✗ Process exited with code %d. Press q or <Esc> to close", exit_code)
-        vim.api.nvim_buf_set_lines(buf, -1, -1, false, {
-          "",
-          string.rep("─", 80),
-          msg,
-        })
-        vim.bo[buf].modifiable = false
+          -- Clear busy indicator
+          pcall(function()
+            vim.bo[buf].busy = nvim_012 and 0 or false
+          end)
+
+          -- Only append the status when the window is still open.
+          if not vim.api.nvim_win_is_valid(win) then
+            return
+          end
+
+          local sep = string.rep("─", 60)
+          local status = exit_code == 0 and "✓ Process completed successfully.  Press q or <Esc> to close"
+            or string.format("✗ Process exited with code %d.  Press q or <Esc> to close", exit_code)
+
+          -- Feed text into the terminal emulator so it renders correctly.
+          local chan = vim.bo[buf].channel
+          if chan and chan > 0 then
+            vim.fn.chansend(chan, "\r\n" .. sep .. "\r\n" .. status .. "\r\n")
+          end
+        end)
       end,
     })
   end)
 
-  -- 0.12: busy = 1 (number) lights up the statusline ◐ indicator
-  -- wrapped in pcall so older Neovim versions don't crash
+  -- Mark as busy (0.12: integer; earlier: boolean)
   pcall(function()
     vim.bo[buf].busy = nvim_012 and 1 or true
   end)
 
-  vim.cmd("startinsert")
-
-  -- Key-maps (override floating.lua's generic q/<Esc> for terminal behaviour)
+  -- Override floating.lua's generic close keymaps with terminal-aware ones.
+  -- q in normal mode → close
   vim.keymap.set("n", "q", function()
     floating.close(float_id)
   end, { buffer = buf, nowait = true, silent = true, desc = "Close floating terminal" })
 
+  -- <Esc>: normal mode → close; terminal mode → switch to normal mode
   vim.keymap.set({ "t", "n" }, "<Esc>", function()
     if vim.api.nvim_get_mode().mode == "n" then
       floating.close(float_id)
     else
       vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<C-\\><C-n>", true, true, true), "n", true)
     end
-  end, { buffer = buf, nowait = true, silent = true, desc = "Exit terminal insert / close window" })
+  end, { buffer = buf, nowait = true, silent = true, desc = "Exit terminal insert / close" })
 
+  -- Let literal 'q' keystrokes through in terminal mode (e.g. typing "quit" in dlv)
   vim.keymap.set("t", "q", "q", { buffer = buf, noremap = true })
+
+  -- Defer startinsert so it runs after the current event loop tick.
+  -- This prevents mode-change side effects that could trigger spurious BufLeave.
+  vim.schedule(function()
+    if vim.api.nvim_win_is_valid(win) then
+      vim.cmd("startinsert")
+    end
+  end)
 
   return job_id, buf, win
 end
 
 -- ─── Public: setup ───────────────────────────────────────────────────────────
 
---- Configure the floating terminal.  Call once from your plugin/init file.
----
---- 0.12 note: leave `border` unset (or nil) to inherit `vim.o.winborder`.
 --- @param user_config table?
 function M.setup(user_config)
   config = vim.tbl_deep_extend("force", config, user_config or {})
