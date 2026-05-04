@@ -7,31 +7,27 @@
 local M = {}
 
 -- ── Kind table ───────────────────────────────────────────────────────────────
--- Each entry: { icon = <nerd-font glyph>, badge = <2-char ASCII fallback> }
 
 local KINDS = {
-  ["quickfix"] = { icon = "󰁨", badge = "QF" }, -- wrench-fix
-  ["refactor"] = { icon = "", badge = "RF" }, -- code-braces
-  ["refactor.extract"] = { icon = "󰄪", badge = "EX" }, -- scissors
-  ["refactor.inline"] = { icon = "󰛦", badge = "IN" }, -- arrow-collapse
-  ["refactor.move"] = { icon = "󰆼", badge = "MV" }, -- file-move
-  ["refactor.rewrite"] = { icon = "󰏫", badge = "RW" }, -- pencil
-  ["source"] = { icon = "󱐋", badge = "SR" }, -- source-branch
-  ["source.organizeImports"] = { icon = "󰋺", badge = "OI" }, -- sort
-  ["source.fixAll"] = { icon = "󰁨", badge = "FA" }, -- wrench-all
+  ["quickfix"] = { icon = "󰁨", badge = "QF" },
+  ["refactor"] = { icon = "", badge = "RF" },
+  ["refactor.extract"] = { icon = "󰄪", badge = "EX" },
+  ["refactor.inline"] = { icon = "󰛦", badge = "IN" },
+  ["refactor.move"] = { icon = "󰆼", badge = "MV" },
+  ["refactor.rewrite"] = { icon = "󰏫", badge = "RW" },
+  ["source"] = { icon = "󱐋", badge = "SR" },
+  ["source.organizeImports"] = { icon = "󰋺", badge = "OI" },
+  ["source.fixAll"] = { icon = "󰁨", badge = "FA" },
 }
 
-local DEFAULT = { icon = "󰌶", badge = "CA" } -- lightbulb
+local DEFAULT = { icon = "󰌶", badge = "CA" }
 
 -- ── Config ───────────────────────────────────────────────────────────────────
 
----Set to `false` if your terminal / font does not support Nerd Font glyphs.
----The menu falls back to two-character ASCII badges in that case.
 M.use_icons = true
 
 -- ── Setup ─────────────────────────────────────────────────────────────────────
 
----Configure kinds options.  Called automatically by code_action.setup().
 ---@param opts table|nil  { use_icons: boolean }
 function M.setup(opts)
   if opts and opts.use_icons ~= nil then
@@ -41,10 +37,8 @@ end
 
 -- ── Public API ───────────────────────────────────────────────────────────────
 
----Return the display symbol for a given LSP kind string.
----Longest matching prefix wins.
 ---@param kind string|nil
----@return string  one glyph (icon mode) or two chars (badge mode)
+---@return string
 function M.get(kind)
   if not kind or kind == "" then
     return M.use_icons and DEFAULT.icon or DEFAULT.badge
@@ -52,7 +46,7 @@ function M.get(kind)
 
   local best_key = nil
   local best_len = 0
-  for key, _ in pairs(KINDS) do
+  for key in pairs(KINDS) do
     if (kind == key or vim.startswith(kind, key .. ".")) and #key > best_len then
       best_key = key
       best_len = #key
@@ -67,8 +61,6 @@ function M.get(kind)
   return M.use_icons and DEFAULT.icon or DEFAULT.badge
 end
 
----Return display width consumed by a kind symbol.
----Nerd Font icons are always single-cell wide; ASCII badges are two cells.
 ---@return integer
 function M.symbol_width()
   return M.use_icons and 1 or 2

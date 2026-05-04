@@ -1,22 +1,13 @@
 -- lua/custom/code_action/init.lua
 -- Public API for the code_action plugin.
 --
--- Usage (in init.lua / lazy.nvim spec):
---
---   require("custom.code_action").setup()          -- all defaults
---   require("custom.code_action").setup({           -- custom config
+-- Usage:
+--   require("custom.code_action").setup()
+--   require("custom.code_action").setup({
 --     auto_apply_single = true,
---     picker = { winblend = 8 },
+--     picker  = { winblend = 8 },
 --     keymaps = { filter = "<C-f>" },
 --   })
---
--- Module structure
--- ────────────────
---   init.lua        ← you are here (public API + setup)
---   highlight.lua   ← HL group definitions & per-source colour palette
---   kinds.lua       ← LSP kind → icon / badge mapping
---   lsp.lua         ← async code-action request & action application
---   window.lua      ← grouped picker + preview float lifecycle
 
 local M = {}
 
@@ -27,7 +18,7 @@ M.config = {
   ---Milliseconds to wait for all LSP clients before giving up.
   timeout_ms = 1500,
 
-  ---When true, skip the picker and apply immediately if only one action exists.
+  ---Skip the picker and apply immediately when only one action exists.
   auto_apply_single = false,
 
   picker = {
@@ -52,15 +43,15 @@ M.config = {
     winblend = 0,
     ---When true, start in diff mode when a workspace edit is available.
     show_diff = false,
+    ---When true, show a live buffer-diff panel (tiny-code-action Buffer Picker style).
+    buf_preview = true,
   },
 
   ---@type { use_icons: boolean }
   kinds = {
-    ---Set false if your terminal lacks Nerd Font support.
     use_icons = true,
   },
 
-  ---All picker keymaps.  Each value is a string or a list of strings.
   keymaps = {
     apply = "<CR>",
     close = { "<Esc>", "q" },
@@ -76,11 +67,9 @@ M.config = {
   },
 }
 
--- ── Visual-range helpers ────────────────────────────────────────────────────
+-- ── Visual-range helpers ──────────────────────────────────────────────────────
 
----Build an LSP Range table from the current visual selection marks.
----Returns nil when no valid visual marks exist.
----@return table|nil
+---@return lsp.Range|nil
 local function get_visual_range()
   local s = vim.fn.getpos("'<")
   local e = vim.fn.getpos("'>")
@@ -101,8 +90,6 @@ local function get_visual_range()
   }
 end
 
----Return the visual selection as a pair of 1-indexed { row, col } positions.
----Returns nil, nil when no valid visual marks exist.
 ---@return integer[]|nil, integer[]|nil
 local function get_visual_marks()
   local s = vim.fn.getpos("'<")
@@ -121,18 +108,16 @@ local function get_visual_marks()
   return sp, ep
 end
 
--- ── Public API ───────────────────────────────────────────────────────────────
+-- ── Public API ────────────────────────────────────────────────────────────────
 
 ---Open the code action picker.
----
 ---@param opts table|nil
----  opts.use_visual_range  boolean   force visual-range mode (default: auto-detect)
----  opts.bufnr             integer   buffer to query (default: current)
----  opts.open_preview      boolean   open preview pane immediately
+---  opts.use_visual_range  boolean  force visual-range mode (default: auto-detect)
+---  opts.bufnr             integer  buffer to query (default: current)
+---  opts.open_preview      boolean  open preview pane immediately
 function M.open(opts)
   opts = opts or {}
 
-  -- Capture context NOW, before anything goes async or modes change.
   local source_win = vim.api.nvim_get_current_win()
   local source_buf = opts.bufnr or vim.api.nvim_get_current_buf()
   local source_cursor = vim.api.nvim_win_get_cursor(source_win)
@@ -143,8 +128,6 @@ function M.open(opts)
     use_visual = mode:find("[vV\22]") ~= nil
   end
 
-  -- Exit visual mode so that '< '> marks are committed to the buffer
-  -- before we read them.
   if use_visual then
     local esc = vim.api.nvim_replace_termcodes("<Esc>", true, false, true)
     vim.api.nvim_feedkeys(esc, "nx", false)
@@ -157,13 +140,12 @@ function M.open(opts)
   end
   local visual_marks = (vstart and vend) and { vstart, vend } or nil
 
-  local lsp = require("custom.code_action.lsp")
+  local lsp_mod = require("custom.code_action.lsp")
   local window = require("custom.code_action.window")
 
-  lsp.request(source_buf, source_win, range, visual_marks, M.config.timeout_ms, function(items)
-    -- Auto-apply when there is exactly one action and the user has opted in.
+  lsp_mod.request(source_buf, source_win, range, visual_marks, M.config.timeout_ms, function(items)
     if M.config.auto_apply_single and #items == 1 then
-      lsp.apply(items[1])
+      lsp_mod.apply(items[1])
       return
     end
 
@@ -174,8 +156,7 @@ function M.open(opts)
   end)
 end
 
----Reset the internal `is_open` guard in case an unhandled error left it stuck.
----Run `:CodeActionMenuReset` or call this from your own error-recovery code.
+---Reset the internal is_open guard in case an unhandled error left it stuck.
 function M.reset()
   require("custom.code_action.window").reset()
 end
@@ -183,34 +164,25 @@ end
 ---One-time setup: merge user options, configure sub-modules, register
 ---highlight groups, default keymaps, and user commands.
 ---Safe to call multiple times (later calls perform a deep-merge).
----
 ---@param user_opts CodeActionConfig|nil
 function M.setup(user_opts)
   if user_opts then
-    -- Deep-merge so callers can pass partial tables (e.g. just `picker` opts).
     M.config = vim.tbl_deep_extend("force", M.config, user_opts)
   end
 
-  -- Propagate icon preference to the kinds module.
   require("custom.code_action.kinds").setup(M.config.kinds)
-
-  -- Register / refresh highlight groups.
   require("custom.code_action.highlight").setup()
 
-  -- ── Default keymaps ──────────────────────────────────────────────────────
+  -- ── Default keymaps ───────────────────────────────────────────────────────
 
   local map = vim.keymap.set
-  map("n", "<leader>ca", function()
-    M.open()
-  end, { desc = "LSP: Code Action" })
-  map("x", "<leader>ca", function()
-    M.open()
-  end, { desc = "LSP: Code Action" })
+  map("n", "<leader>ca", M.open, { desc = "LSP: Code Action" })
+  map("x", "<leader>ca", M.open, { desc = "LSP: Code Action" })
   map("n", "<leader>cA", function()
     M.open({ open_preview = true })
   end, { desc = "LSP: Code Action (preview)" })
 
-  -- ── User commands ────────────────────────────────────────────────────────
+  -- ── User commands ─────────────────────────────────────────────────────────
 
   vim.api.nvim_create_user_command("CodeActionMenu", function(cmd_opts)
     M.open({ use_visual_range = cmd_opts.range > 0 })
@@ -220,10 +192,7 @@ function M.setup(user_opts)
   })
 
   vim.api.nvim_create_user_command("CodeActionMenuPreview", function(cmd_opts)
-    M.open({
-      use_visual_range = cmd_opts.range > 0,
-      open_preview = true,
-    })
+    M.open({ use_visual_range = cmd_opts.range > 0, open_preview = true })
   end, {
     desc = "Open the code action picker with preview pane open",
     range = true,

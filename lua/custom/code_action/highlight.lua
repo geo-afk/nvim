@@ -2,6 +2,8 @@
 -- Highlight group definitions and per-source colour assignment for code_action_menu.
 -- Each unique LSP client is lazily assigned a colour from the SOURCE_PALETTE
 -- cycle, so actions from different servers are always visually distinguishable.
+--
+-- Requires Neovim 0.10+
 
 local M = {}
 
@@ -28,82 +30,62 @@ M.HL = {
   Scrollbar = "CodeActionMenuScrollbar",
   ScrollTrack = "CodeActionMenuScrollTrack",
   FilterMatch = "CodeActionMenuFilterMatch",
+  DiffAdd = "CodeActionMenuDiffAdd",
+  DiffDelete = "CodeActionMenuDiffDelete",
+  DiffHunk = "CodeActionMenuDiffHunk",
 }
 
 -- ── Per-source colour palette ─────────────────────────────────────────────
--- Six distinct foreground colours that work on both dark and light themes.
--- Extend this table to support more than six unique clients.
 
 local SOURCE_PALETTE = {
-  "#7aa2f7", -- blue   (client 1)
-  "#9ece6a", -- green  (client 2)
-  "#e0af68", -- amber  (client 3)
-  "#bb9af7", -- purple (client 4)
-  "#2ac3de", -- cyan   (client 5)
-  "#f7768e", -- rose   (client 6)
+  "#7aa2f7", -- blue
+  "#9ece6a", -- green
+  "#e0af68", -- amber
+  "#bb9af7", -- purple
+  "#2ac3de", -- cyan
+  "#f7768e", -- rose
 }
 
--- State: maps client_name → assigned HL group name.
--- Persists across menu invocations so the same client always gets the same colour.
 local _source_hl_map = {}
 local _source_hl_idx = 0
 
 ---Return (and lazily create) the highlight group for a given LSP client name.
 ---@param client_name string|nil
----@return string  highlight group name
+---@return string
 function M.source_hl(client_name)
   if not client_name then
     return M.HL.Disabled
   end
-
   if _source_hl_map[client_name] then
     return _source_hl_map[client_name]
   end
-
   _source_hl_idx = (_source_hl_idx % #SOURCE_PALETTE) + 1
   local hl_name = "CodeActionMenuSource" .. client_name:gsub("[^%w]", "_")
-  local fg = SOURCE_PALETTE[_source_hl_idx]
-
-  -- Intentionally not `default = true` so user colourscheme changes mid-session
-  -- won't silently adopt an old assignment.
-  vim.api.nvim_set_hl(0, hl_name, { fg = fg })
+  vim.api.nvim_set_hl(0, hl_name, { fg = SOURCE_PALETTE[_source_hl_idx] })
   _source_hl_map[client_name] = hl_name
   return hl_name
 end
 
----Return a table of { client_name, hl_group } for all registered sources.
----Used to build the coloured title-bar segments.
+---Return all registered sources.
 ---@return { name: string, hl: string }[]
 function M.registered_sources()
   local out = {}
   for name, hl in pairs(_source_hl_map) do
-    table.insert(out, { name = name, hl = hl })
+    out[#out + 1] = { name = name, hl = hl }
   end
   return out
 end
 
 -- ── Setup ────────────────────────────────────────────────────────────────────
 
----Register all highlight groups.  Safe to call multiple times.
----`default = true` lets the user's colourscheme win; only our fallback is set here.
 function M.setup()
-  -- Window body: link to Normal so the float blends with the editor background.
   vim.api.nvim_set_hl(0, M.HL.Normal, { link = "Normal", default = true })
 
-  -- Inherit FloatBorder's foreground colour but strip any background so the
-  -- rounded border lines are transparent, matching the float body.
   local border_base = vim.api.nvim_get_hl(0, { name = "FloatBorder", link = false })
-  vim.api.nvim_set_hl(0, M.HL.Border, {
-    fg = border_base.fg,
-    bg = "NONE",
-    default = true,
-  })
+  vim.api.nvim_set_hl(0, M.HL.Border, { fg = border_base.fg, bg = "NONE", default = true })
 
-  -- Title bar: use FloatTitle as the base but give it a background tint so it
-  -- reads as a distinct bar rather than just text floating in the border line.
   vim.api.nvim_set_hl(0, M.HL.Title, { link = "FloatTitle", default = true })
   vim.api.nvim_set_hl(0, M.HL.TitleBg, { link = "TabLineSel", default = true })
-
   vim.api.nvim_set_hl(0, M.HL.Footer, { link = "FloatFooter", default = true })
   vim.api.nvim_set_hl(0, M.HL.CursorLine, { link = "PmenuSel", default = true })
   vim.api.nvim_set_hl(0, M.HL.Header, { link = "Directory", default = true })
@@ -115,41 +97,29 @@ function M.setup()
   vim.api.nvim_set_hl(0, M.HL.PreviewValue, { link = "Normal", default = true })
   vim.api.nvim_set_hl(0, M.HL.Scrollbar, { link = "PmenuThumb", default = true })
   vim.api.nvim_set_hl(0, M.HL.ScrollTrack, { link = "PmenuSbar", default = true })
-  -- Filter match highlight: bold+underline so matched items stand out.
   vim.api.nvim_set_hl(0, M.HL.FilterMatch, { link = "Search", default = true })
+  vim.api.nvim_set_hl(0, M.HL.DiffAdd, { link = "DiffAdd", default = true })
+  vim.api.nvim_set_hl(0, M.HL.DiffDelete, { link = "DiffDelete", default = true })
+  vim.api.nvim_set_hl(0, M.HL.DiffHunk, { link = "DiffText", default = true })
 
-  -- Pre-register the six palette groups so they exist even before any client
-  -- has been seen (prevents "unknown highlight group" warnings from winhighlight).
   for i, fg in ipairs(SOURCE_PALETTE) do
     vim.api.nvim_set_hl(0, "CodeActionMenuSource" .. i, { fg = fg, default = true })
   end
 
-  -- Re-apply any already-registered per-source groups so their colours survive
-  -- a mid-session colorscheme swap (those were set without `default = true`).
-  for client_name, hl_name in pairs(_source_hl_map) do
-    local idx = 0
-    for i, entry in ipairs(SOURCE_PALETTE) do
-      if ("CodeActionMenuSource" .. client_name:gsub("[^%w]", "_")) == hl_name then
-        idx = i
-        break
-      end
-      _ = entry
-    end
-    if idx > 0 then
-      vim.api.nvim_set_hl(0, hl_name, { fg = SOURCE_PALETTE[idx] })
+  -- Re-apply per-source groups after colorscheme swap.
+  for _, hl_name in pairs(_source_hl_map) do
+    local existing = vim.api.nvim_get_hl(0, { name = hl_name, link = false })
+    if existing and existing.fg then
+      vim.api.nvim_set_hl(0, hl_name, { fg = existing.fg })
     end
   end
 end
 
 -- ── ColorScheme refresh ───────────────────────────────────────────────────────
 
--- Re-register all groups whenever the colorscheme changes so our highlights
--- are never silently clobbered by a new theme.
 vim.api.nvim_create_autocmd("ColorScheme", {
   group = vim.api.nvim_create_augroup("CodeActionMenuHighlights", { clear = true }),
-  callback = function()
-    M.setup()
-  end,
+  callback = M.setup,
 })
 
 return M

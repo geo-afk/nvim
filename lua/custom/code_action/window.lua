@@ -1,20 +1,17 @@
 -- window.lua
 -- Grouped picker + preview float lifecycle for the code_action plugin.
 --
--- New in this version:
---   • next_item_row fixed for large delta (C-d / C-u no longer skip items)
---   • text_preview truncation uses display width, not byte length
---   • is_open crash-recovery via M.reset()
---   • Redundant buffer delete removed from close_preview (bufhidden handles it)
---   • strwidth replaces opaque dw alias
---   • build_rows precomputes row→item-position map (O(1) status updates)
---   • Diff preview mode (toggle with d) using vim.text.diff() + scratch buffer
---   • Live filter float (/ to open, type to narrow, <CR> to confirm)
---   • Numeric shortcuts 1-9 jump directly to the Nth visible action
---   • <Tab> / <S-Tab> as additional nav aliases
---   • Mouse: double-click to apply, scroll-wheel to navigate
---   • Configurable winblend, width caps, and all keymaps via opts.config
---   • configure_float accepts winblend from config
+-- Neovim 0.12 modernisation:
+--   • vim.lsp.get_clients (replaces deprecated buf_get_clients)
+--   • vim.api.nvim_set_option_value (replaces nvim_win_set_option)
+--   • vim.wo[win][opt] scoped writes
+--   • vim.diagnostic.get (no legacy sign/namespace APIs)
+--   • vim.text.diff for unified diffs
+--   • Buffer-picker style preview (live diff in a real scratch buffer, tiny-code-action style)
+--   • Inline diff highlights applied via extmarks (no 'diff' option quirks)
+--   • Footer / title use nvim_open_win's native fields (0.10+)
+--   • noautocmd = true on every float open to skip slow BufEnter handlers
+--   • All win-scoped options via vim.wo[win] = value (0.11+ scoped API)
 
 local highlights = require("custom.code_action.highlight")
 local kinds = require("custom.code_action.kinds")
@@ -24,7 +21,6 @@ local M = {}
 local HL = highlights.HL
 local NS = highlights.NS
 
--- Module-level open guard. Reset with M.reset() if an error leaves it stuck.
 local is_open = false
 
 local GROUPS = {
@@ -34,13 +30,12 @@ local GROUPS = {
   { key = "other", label = "Other Actions" },
 }
 
--- ── Small utilities ───────────────────────────────────────────────────────────
+-- ── Utilities ─────────────────────────────────────────────────────────────────
 
 local function clamp(v, lo, hi)
   return math.max(lo, math.min(v, hi))
 end
 
----Display-cell width of string s (handles multi-byte / wide chars correctly).
 local function strwidth(s)
   return vim.fn.strdisplaywidth(s)
 end
@@ -66,29 +61,26 @@ end
 local function right_badges(item)
   local badges = {}
   if item.action.isPreferred then
-    table.insert(badges, { "★", HL.Preferred })
+    badges[#badges + 1] = { "★", HL.Preferred }
   end
   if item.client and item.client.name then
-    table.insert(badges, { item.client.name, highlights.source_hl(item.client.name) })
+    badges[#badges + 1] = { item.client.name, highlights.source_hl(item.client.name) }
   end
   if item.action.disabled then
-    table.insert(badges, { "disabled", HL.Disabled })
+    badges[#badges + 1] = { "disabled", HL.Disabled }
   end
   return badges
 end
 
 -- ── Row building ──────────────────────────────────────────────────────────────
 
----Build grouped, sorted display rows from a flat item list.
----Returns the row list, a row-index→item-position lookup, and the total item
----count.  The lookup enables O(1) status-line updates.
----@param items_list table[]
 ---@return table[], table<integer,integer>, integer
 local function build_rows(items_list)
   local grouped = { quickfix = {}, refactor = {}, source = {}, other = {} }
 
   for _, item in ipairs(items_list) do
-    table.insert(grouped[classify(item)], item)
+    local bucket = grouped[classify(item)]
+    bucket[#bucket + 1] = item
   end
 
   for _, bucket in pairs(grouped) do
@@ -101,16 +93,16 @@ local function build_rows(items_list)
   end
 
   local rows = {}
-  local row_item_pos = {} -- row_index (1-based) → item position (1-based)
+  local row_item_pos = {}
   local item_pos = 0
 
   for _, group in ipairs(GROUPS) do
     local bucket = grouped[group.key]
     if #bucket > 0 then
-      table.insert(rows, { kind = "header", label = group.label, count = #bucket })
+      rows[#rows + 1] = { kind = "header", label = group.label, count = #bucket }
       for _, item in ipairs(bucket) do
         item_pos = item_pos + 1
-        table.insert(rows, { kind = "item", item = item })
+        rows[#rows + 1] = { kind = "item", item = item }
         row_item_pos[#rows] = item_pos
       end
     end
@@ -119,7 +111,6 @@ local function build_rows(items_list)
   return rows, row_item_pos, item_pos
 end
 
----Index of the first item row (skipping headers).
 local function first_item_row(row_list)
   for i, row in ipairs(row_list) do
     if row.kind == "item" then
@@ -129,7 +120,6 @@ local function first_item_row(row_list)
   return 1
 end
 
----Index of the last item row.
 local function last_item_row(row_list)
   for i = #row_list, 1, -1 do
     if row_list[i].kind == "item" then
@@ -139,53 +129,42 @@ local function last_item_row(row_list)
   return 1
 end
 
----Move from `start` by `delta` rows, then snap to the nearest item in the
----direction of travel.  Works correctly for both delta=1 (normal j/k) and
----large deltas (half-page <C-d>/<C-u>) without overshooting.
----@param row_list table[]
----@param start    integer
----@param delta    integer  positive = down, negative = up
----@return integer
 local function next_item_row(row_list, start, delta)
   if #row_list == 0 then
     return 1
   end
   local dir = delta >= 0 and 1 or -1
   local target = clamp(start + delta, 1, #row_list)
-
-  -- Walk from the target in the direction of travel to find an item row.
   for i = target, dir > 0 and #row_list or 1, dir do
     if row_list[i].kind == "item" then
       return i
     end
   end
-  -- If nothing found that way, walk the other direction (boundary case).
   for i = target, dir > 0 and 1 or #row_list, -dir do
     if row_list[i].kind == "item" then
       return i
     end
   end
-
   return start
 end
 
 -- ── Width estimation ──────────────────────────────────────────────────────────
 
 local function estimate_width(items, cfg_picker)
-  local max_width = 0
+  local max_w = 0
   for _, item in ipairs(items) do
     local right = 0
     for _, badge in ipairs(right_badges(item)) do
       right = right + strwidth(badge[1]) + 1
     end
-    max_width = math.max(max_width, 4 + kinds.symbol_width() + strwidth(clean_title(item.action)) + right + 6)
+    max_w = math.max(max_w, 4 + kinds.symbol_width() + strwidth(clean_title(item.action)) + right + 6)
   end
   for _, group in ipairs(GROUPS) do
-    max_width = math.max(max_width, strwidth(group.label) + 8)
+    max_w = math.max(max_w, strwidth(group.label) + 8)
   end
   local min_w = cfg_picker and cfg_picker.min_width or 48
-  local max_w = math.max(min_w, math.floor(vim.o.columns * (cfg_picker and cfg_picker.max_width_pct or 0.50)))
-  return clamp(max_width, min_w, max_w)
+  local cap = math.max(min_w, math.floor(vim.o.columns * (cfg_picker and cfg_picker.max_width_pct or 0.50)))
+  return clamp(max_w, min_w, cap)
 end
 
 -- ── Text helpers ──────────────────────────────────────────────────────────────
@@ -196,39 +175,38 @@ local function range_label(range)
   end
   local s = range.start or range["start"]
   local e = range["end"]
-  return string.format("L%d:%d-L%d:%d", s.line + 1, s.character + 1, e.line + 1, e.character + 1)
+  return ("L%d:%d-L%d:%d"):format(s.line + 1, s.character + 1, e.line + 1, e.character + 1)
 end
 
----Truncate preview text to ≤90 display cells (not bytes).
 local function text_preview(text)
-  local normalized = tostring(text or ""):gsub("\r", ""):gsub("\n", "\\n")
-  if normalized == "" then
+  local n = tostring(text or ""):gsub("\r", ""):gsub("\n", "\\n")
+  if n == "" then
     return '""'
   end
-  if strwidth(normalized) > 90 then
-    normalized = vim.fn.strcharpart(normalized, 0, 87) .. "..."
+  if strwidth(n) > 90 then
+    n = vim.fn.strcharpart(n, 0, 87) .. "..."
   end
-  return normalized
+  return n
 end
 
 local function append_kv(lines, spans, label, value)
-  table.insert(lines, label .. value)
-  table.insert(spans, { row = #lines - 1, label_end = #label, value_start = #label })
+  lines[#lines + 1] = label .. value
+  spans[#spans + 1] = { row = #lines - 1, label_end = #label, value_start = #label }
 end
 
 local function summarize_workspace_edit(edit)
   local lines, spans = {}, {}
 
   local function add_change(file, edits)
-    table.insert(lines, file)
-    table.insert(spans, { row = #lines - 1, file = true })
+    lines[#lines + 1] = file
+    spans[#spans + 1] = { row = #lines - 1, file = true }
     local limit = math.min(#edits, 6)
-    for idx = 1, limit do
-      local entry = edits[idx]
-      table.insert(lines, ("  • %s -> %s"):format(range_label(entry.range), text_preview(entry.newText)))
+    for i = 1, limit do
+      local entry = edits[i]
+      lines[#lines + 1] = ("  • %s -> %s"):format(range_label(entry.range), text_preview(entry.newText))
     end
     if #edits > limit then
-      table.insert(lines, ("  • ... %d more edit(s)"):format(#edits - limit))
+      lines[#lines + 1] = ("  • … %d more edit(s)"):format(#edits - limit)
     end
   end
 
@@ -241,17 +219,14 @@ local function summarize_workspace_edit(edit)
   elseif edit.documentChanges then
     for _, change in ipairs(edit.documentChanges) do
       if change.kind == "create" then
-        table.insert(lines, ("Create %s"):format(vim.fn.fnamemodify(vim.uri_to_fname(change.uri), ":~:.")))
+        lines[#lines + 1] = ("Create %s"):format(vim.fn.fnamemodify(vim.uri_to_fname(change.uri), ":~:."))
       elseif change.kind == "rename" then
-        table.insert(
-          lines,
-          ("Rename %s -> %s"):format(
-            vim.fn.fnamemodify(vim.uri_to_fname(change.oldUri), ":~:."),
-            vim.fn.fnamemodify(vim.uri_to_fname(change.newUri), ":~:.")
-          )
+        lines[#lines + 1] = ("Rename %s → %s"):format(
+          vim.fn.fnamemodify(vim.uri_to_fname(change.oldUri), ":~:."),
+          vim.fn.fnamemodify(vim.uri_to_fname(change.newUri), ":~:.")
         )
       elseif change.kind == "delete" then
-        table.insert(lines, ("Delete %s"):format(vim.fn.fnamemodify(vim.uri_to_fname(change.uri), ":~:.")))
+        lines[#lines + 1] = ("Delete %s"):format(vim.fn.fnamemodify(vim.uri_to_fname(change.uri), ":~:."))
       elseif change.textDocument and change.edits then
         add_change(vim.fn.fnamemodify(vim.uri_to_fname(change.textDocument.uri), ":~:."), change.edits)
       end
@@ -264,107 +239,82 @@ end
 local function summary_preview_lines(action, item)
   local lines, spans = {}, {}
 
-  append_kv(lines, spans, "Title: ", clean_title(action))
-  append_kv(lines, spans, "Kind: ", action.kind or "none")
-  append_kv(lines, spans, "Source: ", item.client and item.client.name or "unknown")
+  append_kv(lines, spans, "Title:     ", clean_title(action))
+  append_kv(lines, spans, "Kind:      ", action.kind or "none")
+  append_kv(lines, spans, "Source:    ", item.client and item.client.name or "unknown")
   append_kv(lines, spans, "Preferred: ", action.isPreferred and "yes" or "no")
 
   if action.disabled then
-    append_kv(lines, spans, "Disabled: ", type(action.disabled) == "table" and action.disabled.reason or "yes")
+    append_kv(lines, spans, "Disabled:  ", type(action.disabled) == "table" and action.disabled.reason or "yes")
   end
 
   if action.command then
     local cmd = type(action.command) == "table" and action.command.command or tostring(action.command)
-    append_kv(lines, spans, "Command: ", cmd or "unknown")
+    append_kv(lines, spans, "Command:   ", cmd or "unknown")
   end
 
   if action.data ~= nil then
-    append_kv(lines, spans, "Resolve Data: ", "available")
+    append_kv(lines, spans, "Resolve:   ", "lazy (data available)")
   end
 
   if action.edit then
-    table.insert(lines, "")
-    table.insert(lines, "Workspace Edit")
-    table.insert(spans, { row = #lines - 1, file = true })
-    local edit_lines, edit_spans = summarize_workspace_edit(action.edit)
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = "Workspace Edit"
+    spans[#spans + 1] = { row = #lines - 1, file = true }
+    local el, es = summarize_workspace_edit(action.edit)
     local base = #lines
-    vim.list_extend(lines, edit_lines)
-    for _, span in ipairs(edit_spans) do
-      table.insert(spans, { row = base + span.row, file = span.file })
+    vim.list_extend(lines, el)
+    for _, s in ipairs(es) do
+      spans[#spans + 1] = { row = base + s.row, file = s.file }
     end
   elseif not action.command then
-    table.insert(lines, "")
-    table.insert(lines, "No edit or command payload was provided.")
-    table.insert(lines, "This action is likely resolved lazily by the server.")
+    lines[#lines + 1] = ""
+    lines[#lines + 1] = "No edit or command payload (lazy resolution)."
   end
 
   return lines, spans
 end
 
--- ── Diff preview ──────────────────────────────────────────────────────────────
+-- ── Diff computation ──────────────────────────────────────────────────────────
 
----Compute a unified diff for a resolved action's workspace edit.
----Returns a list of diff lines (with --- / +++ headers per file), or nil when
----no textual diff is available (command-only, create, rename, delete, etc.).
----@param action table  resolved LSP CodeAction
----@param client table|nil
----@return string[]|nil
-local function compute_diff_lines(action, client)
+-- Returns { lines: string[], hl: {lnum:int, hl_group:string}[] } or nil.
+-- We compute the diff ourselves and apply extmark highlights, which is more
+-- reliable than setting 'diff' option on two windows.
+---@param action table
+---@param client vim.lsp.Client|nil
+---@return { lines: string[], hl: {lnum:integer, hl_group:string}[] }|nil
+local function compute_diff(action, client)
   if not action or not action.edit then
     return nil
   end
 
   local encoding = client and client.offset_encoding or "utf-8"
-  local result = {}
-
-  -- Configuration options (can be set via vim.g)
-  local config = {
-    max_diff_lines = vim.g.lsp_diff_max_lines or 1000,
-    diff_algorithm = vim.g.lsp_diff_algorithm or "minimal",
-  }
+  local result = { lines = {}, hl = {} }
+  local max_lines = vim.g.lsp_diff_max_lines or 1000
 
   local function diff_uri(uri, text_edits)
     local fname = vim.uri_to_fname(uri)
     local rel = vim.fn.fnamemodify(fname, ":~:.")
 
-    -- Prefer the live buffer; fall back to reading from disk.
     local orig = {}
-    local existing_buf = vim.fn.bufnr(fname)
-    if existing_buf ~= -1 and vim.api.nvim_buf_is_loaded(existing_buf) then
-      -- Check if buffer has unsaved changes using vim.bo
-      if vim.bo[existing_buf].modified then
-        vim.notify("Warning: Buffer " .. fname .. " has unsaved changes", vim.log.levels.WARN)
-      end
-      orig = vim.api.nvim_buf_get_lines(existing_buf, 0, -1, false)
+    local ebuf = vim.fn.bufnr(fname)
+    if ebuf ~= -1 and vim.api.nvim_buf_is_loaded(ebuf) then
+      orig = vim.api.nvim_buf_get_lines(ebuf, 0, -1, false)
     else
       local ok, file_lines = pcall(vim.fn.readfile, fname)
-      if ok and #file_lines > 0 then
+      if ok then
         orig = file_lines
       end
-      -- else: orig remains empty for new files
     end
 
-    -- Check for large files
-    if #orig > 10000 then
-      vim.notify("Large file detected, diff may be slow", vim.log.levels.INFO)
-    end
-
-    -- Apply the edits to a throw-away scratch buffer.
+    -- Apply edits onto a scratch buffer.
     local scratch = vim.api.nvim_create_buf(false, true)
-    local success = false
-    local ok2 = pcall(function()
+    local ok = pcall(function()
       vim.api.nvim_buf_set_lines(scratch, 0, -1, false, orig)
       vim.lsp.util.apply_text_edits(text_edits, scratch, encoding)
-      success = true
     end)
-
-    if not ok2 or not success then
-      pcall(vim.api.nvim_buf_delete, scratch, { force = true })
-      return
-    end
-
-    local modified = vim.api.nvim_buf_get_lines(scratch, 0, -1, false)
-    pcall(vim.api.nvim_buf_delete, scratch, { force = true })
+    local modified = ok and vim.api.nvim_buf_get_lines(scratch, 0, -1, false) or orig
+    vim.api.nvim_buf_delete(scratch, { force = true })
 
     local a_text = table.concat(orig, "\n") .. "\n"
     local b_text = table.concat(modified, "\n") .. "\n"
@@ -372,93 +322,103 @@ local function compute_diff_lines(action, client)
       return
     end
 
-    local diff_result = vim.text.diff(a_text, b_text, {
+    local diff_str = vim.text.diff(a_text, b_text, {
       result_type = "unified",
-      algorithm = config.diff_algorithm,
+      algorithm = "minimal",
+      ctxlen = 3,
     })
-
-    -- Ensure diff_result is a string
-    if diff_result == nil then
+    if not diff_str or diff_str == "" then
       return
     end
 
-    local diff_str = tostring(diff_result)
-    if diff_str == "" then
-      return
+    local diff_lines = vim.split(tostring(diff_str), "\n", { plain = true })
+    -- Remove trailing empty line that split may produce.
+    while #diff_lines > 0 and diff_lines[#diff_lines] == "" do
+      diff_lines[#diff_lines] = nil
     end
 
-    -- Split the diff string into lines
-    local diff_lines = vim.split(diff_str, "\n", { plain = true })
+    -- Header lines
+    local base = #result.lines
+    result.lines[#result.lines + 1] = ("─── %s"):format(rel)
+    result.hl[#result.hl + 1] = { lnum = base, hl_group = HL.Header }
 
-    -- Truncate extremely large diffs
-    if #diff_lines > config.max_diff_lines then
-      vim.notify("Diff truncated due to size", vim.log.levels.WARN)
-      local truncated = {}
-      for i = 1, config.max_diff_lines do
-        truncated[i] = diff_lines[i]
+    local truncated = false
+    for i, dl in ipairs(diff_lines) do
+      if #result.lines - base > max_lines then
+        result.lines[#result.lines + 1] = "  … diff truncated"
+        truncated = true
+        break
       end
-      truncated[config.max_diff_lines + 1] = "... (diff truncated)"
-      diff_lines = truncated
-    end
-
-    if #diff_lines > 0 then
-      table.insert(result, ("--- a/%s"):format(rel))
-      table.insert(result, ("+++ b/%s"):format(rel))
-      for _, line in ipairs(diff_lines) do
-        table.insert(result, line)
+      local lnum = #result.lines
+      result.lines[#result.lines + 1] = dl
+      if dl:match("^%+") and not dl:match("^%+%+%+") then
+        result.hl[#result.hl + 1] = { lnum = lnum, hl_group = HL.DiffAdd }
+      elseif dl:match("^%-") and not dl:match("^%-%-%-") then
+        result.hl[#result.hl + 1] = { lnum = lnum, hl_group = HL.DiffDelete }
+      elseif dl:match("^@@") then
+        result.hl[#result.hl + 1] = { lnum = lnum, hl_group = HL.DiffHunk }
       end
+      _ = i
+      _ = truncated
     end
   end
 
-  -- Handle documentChanges (preferred) or changes
   if action.edit.documentChanges then
     for _, change in ipairs(action.edit.documentChanges) do
-      -- Check for resource operations
-      if change.kind then
-        if change.kind == "rename" then
-          -- Handle file rename
-          local old_name = vim.uri_to_fname(change.oldUri)
-          local new_name = vim.uri_to_fname(change.newUri)
-          local old_rel = vim.fn.fnamemodify(old_name, ":~:.")
-          local new_rel = vim.fn.fnamemodify(new_name, ":~:.")
-          table.insert(result, ("Rename: %s -> %s"):format(old_rel, new_rel))
-        elseif change.kind == "delete" then
-          -- Handle file deletion
-          local fname = vim.uri_to_fname(change.uri)
-          local rel = vim.fn.fnamemodify(fname, ":~:.")
-          table.insert(result, ("Delete: %s"):format(rel))
-        end
+      if change.kind == "rename" then
+        result.lines[#result.lines + 1] = ("Rename: %s → %s"):format(
+          vim.fn.fnamemodify(vim.uri_to_fname(change.oldUri), ":~:."),
+          vim.fn.fnamemodify(vim.uri_to_fname(change.newUri), ":~:.")
+        )
+      elseif change.kind == "delete" then
+        result.lines[#result.lines + 1] = ("Delete: %s"):format(
+          vim.fn.fnamemodify(vim.uri_to_fname(change.uri), ":~:.")
+        )
+      elseif change.kind == "create" then
+        result.lines[#result.lines + 1] = ("Create: %s"):format(
+          vim.fn.fnamemodify(vim.uri_to_fname(change.uri), ":~:.")
+        )
       elseif change.textDocument and change.edits then
-        -- Standard text document edit
         diff_uri(change.textDocument.uri, change.edits)
       end
     end
   elseif action.edit.changes then
-    for uri, text_edits in pairs(action.edit.changes) do
-      diff_uri(uri, text_edits)
+    local uris = vim.tbl_keys(action.edit.changes)
+    table.sort(uris)
+    for _, uri in ipairs(uris) do
+      diff_uri(uri, action.edit.changes[uri])
     end
   end
 
-  return #result > 0 and result or nil
+  return (#result.lines > 0) and result or nil
 end
 
 -- ── Float helpers ─────────────────────────────────────────────────────────────
 
+---Apply standard window-local options to a float window.
+---Uses the scoped vim.wo API available since Neovim 0.11.
+---@param win integer
+---@param opts { cursorline?: boolean, wrap?: boolean, winblend?: integer }
 local function configure_float(win, opts)
-  vim.wo[win].cursorline = opts.cursorline or false
-  vim.wo[win].number = false
-  vim.wo[win].relativenumber = false
-  vim.wo[win].signcolumn = "no"
-  vim.wo[win].wrap = opts.wrap or false
-  vim.wo[win].scrolloff = 0
-  vim.wo[win].winblend = opts.winblend or 0
-  vim.wo[win].winhighlight = table.concat({
+  local wo = vim.wo[win]
+  wo.cursorline = opts.cursorline or false
+  wo.number = false
+  wo.relativenumber = false
+  wo.signcolumn = "no"
+  wo.wrap = opts.wrap or false
+  wo.scrolloff = 0
+  wo.winblend = opts.winblend or 0
+  wo.winhighlight = table.concat({
     "Normal:" .. HL.Normal,
     "FloatBorder:" .. HL.Border,
     "FloatTitle:" .. HL.Title,
     "FloatFooter:" .. HL.Footer,
     "CursorLine:" .. HL.CursorLine,
   }, ",")
+  -- Disable folds in preview/picker; 'foldenable' is global-local.
+  wo.foldenable = false
+  wo.foldcolumn = "0"
+  wo.statuscolumn = ""
 end
 
 local function place_picker(width, height, source_win, source_cursor)
@@ -496,21 +456,23 @@ end
 
 -- ── Reset ─────────────────────────────────────────────────────────────────────
 
----Reset the is_open guard.  Call if an unhandled error leaves the menu stuck.
 function M.reset()
   is_open = false
 end
 
 -- ── Main open function ────────────────────────────────────────────────────────
 
+---@param items        { action: lsp.CodeAction, client: vim.lsp.Client }[]
+---@param source_win   integer
+---@param source_buf   integer
+---@param source_cursor integer[]
+---@param opts         { open_preview?: boolean, config?: CodeActionConfig }
 function M.open(items, source_win, source_buf, source_cursor, opts)
   opts = opts or {}
   local cfg = opts.config or {}
   local cfg_picker = cfg.picker or {}
   local cfg_preview = cfg.preview or {}
   local km = cfg.keymaps or {}
-
-  -- ── Guards ────────────────────────────────────────────────────────────────
 
   if is_open then
     vim.notify("Code action menu is already open", vim.log.levels.WARN, { title = "Code Actions" })
@@ -533,14 +495,15 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
   local filtered_count = all_item_count
   local filter_query = ""
 
+  ---@type { buf: integer|nil, win: integer|nil, open: boolean }
   local preview = { buf = nil, win = nil, open = false }
-  local preview_mode = cfg_preview.show_diff and "diff" or "summary" -- "summary" | "diff"
+  local preview_mode = cfg_preview.show_diff and "diff" or "summary"
   local closed = false
 
-  local filter_win = nil -- live-filter input float
+  local filter_win = nil
   local filter_buf_ref = nil
 
-  -- ── Geometry ──────────────────────────────────────────────────────────────
+  -- ── Geometry ───────────────────────────────────────────────────────────────
 
   local picker_width = estimate_width(all_items, cfg_picker)
   local picker_height = clamp(#all_rows, 6, math.max(6, math.floor(vim.o.lines * (cfg_picker.max_height_pct or 0.45))))
@@ -558,6 +521,8 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
   vim.bo[picker_buf].buftype = "nofile"
   vim.bo[picker_buf].swapfile = false
   vim.bo[picker_buf].filetype = "codeactionmenu"
+  -- Prevent accidental modification.
+  vim.bo[picker_buf].modifiable = false
 
   local picker_win = vim.api.nvim_open_win(picker_buf, true, {
     relative = "editor",
@@ -578,7 +543,6 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
 
   -- ── Filter ────────────────────────────────────────────────────────────────
 
-  ---Apply a filter query to the item list and rebuild rows.
   local function apply_filter(query)
     filter_query = query or ""
     if filter_query == "" then
@@ -589,7 +553,6 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
         local title = clean_title(it.action):lower()
         local kind = (it.action.kind or ""):lower()
         local source = (it.client and it.client.name or ""):lower()
-        -- Convert string.find result to boolean explicitly
         return title:find(q, 1, true) ~= nil or kind:find(q, 1, true) ~= nil or source:find(q, 1, true) ~= nil
       end, all_items)
       rows, row_item_pos, filtered_count = build_rows(filtered)
@@ -602,19 +565,17 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
     if vim.api.nvim_win_is_valid(source_win) then
       vim.api.nvim_set_current_win(source_win)
       if vim.api.nvim_buf_is_valid(source_buf) then
-        local line_count = vim.api.nvim_buf_line_count(source_buf)
-        local line = clamp(source_cursor[1], 1, math.max(line_count, 1))
-        local row_text = vim.api.nvim_buf_get_lines(source_buf, line - 1, line, false)[1] or ""
+        local lc = vim.api.nvim_buf_line_count(source_buf)
+        local ln = clamp(source_cursor[1], 1, math.max(lc, 1))
+        local row_text = vim.api.nvim_buf_get_lines(source_buf, ln - 1, ln, false)[1] or ""
         local col = clamp(source_cursor[2], 0, math.max(#row_text - 1, 0))
-        pcall(vim.api.nvim_win_set_cursor, source_win, { line, col })
+        pcall(vim.api.nvim_win_set_cursor, source_win, { ln, col })
       end
     end
   end
 
   local function close_preview()
     preview.open = false
-    -- bufhidden = "wipe" already cleans up the buffer when the window closes;
-    -- we only need to close the window here.
     if preview.win and vim.api.nvim_win_is_valid(preview.win) then
       pcall(vim.api.nvim_win_close, preview.win, true)
     end
@@ -628,7 +589,6 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
     end
     closed = true
     is_open = false
-    -- Close the filter input float if open.
     if filter_win and vim.api.nvim_win_is_valid(filter_win) then
       pcall(vim.api.nvim_win_close, filter_win, true)
       filter_win = nil
@@ -648,7 +608,7 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
     local lines = {}
 
     if #rows == 0 then
-      table.insert(lines, "  No actions match the filter.")
+      lines[1] = "  No actions match the filter."
       vim.bo[picker_buf].modifiable = true
       vim.api.nvim_buf_set_lines(picker_buf, 0, -1, false, lines)
       vim.bo[picker_buf].modifiable = false
@@ -662,9 +622,9 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
 
     for _, row in ipairs(rows) do
       if row.kind == "header" then
-        table.insert(lines, " " .. row.label)
+        lines[#lines + 1] = " " .. row.label
       else
-        table.insert(lines, (" %s %s"):format(kinds.get(row.item.action.kind), clean_title(row.item.action)))
+        lines[#lines + 1] = (" %s %s"):format(kinds.get(row.item.action.kind), clean_title(row.item.action))
       end
     end
 
@@ -675,9 +635,9 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
     for idx, row in ipairs(rows) do
       local rownr = idx - 1
       if row.kind == "header" then
-        local line_length = #(vim.api.nvim_buf_get_lines(picker_buf, rownr, rownr + 1, false)[1] or "")
+        local ll = #(vim.api.nvim_buf_get_lines(picker_buf, rownr, rownr + 1, false)[1] or "")
         vim.api.nvim_buf_set_extmark(picker_buf, NS, rownr, 0, {
-          end_col = line_length,
+          end_col = ll,
           hl_group = HL.Header,
           hl_eol = true,
         })
@@ -687,25 +647,27 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
         })
       else
         local icon = kinds.get(row.item.action.kind)
-        -- nvim_buf_add_highlight takes byte offsets; #icon gives the correct
-        -- byte length of the (possibly multi-byte) UTF-8 glyph.
         vim.api.nvim_buf_set_extmark(picker_buf, NS, rownr, 1, {
           end_col = 1 + #icon,
           hl_group = HL.Kind,
         })
+        if row.item.action.isPreferred then
+          vim.api.nvim_buf_set_extmark(picker_buf, NS, rownr, 0, {
+            sign_text = "★",
+            sign_hl_group = HL.Preferred,
+          })
+        end
         if row.item.action.disabled then
           vim.api.nvim_buf_set_extmark(picker_buf, NS, rownr, 0, {
             hl_group = HL.Disabled,
             hl_eol = true,
           })
         end
-        -- Highlight filter match in item title when a query is active.
         if filter_query ~= "" then
           local q = filter_query:lower()
           local title = clean_title(row.item.action):lower()
           local ms, me = title:find(q, 1, true)
           if ms then
-            -- Offset by leading space + icon + space (byte positions).
             local prefix = 1 + #icon + 1
             vim.api.nvim_buf_set_extmark(picker_buf, NS, rownr, prefix + ms - 1, {
               end_col = prefix + me,
@@ -717,7 +679,7 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
         if #badges > 0 then
           local virt = {}
           for _, badge in ipairs(badges) do
-            table.insert(virt, { badge[1] .. " ", badge[2] })
+            virt[#virt + 1] = { badge[1] .. " ", badge[2] }
           end
           vim.api.nvim_buf_set_extmark(picker_buf, NS, rownr, 0, {
             virt_text = virt,
@@ -761,16 +723,14 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
     end
     local item = row.item
     local pos = row_item_pos[index] or 0
-    local filter_tag = filter_query ~= "" and ("  [/%s %d/%d]"):format(filter_query, filtered_count, all_item_count)
-      or ""
-    local mode_tag = preview.open and (" [%s]"):format(preview_mode) or ""
+    local ftag = filter_query ~= "" and ("  [/%s %d/%d]"):format(filter_query, filtered_count, all_item_count) or ""
+    local mtag = preview.open and (" [%s]"):format(preview_mode) or ""
     set_statusline(
       picker_win,
-      ("%s  %d/%d%s%s"):format(item.client and item.client.name or "LSP", pos, filtered_count, filter_tag, mode_tag)
+      ("%s  %d/%d%s%s"):format(item.client and item.client.name or "LSP", pos, filtered_count, ftag, mtag)
     )
   end
 
-  ---Return the row index of the Nth item (1-based) in the current filtered rows.
   local function item_row_at_pos(n)
     local count = 0
     for i, row in ipairs(rows) do
@@ -785,6 +745,11 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
   end
 
   -- ── Preview rendering ─────────────────────────────────────────────────────
+  -- Buffer-picker style (tiny-code-action influence):
+  --   • Preview window shows a scratch buffer with the actual diff content.
+  --   • Diff highlights are applied via extmarks (no 'diff' option weirdness).
+  --   • Summary mode shows structured metadata.
+  --   • The preview buffer is reused across item changes.
 
   local function ensure_preview()
     if preview.open and preview.win and vim.api.nvim_win_is_valid(preview.win) then
@@ -795,7 +760,7 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
     vim.bo[preview.buf].bufhidden = "wipe"
     vim.bo[preview.buf].buftype = "nofile"
     vim.bo[preview.buf].swapfile = false
-    vim.bo[preview.buf].filetype = "codeactionpreview"
+    vim.bo[preview.buf].modifiable = false
 
     local row, col = place_preview(picker_row, picker_col, picker_width, picker_height, preview_width)
     preview.win = vim.api.nvim_open_win(preview.buf, false, {
@@ -808,7 +773,7 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
       border = "rounded",
       title = " Preview ",
       title_pos = "left",
-      footer = " K toggle  d diff/summary  <CR> apply ",
+      footer = " K toggle  d diff/summary ",
       footer_pos = "center",
       zindex = 59,
       noautocmd = true,
@@ -817,49 +782,52 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
     preview.open = true
   end
 
-  ---Render lines into the preview buffer.
-  ---@param lines    string[]
-  ---@param spans    table[]|nil  highlight spans (used in summary mode only)
-  ---@param status   string       statusline text
-  ---@param ft       string|nil   filetype for syntax highlighting; nil = summary
-  local function render_preview_content(lines, spans, status, ft)
-    if not preview.open then
+  ---Write content into the preview buffer and apply extmark highlights.
+  ---@param lines   string[]
+  ---@param hl_list { lnum: integer, hl_group: string }[]|nil
+  ---@param spans   table[]|nil   summary-mode label/value spans
+  ---@param status  string
+  local function render_preview_content(lines, hl_list, spans, status)
+    local pbuf = preview.buf
+    if not preview.open or not pbuf or not vim.api.nvim_buf_is_valid(pbuf) then
       return
     end
 
-    vim.bo[preview.buf].modifiable = true
-    vim.api.nvim_buf_set_lines(preview.buf, 0, -1, false, lines)
-    vim.bo[preview.buf].modifiable = false
-    vim.api.nvim_buf_clear_namespace(preview.buf, NS, 0, -1)
+    vim.bo[pbuf].modifiable = true
+    vim.api.nvim_buf_set_lines(pbuf, 0, -1, false, lines)
+    vim.bo[pbuf].modifiable = false
+    vim.api.nvim_buf_clear_namespace(pbuf, NS, 0, -1)
 
-    -- Set filetype: "diff" triggers built-in diff syntax; summary uses manual HL.
-    pcall(function()
-      vim.bo[preview.buf].filetype = ft or "codeactionpreview"
-    end)
+    -- Diff extmark highlights (add/remove/hunk header lines).
+    for _, h in ipairs(hl_list or {}) do
+      vim.api.nvim_buf_set_extmark(pbuf, NS, h.lnum, 0, {
+        hl_group = h.hl_group,
+        hl_eol = true,
+      })
+    end
 
-    -- Apply manual highlights only in summary mode (diff syntax handles its own).
-    if not ft then
-      for _, span in ipairs(spans or {}) do
-        if span.file then
-          vim.api.nvim_buf_set_extmark(preview.buf, NS, span.row, 0, {
-            hl_group = HL.Header,
-            hl_eol = true,
-          })
-        elseif span.label_end then
-          vim.api.nvim_buf_set_extmark(preview.buf, NS, span.row, 0, {
-            end_col = span.label_end,
-            hl_group = HL.PreviewLabel,
-          })
-
-          vim.api.nvim_buf_set_extmark(preview.buf, NS, span.row, span.value_start, {
-            hl_group = HL.PreviewValue,
-            hl_eol = true,
-          })
-        end
+    -- Summary-mode key/value and section highlights.
+    for _, span in ipairs(spans or {}) do
+      if span.file then
+        vim.api.nvim_buf_set_extmark(pbuf, NS, span.row, 0, {
+          hl_group = HL.Header,
+          hl_eol = true,
+        })
+      elseif span.label_end then
+        vim.api.nvim_buf_set_extmark(pbuf, NS, span.row, 0, {
+          end_col = span.label_end,
+          hl_group = HL.PreviewLabel,
+        })
+        vim.api.nvim_buf_set_extmark(pbuf, NS, span.row, span.value_start, {
+          hl_group = HL.PreviewValue,
+          hl_eol = true,
+        })
       end
     end
 
-    set_statusline(preview.win, status)
+    if preview.win and vim.api.nvim_win_is_valid(preview.win) then
+      set_statusline(preview.win, status)
+    end
   end
 
   local function update_preview(force)
@@ -872,35 +840,35 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
     end
 
     ensure_preview()
-    render_preview_content({ "Loading preview…" }, {}, " Preview ", nil)
+    render_preview_content({ "  Loading…" }, {}, {}, " Preview ")
 
     lsp.resolve_for_preview(item, function(err, action)
       if closed or not preview.open then
         return
       end
-      if err then
-        render_preview_content({ err }, {}, " Preview Error ", nil)
+      if err or not action then
+        render_preview_content({ "  " .. (err or "Failed to resolve action") }, {}, {}, " Preview Error ")
         return
       end
 
       if preview_mode == "diff" then
-        local diff_lines = compute_diff_lines(action, item.client)
-        if diff_lines then
-          render_preview_content(diff_lines, {}, " Diff Preview  (d: summary) ", "diff")
+        local diff = compute_diff(action, item.client)
+        if diff then
+          render_preview_content(diff.lines, diff.hl, {}, " Diff  (d: summary) ")
         else
           render_preview_content({
             "",
             "  No diff available for this action.",
             "",
-            "  This action may:",
-            "  • Use lazy resolution (no edit payload yet)",
-            "  • Execute a server command only",
-            "  • Perform a file create / rename / delete",
-          }, {}, " Diff Preview  (d: summary) ", nil)
+            "  Possible reasons:",
+            "  • Action uses lazy resolution (no edit yet)",
+            "  • Command-only action",
+            "  • File create / rename / delete",
+          }, {}, {}, " Diff  (d: summary) ")
         end
       else
         local lines, spans = summary_preview_lines(action, item)
-        render_preview_content(lines, spans, " Summary Preview  (d: diff) ", nil)
+        render_preview_content(lines, {}, spans, " Summary  (d: diff) ")
       end
     end)
   end
@@ -962,7 +930,6 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
   -- ── Filter input float ────────────────────────────────────────────────────
 
   local function open_filter_input()
-    -- If filter is already open, just give it focus.
     if filter_win and vim.api.nvim_win_is_valid(filter_win) then
       vim.api.nvim_set_current_win(filter_win)
       vim.cmd("startinsert!")
@@ -972,7 +939,7 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
     filter_buf_ref = vim.api.nvim_create_buf(false, true)
     vim.bo[filter_buf_ref].bufhidden = "wipe"
     vim.bo[filter_buf_ref].buftype = "nofile"
-    -- Pre-fill with current query so the user can refine it.
+
     if filter_query ~= "" then
       vim.api.nvim_buf_set_lines(filter_buf_ref, 0, -1, false, { filter_query })
     end
@@ -1010,12 +977,13 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
       end
       filter_win = nil
       filter_buf_ref = nil
-      vim.api.nvim_set_current_win(picker_win)
+      if vim.api.nvim_win_is_valid(picker_win) then
+        vim.api.nvim_set_current_win(picker_win)
+      end
       apply_filter(query)
       render_picker()
-      local target = first_item_row(rows)
       if #rows > 0 then
-        vim.api.nvim_win_set_cursor(picker_win, { target, 0 })
+        vim.api.nvim_win_set_cursor(picker_win, { first_item_row(rows), 0 })
       end
       update_picker_status()
       if preview.open then
@@ -1025,7 +993,7 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
 
     local function cancel_filter()
       vim.cmd("stopinsert")
-      if vim.api.nvim_win_is_valid(filter_win) then
+      if filter_win and vim.api.nvim_win_is_valid(filter_win) then
         pcall(vim.api.nvim_win_close, filter_win, true)
       end
       filter_win = nil
@@ -1040,7 +1008,6 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
     vim.keymap.set("n", "<Esc>", cancel_filter, fopts)
     vim.keymap.set("n", "q", cancel_filter, fopts)
 
-    -- Live update: re-filter and re-render the picker as the user types.
     vim.api.nvim_create_autocmd("TextChangedI", {
       buffer = filter_buf_ref,
       callback = function()
@@ -1070,17 +1037,18 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
   -- ── Keymaps ───────────────────────────────────────────────────────────────
 
   local map_opts = { buffer = picker_buf, silent = true, nowait = true }
+
   local function map(lhs, rhs)
     vim.keymap.set("n", lhs, rhs, map_opts)
   end
-  ---Register one or multiple keys for the same action.
+
   local function map_all(keys_or_key, rhs)
     local keys = type(keys_or_key) == "table" and keys_or_key or { keys_or_key }
     for _, k in ipairs(keys) do
       map(k, rhs)
     end
   end
-  ---Read a keymap value from cfg, falling back to the provided default.
+
   local function km_val(key, default)
     local v = km[key]
     return (v ~= nil) and v or default
@@ -1124,14 +1092,12 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
   end)
   map_all(km_val("filter", "/"), open_filter_input)
 
-  -- Numeric shortcuts: press 1-9 to jump directly to the Nth visible action.
   for n = 1, 9 do
     map(tostring(n), function()
       go_to_item(n)
     end)
   end
 
-  -- Mouse support: double-click to apply, scroll-wheel to navigate.
   map("<2-LeftMouse>", execute_selected)
   map("<ScrollWheelDown>", function()
     nav(3)
@@ -1142,17 +1108,16 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
 
   -- ── Autocmds ──────────────────────────────────────────────────────────────
 
-  -- Snap cursor away from headers and keep status + preview in sync.
   vim.api.nvim_create_autocmd("CursorMoved", {
     buffer = picker_buf,
     callback = function()
       if closed then
         return
       end
-      local row = current_row_index()
       if #rows == 0 then
         return
       end
+      local row = current_row_index()
       local cur = vim.api.nvim_win_get_cursor(picker_win)
       if cur[1] ~= row then
         vim.api.nvim_win_set_cursor(picker_win, { row, 0 })
@@ -1164,7 +1129,6 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
     end,
   })
 
-  -- Close the picker when the source window closes.
   vim.api.nvim_create_autocmd("WinClosed", {
     pattern = tostring(source_win),
     once = true,
@@ -1175,13 +1139,36 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
     end,
   })
 
-  -- Close the picker if its buffer is wiped externally.
   vim.api.nvim_create_autocmd("BufWipeout", {
     buffer = picker_buf,
     once = true,
     callback = function()
       if not closed then
         close()
+      end
+    end,
+  })
+
+  -- Resize preview when the editor is resized.
+  vim.api.nvim_create_autocmd("VimResized", {
+    callback = function()
+      if closed then
+        return
+      end
+      if preview.open and preview.win and vim.api.nvim_win_is_valid(preview.win) then
+        local new_pw = clamp(
+          math.floor(vim.o.columns * (cfg_preview.width_pct or 0.36)),
+          cfg_preview.min_width or 38,
+          cfg_preview.max_width or 72
+        )
+        local pr, pc = place_preview(picker_row, picker_col, picker_width, picker_height, new_pw)
+        vim.api.nvim_win_set_config(preview.win, {
+          relative = "editor",
+          row = pr,
+          col = pc,
+          width = new_pw,
+          height = picker_height,
+        })
       end
     end,
   })
