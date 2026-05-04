@@ -1,7 +1,9 @@
--- borrowed from nvim/.config/nvim/lua/xaaha/core/autoclose.lua
--- modified with fixes and improvements
+-- autoclose.lua (fixed + robust)
 
 local autoclose = {}
+
+-- ✅ compatibility shim (CRITICAL FIX)
+local unpack = unpack or table.unpack
 
 local config = {
   keys = {
@@ -63,19 +65,20 @@ local function is_pair(pair)
 end
 
 --------------------------------------------------
--- Tree-sitter awareness
+-- Tree-sitter awareness (FIXED)
 --------------------------------------------------
 
 local function in_string_or_comment()
   local ok, parser = pcall(vim.treesitter.get_parser, 0)
-  if not ok then
+  if not ok or not parser then
     return false
   end
 
   local row, col = unpack(vim.api.nvim_win_get_cursor(0))
 
   local ok_tree, tree = pcall(function()
-    return parser:parse()[1]
+    local trees = parser:parse()
+    return trees and trees[1] or nil
   end)
 
   if not ok_tree or not tree then
@@ -83,14 +86,17 @@ local function in_string_or_comment()
   end
 
   local root = tree:root()
-  local node = root:named_descendant_for_range(row - 1, col, row - 1, col)
+  if not root then
+    return false
+  end
 
+  local node = root:named_descendant_for_range(row - 1, col, row - 1, col)
   if not node then
     return false
   end
 
   local t = node:type()
-  return t:find("string") ~= nil or t:find("comment") ~= nil
+  return t and (t:find("string") or t:find("comment")) ~= nil
 end
 
 --------------------------------------------------
@@ -102,26 +108,26 @@ local function is_disabled(info)
     return true
   end
 
-  local current_filetype = vim.bo.filetype
+  local ft = vim.bo.filetype
 
-  for _, filetype in pairs(config.options.disabled_filetypes) do
-    if filetype == current_filetype then
+  for _, f in pairs(config.options.disabled_filetypes) do
+    if f == ft then
       return true
     end
   end
 
-  if info.enabled_filetypes ~= nil then
-    for _, filetype in pairs(info.enabled_filetypes) do
-      if filetype == current_filetype then
+  if info.enabled_filetypes then
+    for _, f in pairs(info.enabled_filetypes) do
+      if f == ft then
         return false
       end
     end
     return true
   end
 
-  if info.disabled_filetypes ~= nil then
-    for _, filetype in pairs(info.disabled_filetypes) do
-      if filetype == current_filetype then
+  if info.disabled_filetypes then
+    for _, f in pairs(info.disabled_filetypes) do
+      if f == ft then
         return true
       end
     end
@@ -141,34 +147,27 @@ local function handler(key, info, mode)
 
   local pair = mode == "insert" and insert_get_pair() or command_get_pair()
 
-  -- Backspace handling
   if (key == "<BS>" or key == "<C-H>") and is_pair(pair) then
     return "<BS><Del>"
   end
 
-  -- Word delete should behave normally
   if key == "<C-W>" then
     return "<C-W>"
   end
 
-  -- Enter between pairs
   if mode == "insert" and (key == "<CR>" or key == "<S-CR>") and is_pair(pair) then
     return "<CR><ESC>O" .. (config.options.auto_indent and "" or "<C-D>")
   end
 
-  -- Escape through existing closer
   if info.escape and pair:sub(2, 2) == key then
     return mode == "insert" and "<C-G>U<Right>" or "<Right>"
   end
 
-  -- Pair insertion
   if info.close then
-    -- Skip pairing inside strings/comments
     if in_string_or_comment() then
       return key
     end
 
-    -- Improved apostrophe rule
     if key == "'" then
       local left = pair:sub(1, 1)
       local right = pair:sub(2, 2)
@@ -182,7 +181,6 @@ local function handler(key, info, mode)
       return key
     end
 
-    -- Space pairing control
     if
       key == " "
       and (
@@ -212,19 +210,18 @@ function autoclose.setup(user_config)
 
   user_config = user_config or {}
 
-  if user_config.keys ~= nil then
-    for key, info in pairs(user_config.keys) do
-      config.keys[key] = info
+  if user_config.keys then
+    for k, v in pairs(user_config.keys) do
+      config.keys[k] = v
     end
   end
 
-  if user_config.options ~= nil then
-    for key, value in pairs(user_config.options) do
-      config.options[key] = value
+  if user_config.options then
+    for k, v in pairs(user_config.options) do
+      config.options[k] = v
     end
   end
 
-  -- Build pair lookup table
   for _, info in pairs(config.keys) do
     if info.pair and info.pair ~= "  " then
       pair_set[info.pair] = true
