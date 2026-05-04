@@ -143,13 +143,13 @@ function M.register_profile_keymaps()
         for _, t in ipairs(state.terminals) do
           if (t.profile or {}).name == pname then
             if not require("custom.terminal_manager.utils").panel_open() then
-              tm.open()
+              tm.open("panel")
             end
-            require("custom.terminal_manager.terminal").show(t)
+            require("custom.terminal_manager.terminal").show(t, "panel")
             return
           end
         end
-        -- None open → create one.
+        -- None open → create one (M.new_term now defaults to panel)
         tm.new_term(nil, pname)
       end, { desc = "terminal: open profile '" .. pname .. "'" })
       registered_keymaps[#registered_keymaps + 1] = km

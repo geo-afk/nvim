@@ -259,7 +259,7 @@ local function edit_field(f, win, buf, fields, cursor_field, mode, on_change)
   end
 
   if et == "input" then
-    vim.ui.input({ prompt = f.label .. ": ", default = f.value }, function(v)
+    vim.ui.input({ prompt = f.label .. ": ", default = f.value, zindex = 160 }, function(v)
       done(v)
     end)
   elseif et == "shell_picker" then
@@ -271,7 +271,7 @@ local function edit_field(f, win, buf, fields, cursor_field, mode, on_change)
         return
       end
       if choice == "(enter path…)" then
-        vim.ui.input({ prompt = "Shell path: ", default = f.value }, function(v)
+        vim.ui.input({ prompt = "Shell path: ", default = f.value, zindex = 160 }, function(v)
           done(v)
         end)
       else
@@ -290,7 +290,7 @@ local function edit_field(f, win, buf, fields, cursor_field, mode, on_change)
         return
       end
       if choice == "(enter custom…)" then
-        vim.ui.input({ prompt = "Custom icon (1 char): ", default = f.value }, function(v)
+        vim.ui.input({ prompt = "Custom icon (1 char): ", default = f.value, zindex = 160 }, function(v)
           done(v and v:sub(1, 1) or nil)
         end)
       else
@@ -333,6 +333,7 @@ function M.open(existing_profile, on_save)
     title = mode == "edit" and " Edit Profile " or " New Profile ",
     title_pos = "center",
     noautocmd = false,
+    zindex = 150,
   })
 
   utils.win_opt(win, "cursorline", false)

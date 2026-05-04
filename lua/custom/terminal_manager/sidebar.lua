@@ -173,10 +173,8 @@ function M.select()
   local idx = M.cursor_term_idx()
   if idx then
     local t = state.terminals[idx]
-    local sp = require("custom.terminal_manager.split")
-    -- If split is active and user holds Shift (can't detect that), default pane 1.
-    -- Sidebar always targets primary pane on <CR>; use 's' to place in pane 2.
-    require("custom.terminal_manager.terminal").show(t)
+    -- Sidebar always targets primary panel pane on <CR>
+    require("custom.terminal_manager.terminal").show(t, "panel")
     return
   end
   if not utils.win_ok(state.ui.sidebar_win) then
@@ -225,7 +223,7 @@ function M.rename()
     return
   end
   local t = state.terminals[idx]
-  vim.ui.input({ prompt = "Rename: ", default = t.name }, function(name)
+  vim.ui.input({ prompt = "Rename: ", default = t.name, zindex = 160 }, function(name)
     vim.schedule(function()
       if name and name ~= "" then
         t.name = name

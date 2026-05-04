@@ -120,6 +120,7 @@ function M.open()
     title = " Help ",
     title_pos = "center",
     noautocmd = true,
+    zindex = 150,
   })
   state.help_win_h = hwin
 

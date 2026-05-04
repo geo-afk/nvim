@@ -6,6 +6,7 @@
 local state = require("custom.terminal_manager.state")
 local utils = require("custom.terminal_manager.utils")
 local profiles = require("custom.terminal_manager.profiles")
+local env_file = require("custom.terminal_manager.env")
 
 local M = {}
 
@@ -33,6 +34,7 @@ local function spawn_in_win(t, win)
   local cmd = profiles.profile_cmd(profile)
   local env = profiles.profile_env(profile)
   local cwd = resolve_cwd(profile)
+  env = env_file.apply(env, vim.loop.cwd())
 
   -- Detect venv and inject its env.
   local venv = require("custom.terminal_manager.venv").detect(cwd)
@@ -100,13 +102,18 @@ end
 -- ── Public ────────────────────────────────────────────────────────────────────
 
 --- Show terminal `t` in the primary pane, rebuilding the panel if needed.
-function M.show(t)
+---@param t table terminal entry
+---@param mode "float"|"panel"|nil optional mode override
+function M.show(t, mode)
   if not t then
     return false
   end
-  if state.display_mode == "float" then
+
+  local target_mode = mode or state.display_mode
+  if target_mode == "float" then
     return require("custom.terminal_manager.float").open(t)
   end
+
   if not require("custom.terminal_manager.panel").ensure() then
     return false
   end

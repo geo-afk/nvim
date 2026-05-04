@@ -93,6 +93,7 @@ M.delete_term = api.delete_term
 M.focus_sidebar = api.focus_sidebar
 M.pick_profile = api.pick_profile
 M.show_profiles = api.show_profiles
+M.add_env_var = api.add_env_var
 M._send_lines = api._send_lines
 M.send_selection = api.send_selection
 

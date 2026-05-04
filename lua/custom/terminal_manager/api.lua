@@ -9,12 +9,14 @@ local profiles = require("custom.terminal_manager.profiles")
 
 local M = {}
 
-function M.open()
-  if state.display_mode == "float" and utils.float_open() then
-    require("custom.terminal_manager.float").focus()
-    return
-  end
-  if state.display_mode == "panel" and utils.panel_complete() then
+function M.open(mode)
+  local target_mode = mode or "panel"
+  if target_mode == "float" then
+    if utils.float_open() then
+      require("custom.terminal_manager.float").focus()
+      return
+    end
+  elseif target_mode == "panel" and utils.panel_complete() then
     if not state.panel_hidden then
       return
     end
@@ -34,7 +36,7 @@ function M.open()
 
   local t = utils.find_term(state.active_id) or state.terminals[1]
   if t then
-    require("custom.terminal_manager.terminal").show(t)
+    require("custom.terminal_manager.terminal").show(t, target_mode)
   end
 end
 
@@ -60,13 +62,6 @@ end
 
 --- Hide the panel (same as close but semantically "temporary").
 function M.hide()
-  if state.display_mode == "float" then
-    if not utils.float_open() then
-      return
-    end
-    M.close()
-    return
-  end
   if not utils.panel_open() then
     return
   end
@@ -76,29 +71,14 @@ end
 
 --- Show a previously hidden panel (or open fresh if never opened).
 function M.show()
-  if state.display_mode == "float" then
-    if utils.float_open() then
-      return
-    end
-    M.open()
-    return
-  end
   if utils.panel_open() then
     return
   end
   state.panel_hidden = false
-  M.open()
+  M.open("panel")
 end
 
 function M.toggle()
-  if state.display_mode == "float" then
-    if utils.float_open() then
-      M.close()
-    else
-      M.open()
-    end
-    return
-  end
   if utils.panel_open() then
     M.hide()
   else
@@ -107,22 +87,18 @@ function M.toggle()
 end
 
 function M.set_mode(mode)
-  mode = (mode == "float") and "float" or "panel"
-  if state.display_mode == mode then
-    M.open()
-    return
-  end
+  state.display_mode = (mode == "float") and "float" or "panel"
   M.close()
-  state.display_mode = mode
-  state.panel_hidden = false
-  M.open()
+  M.open(state.display_mode)
 end
 
 function M.toggle_mode()
-  if state.display_mode == "float" then
-    M.set_mode("panel")
+  if utils.float_open() then
+    require("custom.terminal_manager.float").close()
+    state.display_mode = "panel"
   else
-    M.set_mode("float")
+    state.display_mode = "float"
+    M.open("float")
   end
 end
 
@@ -140,7 +116,7 @@ function M.new_term(name, prof_name)
     n = (n and n ~= "") and n or ((profile and profile.name) or ("terminal " .. id))
     local entry = { id = id, name = n, buf = nil, profile = profile or profiles.default_profile() }
     table.insert(state.terminals, entry)
-    if not require("custom.terminal_manager.terminal").show(entry) then
+    if not require("custom.terminal_manager.terminal").show(entry, "panel") then
       table.remove(state.terminals)
       if state.next_id == id + 1 then
         state.next_id = id
@@ -155,7 +131,7 @@ function M.new_term(name, prof_name)
       end)
     else
       local default = (profile and profile.name) or ("terminal " .. state.next_id)
-      vim.ui.input({ prompt = "Terminal name: ", default = default }, function(n)
+      vim.ui.input({ prompt = "Terminal name: ", default = default, zindex = 160 }, function(n)
         if n == nil then
           return
         end
@@ -267,6 +243,10 @@ end
 
 function M.show_profiles()
   require("custom.terminal_manager.profile_manager").open()
+end
+
+function M.add_env_var()
+  require("custom.terminal_manager.env").add_env_var()
 end
 
 function M._send_lines(lines)

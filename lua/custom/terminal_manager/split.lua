@@ -16,6 +16,7 @@
 
 local state = require("custom.terminal_manager.state")
 local utils = require("custom.terminal_manager.utils")
+local env_file = require("custom.terminal_manager.env")
 
 local M = {}
 
@@ -39,6 +40,7 @@ local function show_in_win(win, t)
     local profile = t.profile or {}
     local cmd = profiles.profile_cmd(profile)
     local env = profiles.profile_env(profile)
+    env = env_file.apply(env, vim.loop.cwd())
     -- Apply venv env if present
     if t.venv and t.venv.env then
       env = vim.tbl_extend("force", env, t.venv.env)

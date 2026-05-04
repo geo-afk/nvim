@@ -155,6 +155,7 @@ function M.open()
     title = " Terminal Profiles ",
     title_pos = "center",
     noautocmd = false,
+    zindex = 150,
   })
 
   utils.win_opt(win, "cursorline", false)

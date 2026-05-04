@@ -72,7 +72,7 @@ local function jump_to_cursor_match()
     pcall(vim.api.nvim_win_set_cursor, active.term_win, { m.lnum + 1, m.col_s })
     -- scroll the window so the match is visible
     vim.api.nvim_win_call(active.term_win, function()
-      vim.cmd("normal! zz")
+      pcall(vim.cmd, "normal! zz")
     end)
   end
 end
@@ -222,13 +222,14 @@ function M.open(term_buf, term_win)
     title_pos = "center",
     noautocmd = true,
     focusable = false,
+    zindex = 150,
   })
   active.float_win = fwin
   utils.win_opt(fwin, "winblend", 5)
 
   -- Input loop: collect keystrokes, update on each one.
   -- We use vim.ui.input in a non-blocking way by using a wrapper.
-  vim.ui.input({ prompt = "Search: ", default = active.pattern }, function(input)
+  vim.ui.input({ prompt = "Search: ", default = active.pattern, zindex = 160 }, function(input)
     if input == nil then
       -- Cancelled
       close_float()
@@ -244,20 +245,28 @@ function M.open(term_buf, term_win)
     if utils.win_ok(term_win) then
       vim.api.nvim_set_current_win(term_win)
       local ko = { buffer = term_buf, nowait = true, silent = true }
+
+      local function dismiss()
+        close_float()
+        clear_highlights()
+        if utils.buf_ok(term_buf) then
+          pcall(vim.keymap.del, "n", "n", { buffer = term_buf })
+          pcall(vim.keymap.del, "n", "N", { buffer = term_buf })
+          pcall(vim.keymap.del, "n", "<Esc>", { buffer = term_buf })
+          pcall(vim.keymap.del, "n", "q", { buffer = term_buf })
+          pcall(vim.keymap.del, "n", "<CR>", { buffer = term_buf })
+        end
+      end
+
       vim.keymap.set("n", "n", function()
         M.next()
       end, vim.tbl_extend("force", ko, { desc = "search: next match" }))
       vim.keymap.set("n", "N", function()
         M.prev()
       end, vim.tbl_extend("force", ko, { desc = "search: prev match" }))
-      vim.keymap.set("n", "<Esc>", function()
-        close_float()
-        clear_highlights()
-        -- Restore normal <Esc><Esc> behaviour
-        pcall(vim.keymap.del, "n", "n", { buffer = term_buf })
-        pcall(vim.keymap.del, "n", "N", { buffer = term_buf })
-        pcall(vim.keymap.del, "n", "<Esc>", { buffer = term_buf })
-      end, vim.tbl_extend("force", ko, { desc = "search: close" }))
+      vim.keymap.set("n", "<Esc>", dismiss, vim.tbl_extend("force", ko, { desc = "search: close" }))
+      vim.keymap.set("n", "q", dismiss, vim.tbl_extend("force", ko, { desc = "search: close" }))
+      vim.keymap.set("n", "<CR>", dismiss, vim.tbl_extend("force", ko, { desc = "search: close" }))
     else
       close_float()
     end

@@ -112,6 +112,10 @@ function M.setup()
     end
   end, { desc = "Search in active terminal" })
 
+  vim.api.nvim_create_user_command("TerminalEnvAdd", function()
+    require("custom.terminal_manager").add_env_var()
+  end, { desc = "Add a project-local terminal environment variable" })
+
   -- Register per-profile keymaps
   require("custom.terminal_manager.profiles").register_profile_keymaps()
 end
