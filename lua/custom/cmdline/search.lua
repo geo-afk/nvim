@@ -96,10 +96,23 @@ function M.commit(pattern, direction)
   vim.opt.hlsearch = true
 end
 
----Cancel an in-progress search: clear hlsearch and reset the register.
-function M.cancel()
-  vim.opt.hlsearch = false
-  pcall(vim.fn.setreg, "/", "")
+---Cancel an in-progress search: restore previous state and clear highlights.
+---@param prev_reg string?
+---@param prev_hl  boolean?
+function M.cancel(prev_reg, prev_hl)
+  if prev_reg ~= nil then
+    pcall(vim.fn.setreg, "/", prev_reg)
+  else
+    pcall(vim.fn.setreg, "/", "")
+  end
+
+  if prev_hl ~= nil then
+    vim.opt.hlsearch = prev_hl
+  else
+    vim.opt.hlsearch = false
+  end
+
+  vim.cmd("nohlsearch")
 end
 
 ---Format the counter label, e.g. "[3/20]" or "[no match]".

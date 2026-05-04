@@ -15,6 +15,7 @@ local _pkg = (...)
 
 local colors = require(_pkg .. ".colors")
 local ui = require(_pkg .. ".ui")
+local vim_ui = require(_pkg .. ".vim_ui")
 local nvim_utils = require("utils.nvim")
 
 local M = {}
@@ -163,6 +164,9 @@ function M.setup(opts)
 
   colors.setup_highlights()
   pcall(colors.setup_preview_highlights)
+
+  -- Override vim.ui.input / vim.ui.select with floating popups.
+  vim_ui.setup()
 
   nvim_utils.autocmd("ColorScheme", {
     group = "NvimCmdlineColors",

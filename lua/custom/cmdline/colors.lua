@@ -271,6 +271,18 @@ function M.setup_highlights()
   hl("NvimCmdlinePreviewLine", { bg = c.preview_del_bg })
   hl("NvimCmdlinePreviewYank", { bg = c.preview_add_bg })
 
+  -- ── vim.ui.input / vim.ui.select floating overrides ──────────────────────
+  -- Title bar: strong contrasted background so it reads as a header.
+  hl("NvimCmdlineUiTitle", { fg = c.fg, bg = c.tbg_cmd, bold = true })
+  -- Window body
+  hl("NvimCmdlineUiNormal", { fg = c.fg2, bg = c.popup_bg })
+  -- Border (reuse the cmd border glow colour)
+  hl("NvimCmdlineUiBorder", { fg = c.border_glow, bg = c.popup_bg })
+  -- Selected item row (extmark highlight)
+  hl("NvimCmdlineUiSel", { fg = c.fg, bg = c.sel_bg, bold = true })
+  -- CursorLine used in select window (winhighlight redirect)
+  hl("NvimCmdlineUiSelCursor", { fg = c.fg, bg = c.sel_bg, bold = true })
+
   -- ── Buffer-info footer ────────────────────────────────────────────────────
   hl("NvimCmdlineBufInfoFile", { fg = c.cyan, bg = c.bg, bold = true })
   hl("NvimCmdlineBufInfoFileSearch", { fg = c.amber, bg = c.bg, bold = true })

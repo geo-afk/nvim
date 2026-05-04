@@ -47,6 +47,8 @@ local state = {
   range_win = nil,
   cancel_complete = nil,
   prev_win = nil,
+  saved_search_reg = "",
+  saved_hlsearch = true,
 }
 
 -- ---------------------------------------------------------------------------
@@ -696,7 +698,8 @@ end
 -- Close
 -- ---------------------------------------------------------------------------
 
-function M.close()
+---@param skip_nohl boolean?
+function M.close(skip_nohl)
   blink_set_enabled(true)
   if state.cancel_complete then
     state.cancel_complete()
@@ -713,6 +716,8 @@ function M.close()
   end
 
   local win = state.win
+  local mode = state.mode
+  local prev_win = state.prev_win
   state.win = nil
   state.buf = nil
   state.mode = nil
@@ -725,6 +730,18 @@ function M.close()
     return
   end
 
+  local function finalize()
+    if not skip_nohl and (mode == "search_fwd" or mode == "search_bwd") then
+      if prev_win and vim.api.nvim_win_is_valid(prev_win) then
+        pcall(vim.api.nvim_win_call, prev_win, function()
+          vim.cmd("nohlsearch")
+        end)
+      else
+        vim.cmd("nohlsearch")
+      end
+    end
+  end
+
   if M.config.animation.enabled then
     animation.slide_out(win, {
       steps = M.config.animation.steps,
@@ -734,6 +751,7 @@ function M.close()
         if vim.api.nvim_get_mode().mode:sub(1, 1) == "i" then
           vim.cmd("stopinsert")
         end
+        vim.schedule(finalize)
       end)
       if vim.api.nvim_win_is_valid(win) then
         pcall(vim.api.nvim_win_close, win, true)
@@ -743,6 +761,7 @@ function M.close()
     if vim.api.nvim_get_mode().mode:sub(1, 1) == "i" then
       vim.cmd("stopinsert")
     end
+    vim.schedule(finalize)
     pcall(vim.api.nvim_win_close, win, true)
   end
 end
@@ -754,7 +773,7 @@ end
 local function execute(buf, mode)
   local input = read_input(buf)
   local prev_win = state.prev_win
-  M.close()
+  M.close(true)
   if input == "" then
     return
   end
@@ -857,9 +876,9 @@ local function setup_keymaps(buf, win, mode, info)
 
   local function dismiss()
     if mode == "search_fwd" or mode == "search_bwd" then
-      search.cancel()
+      search.cancel(state.saved_search_reg, state.saved_hlsearch)
     end
-    M.close()
+    M.close(false)
   end
   km(buf, kc.dismiss, dismiss)
 
@@ -972,7 +991,7 @@ local function setup_keymaps(buf, win, mode, info)
     completion.close()
     close_range_preview()
     if mode == "search_fwd" or mode == "search_bwd" then
-      search.cancel()
+      search.cancel(state.saved_search_reg, state.saved_hlsearch)
       render_counter(buf, { current = 0, total = 0, incomplete = false })
     end
     render_prompt_hl(buf)
@@ -1023,7 +1042,7 @@ local function setup_autocmds(buf, win, mode, info)
   state.augroup = ag
 
   local function do_update(input)
-    if not vim.api.nvim_buf_is_valid(buf) then
+    if not state.win or not vim.api.nvim_buf_is_valid(buf) then
       return
     end
 
@@ -1175,6 +1194,10 @@ function M.open(mode, opts)
   -- Capture original window
   state.prev_win = (type(opts.prev_win) == "number" and vim.api.nvim_win_is_valid(opts.prev_win)) and opts.prev_win
     or vim.api.nvim_get_current_win()
+
+  -- Save search state
+  state.saved_search_reg = vim.fn.getreg("/")
+  state.saved_hlsearch = vim.opt.hlsearch:get()
 
   local width = get_width()
   local col = get_col(width)
