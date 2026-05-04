@@ -5,14 +5,16 @@ local M = {}
 -- ── Diagnostic configuration ──────────────────────────────────────────────────
 local function setup_diagnostics()
   vim.diagnostic.config({
-    virtual_text = {
-      spacing = 2,
-      prefix = "●",
-      source = "if_many",
-      -- format = function(d)
-      --   return d.message:sub(1, 80)
-      -- end,
-    },
+
+    virtual_text = false,
+    -- virtual_text = {
+    --   spacing = 2,
+    --   prefix = "●",
+    --   source = "if_many",
+    --   -- format = function(d)
+    --   --   return d.message:sub(1, 80)
+    --   -- end,
+    -- },
     signs = {
       text = {
         [vim.diagnostic.severity.ERROR] = "󰅚 ",
@@ -215,10 +217,8 @@ function M.setup()
   setup_commands()
 end
 
--- Defer setup until plugins are packed and available
-vim.schedule(function()
-  M.setup_lsps()
-  M.setup()
-end)
+-- Perform setup immediately when module is loaded
+M.setup_lsps()
+M.setup()
 
 return M

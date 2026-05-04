@@ -275,7 +275,9 @@ autocmd("InsertEnter", {
 autocmd("InsertLeave", {
   group = G,
   callback = function()
-    vim.opt.hlsearch = true
+    if vim.v.hlsearch == 1 then
+      vim.opt.hlsearch = true
+    end
   end,
 })
 

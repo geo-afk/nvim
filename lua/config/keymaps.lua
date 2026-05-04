@@ -12,7 +12,6 @@ map("n", "k", "v:count == 0 ? 'gk' : 'k'", { expr = true, desc = "Up (wrap-aware
 -- Clear search highlight
 map("n", "<Esc>", function()
   vim.cmd("nohlsearch")
-  vim.cmd("stopinsert")
 end, { silent = true, desc = "Clear search highlights" })
 
 -- Window navigation
