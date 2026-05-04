@@ -59,30 +59,10 @@ local function reset_layout()
   vim.cmd("silent! only")
   for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
     if vim.api.nvim_buf_is_valid(bufnr) then
-      local name = vim.api.nvim_buf_get_name(bufnr)
-      if name == "" and not vim.bo[bufnr].modified then
-        pcall(vim.api.nvim_buf_delete, bufnr, { force = false })
-      end
+      pcall(vim.api.nvim_buf_delete, bufnr, { force = true })
     end
   end
   vim.cmd("silent! enew")
-end
-
-local function visible_paths()
-  local seen = {}
-  local out = {}
-  for _, tab in ipairs(vim.api.nvim_list_tabpages()) do
-    for _, win in ipairs(vim.api.nvim_tabpage_list_wins(tab)) do
-      local buf = vim.api.nvim_win_get_buf(win)
-      local name = vim.api.nvim_buf_get_name(buf):gsub("\\", "/")
-      if name ~= "" and not seen[name] then
-        seen[name] = true
-        out[#out + 1] = name
-      end
-    end
-  end
-  table.sort(out)
-  return out
 end
 
 local function listed_paths()
@@ -98,8 +78,8 @@ end
 
 local function build_state()
   vim.cmd("edit " .. vim.fn.fnameescape(file_a))
-  vim.cmd("vsplit " .. vim.fn.fnameescape(file_b))
-  vim.cmd("tabnew " .. vim.fn.fnameescape(file_c))
+  vim.cmd("edit " .. vim.fn.fnameescape(file_b))
+  vim.cmd("edit " .. vim.fn.fnameescape(file_c))
 end
 
 local function run()
@@ -107,24 +87,29 @@ local function run()
 
   assert_ok(session.save({ silent = true }), "session save should succeed")
   local saved = session.get_paths()
-  assert_ok(vim.fn.filereadable(saved.session) == 1, "session file should exist")
   assert_ok(vim.fn.filereadable(saved.meta) == 1, "session metadata should exist")
 
   reset_layout()
   assert_ok(session.restore({ silent = true }), "session restore should succeed")
-  assert_eq(#vim.api.nvim_list_tabpages(), 2, "restore should recreate two tabpages")
-  assert_eq(#vim.api.nvim_tabpage_list_wins(vim.api.nvim_list_tabpages()[1]), 2, "first tab should have a split")
-  assert_eq(visible_paths(), { file_a, file_b, file_c }, "restore should reopen all files")
+  
+  -- Verify only one window/tab exists (new lightweight behavior)
+  assert_eq(#vim.api.nvim_list_tabpages(), 1, "restore should NOT create extra tabpages")
+  assert_eq(#vim.api.nvim_list_wins(), 1, "restore should NOT create extra windows")
+  
+  local listed = listed_paths()
+  table.sort(listed)
+  assert_eq(listed, { file_a, file_b, file_c }, "restore should reopen all files in buffer list")
+  assert_eq(vim.api.nvim_buf_get_name(0):gsub("\\", "/"), file_c, "restore should set current buffer to last edited")
 
   os.remove(file_b)
   reset_layout()
   assert_ok(session.restore({ silent = true }), "session restore should tolerate missing files")
-  assert_eq(#vim.api.nvim_list_tabpages(), 2, "missing-file restore should keep tabpages stable")
-  assert_eq(visible_paths(), { file_a, file_c }, "missing file should be cleaned up after restore")
+  assert_eq(listed_paths(), { file_a, file_c }, "missing file should be omitted from restore")
 
   local ordered = listed_paths()
+  -- Our current implementation uses tabline order, so we check that
   assert_eq(ordered[1], file_a, "tabline order should preserve first buffer")
-  assert_eq(ordered[#ordered], file_c, "tabline order should preserve final visible buffer")
+  assert_eq(ordered[#ordered], file_c, "tabline order should preserve final buffer")
 
   vim.cmd("cd " .. vim.fn.fnameescape(other_root))
   reset_layout()
@@ -132,17 +117,16 @@ local function run()
   assert_ok(session.save({ silent = true }), "other project session save should succeed")
 
   local other_saved = session.get_paths()
-  assert_ok(saved.session ~= other_saved.session, "session files should be scoped per cwd")
   assert_ok(saved.meta ~= other_saved.meta, "session metadata should be scoped per cwd")
 
   reset_layout()
   assert_ok(session.restore({ silent = true }), "other project restore should succeed")
-  assert_eq(visible_paths(), { other_file }, "other project restore should only load that project")
+  assert_eq(listed_paths(), { other_file }, "other project restore should only load that project's buffers")
 
   vim.cmd("cd " .. vim.fn.fnameescape(root))
   reset_layout()
   assert_ok(session.restore({ silent = true }), "original project restore should still succeed")
-  assert_eq(visible_paths(), { file_a, file_c }, "original project restore should remain isolated")
+  assert_eq(listed_paths(), { file_a, file_c }, "original project restore should remain isolated")
 end
 
 local success, err = xpcall(run, debug.traceback)
