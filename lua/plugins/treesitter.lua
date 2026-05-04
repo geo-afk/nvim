@@ -97,7 +97,7 @@ local function start_treesitter(bufnr, lang)
   pcall(vim.treesitter.start, bufnr, lang)
 
   if has_query(lang, "highlights") then
-    vim.bo[bufnr].syntax = "ON"
+    vim.bo[bufnr].syntax = "off"
   end
 
   if has_query(lang, "indents") then

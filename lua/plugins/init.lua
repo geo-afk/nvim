@@ -62,6 +62,7 @@ Loader.later(function()
   require("plugins.trouble")
   require("plugins.telescope")
   require("plugins.flash")
+  require("plugins.tint-diagnostic")
 
   -- Git
   require("plugins.gitsigns")
@@ -69,9 +70,6 @@ Loader.later(function()
   -- Eye candy
   require("plugins.smear")
   require("plugins.color-highlight")
-
-  -- Dev tools
-  require("plugins.dev-server")
 
   -- Activate built-in 0.12 optional plugins
   for _, pkg in ipairs({ "nvim.undotree", "nvim.difftool", "nvim.tohtml" }) do
