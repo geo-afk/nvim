@@ -31,6 +31,7 @@ Loader.now(function()
   require("config.autocmds")
 
   -- Visual essentials: must be ready before first draw.
+  require("config.ui") -- ui2, float demos, Lua API showcases
   require("custom.statusline").setup()
   require("custom.tabline").setup()
   require("custom.session").setup()
@@ -40,8 +41,8 @@ end)
 -- Heavy logic and optional utilities.
 Loader.later(function()
   require("config.lsp") -- native LSP server configs
-  require("config.ui") -- ui2, float demos, Lua API showcases
 
+  require("custom.nvimkeys").setup()
   -- custom utilities
   require("custom.explorer").setup()
   require("custom.lazygit").setup()
@@ -49,9 +50,9 @@ Loader.later(function()
   require("custom.code_action").setup()
   require("custom.lsp_keymapper").setup()
   require("custom.autoclose").setup()
-  require("custom.glow").setup()
-  require("custom.image_view").setup()
+  -- require("custom.glow").setup()
   require("custom.pack_manager").setup()
+  require("custom.right_menu")
 
   -- terminal_manager
   require("custom.terminal_manager")
