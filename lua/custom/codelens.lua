@@ -212,20 +212,41 @@ local function open_references_picker(items, symbol)
 end
 
 local function collect_reference_items(bufnr, callback)
-  local params = vim.lsp.util.make_position_params(0)
+  local params = vim.lsp.util.make_position_params(0, "utf-8")
   params.context = {
     includeDeclaration = state.settings.reference_ui.include_declaration == true,
   }
 
-  vim.lsp.buf_request_all(bufnr, METHOD_REFERENCES, params, function(results)
-    local seen = {}
-    local items = {}
+  local clients = vim.lsp.get_clients({ bufnr = bufnr, method = METHOD_REFERENCES })
+  if #clients == 0 then
+    callback({})
+    return
+  end
 
-    for client_id, response in pairs(results or {}) do
-      local result = response and response.result or nil
-      if result and not vim.tbl_isempty(result) then
-        local client = vim.lsp.get_client_by_id(client_id)
-        local encoding = client and client.offset_encoding or "utf-16"
+  local items = {}
+  local seen = {}
+  local remaining = #clients
+
+  local function on_done()
+    remaining = remaining - 1
+    if remaining == 0 then
+      table.sort(items, function(a, b)
+        if a.filename == b.filename then
+          if a.lnum == b.lnum then
+            return (a.col or 0) < (b.col or 0)
+          end
+          return (a.lnum or 0) < (b.lnum or 0)
+        end
+        return (a.filename or "") < (b.filename or "")
+      end)
+      callback(items)
+    end
+  end
+
+  for _, client in ipairs(clients) do
+    client.request(METHOD_REFERENCES, params, function(err, result)
+      if not err and result and not vim.tbl_isempty(result) then
+        local encoding = client.offset_encoding or "utf-16"
         local qf_items = vim.lsp.util.locations_to_items(result, encoding)
 
         for _, item in ipairs(qf_items) do
@@ -243,20 +264,9 @@ local function collect_reference_items(bufnr, callback)
           end
         end
       end
-    end
-
-    table.sort(items, function(a, b)
-      if a.filename == b.filename then
-        if a.lnum == b.lnum then
-          return (a.col or 0) < (b.col or 0)
-        end
-        return (a.lnum or 0) < (b.lnum or 0)
-      end
-      return (a.filename or "") < (b.filename or "")
-    end)
-
-    callback(items)
-  end)
+      on_done()
+    end, bufnr)
+  end
 end
 
 local function handle_double_click()
