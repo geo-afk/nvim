@@ -23,56 +23,12 @@ local S = require("custom.explorer.state")
 local render = require("custom.explorer.render")
 local search_ui = require("custom.explorer.search_ui")
 local tree = require("custom.explorer.tree")
+local str_utils = require("utils.strings")
 local api = vim.api
 
 local ICON_PREFIX = render.ICON_PREFIX
 
 local M = {}
-
--- ── Fuzzy matching ────────────────────────────────────────────────────────
-
-local function fuzzy_match(text, query)
-  if not query or query == "" then
-    return 0, {}
-  end
-
-  local lo_text = text:lower()
-  local lo_query = query:lower()
-
-  local s = lo_text:find(lo_query, 1, true)
-  if s then
-    local positions = {}
-    for i = s, s + #lo_query - 1 do
-      positions[#positions + 1] = i
-    end
-    return 100 + #lo_query, positions
-  end
-
-  local positions = {}
-  local score = 0
-  local run = 0
-  local pos = 1
-
-  for i = 1, #lo_query do
-    local ch = lo_query:sub(i, i)
-    local found = lo_text:find(ch, pos, true)
-    if not found then
-      return nil
-    end
-    positions[#positions + 1] = found
-    if found == pos then
-      run = run + 1
-      score = score + 5 + run * 2
-    else
-      run = 0
-      score = score + 1
-    end
-    pos = found + 1
-  end
-
-  score = score - (#lo_text - #lo_query) * 0.05
-  return score, positions
-end
 
 -- ── Result cursor helpers ─────────────────────────────────────────────────
 
@@ -167,20 +123,17 @@ local function paint_match_layer()
   end
 end
 
--- ── Score + sort items ────────────────────────────────────────────────────
+-- ── Score items ─────────────────────────────────────────────────────────
 
-local function score_and_sort(items, filter)
+local function score_items(items, filter)
   if not filter or filter == "" then
     return items
   end
   for _, item in ipairs(items) do
-    local score, positions = fuzzy_match(item.name, filter)
+    local score, positions = str_utils.fuzzy_match(item.name, filter)
     item._match_score = score or 0
     item._match_positions = positions or {}
   end
-  table.sort(items, function(a, b)
-    return (a._match_score or 0) > (b._match_score or 0)
-  end)
   return items
 end
 
@@ -212,7 +165,7 @@ local function rebuild_items()
         end
 
         local prev_path = S._search_cursor and S.items[S._search_cursor] and S.items[S._search_cursor].path
-        S.items = score_and_sort(items, S.filter)
+        S.items = score_items(items, S.filter)
         S._search_cursor = #S.items > 0 and 1 or 0
         if prev_path then
           for i, it in ipairs(S.items) do
@@ -390,7 +343,7 @@ function M.on_items_updated()
     return
   end
 
-  S.items = score_and_sort(S.items, S.filter)
+  S.items = score_items(S.items, S.filter)
   clamp_cursor()
   render._paint_items_only()
   render.paint_header()

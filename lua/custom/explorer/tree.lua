@@ -3,6 +3,7 @@
 
 local S = require("custom.explorer.state")
 local cfg = require("custom.explorer.config")
+local str_utils = require("utils.strings")
 
 local M = {}
 local uv = vim.uv
@@ -68,7 +69,7 @@ local function matches(name, filter)
   if not filter or filter == "" then
     return true
   end
-  return name:lower():find(filter:lower(), 1, true) ~= nil
+  return str_utils.fuzzy_match(name, filter) ~= nil
 end
 
 -- ── DFS walk ─────────────────────────────────────────────────────────────
