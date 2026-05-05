@@ -101,6 +101,10 @@
       "rev": "8aeff8ef77cbe934f399af42aae6216b3d965f9b",
       "src": "https://github.com/geo-afk/theme.nvim"
     },
+    "tiny-inline-diagnostic.nvim": {
+      "rev": "147af4e49f51dd48f41972de26552872b8ba7b25",
+      "src": "https://github.com/rachartier/tiny-inline-diagnostic.nvim"
+    },
     "tokyonight.nvim": {
       "rev": "cdc07ac78467a233fd62c493de29a17e0cf2b2b6",
       "src": "https://github.com/folke/tokyonight.nvim"
