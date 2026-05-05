@@ -189,6 +189,35 @@ local function text_preview(text)
   return n
 end
 
+local function detect_filetype(fname, contents)
+  local ok, ft = pcall(vim.filetype.match, { filename = fname, contents = contents })
+  if not ok or not ft or ft == "" then
+    ft = vim.fn.fnamemodify(fname, ":e")
+  end
+  return ft ~= "" and ft or "text"
+end
+
+local function treesitter_lang_for_filetype(ft)
+  if not ft or ft == "" or type(vim.treesitter) ~= "table" then
+    return nil
+  end
+  if vim.treesitter.language and type(vim.treesitter.language.get_lang) == "function" then
+    local ok, lang = pcall(vim.treesitter.language.get_lang, ft)
+    if ok and lang and lang ~= "" then
+      return lang
+    end
+  end
+  return ft
+end
+
+local function has_treesitter_parser(bufnr, lang)
+  if not lang or lang == "" or type(vim.treesitter) ~= "table" then
+    return false
+  end
+  local ok = pcall(vim.treesitter.get_parser, bufnr, lang)
+  return ok
+end
+
 local function append_kv(lines, spans, label, value)
   lines[#lines + 1] = label .. value
   spans[#spans + 1] = { row = #lines - 1, label_end = #label, value_start = #label }
@@ -277,20 +306,46 @@ end
 
 -- ── Diff computation ──────────────────────────────────────────────────────────
 
--- Returns { lines: string[], hl: {lnum:int, hl_group:string}[] } or nil.
+-- Returns structured preview content or nil.
 -- We compute the diff ourselves and apply extmark highlights, which is more
 -- reliable than setting 'diff' option on two windows.
 ---@param action table
 ---@param client vim.lsp.Client|nil
----@return { lines: string[], hl: {lnum:integer, hl_group:string}[] }|nil
+---@return { lines: string[], hl: table[], signs: table[], filetype?: string, lang?: string }|nil
 local function compute_diff(action, client)
   if not action or not action.edit then
     return nil
   end
 
   local encoding = client and client.offset_encoding or "utf-8"
-  local result = { lines = {}, hl = {} }
+  local result = { lines = {}, hl = {}, signs = {}, filetypes = {} }
   local max_lines = vim.g.lsp_diff_max_lines or 1000
+
+  local function add_line(text, hl_group, sign, sign_hl)
+    local lnum = #result.lines
+    result.lines[#result.lines + 1] = text
+    if hl_group then
+      result.hl[#result.hl + 1] = { lnum = lnum, hl_group = hl_group }
+    end
+    if sign then
+      result.signs[#result.signs + 1] = {
+        lnum = lnum,
+        text = sign,
+        hl_group = sign_hl or hl_group or HL.PreviewSign,
+      }
+    end
+    return lnum
+  end
+
+  local function add_meta(text, hl_group)
+    local lnum = add_line(text, hl_group or HL.PreviewMeta, " ", HL.PreviewMeta)
+    result.hl[#result.hl + 1] = { lnum = lnum, hl_group = hl_group or HL.PreviewMeta, meta = true }
+  end
+
+  local function parse_hunk_start(line)
+    local old_start, new_start = line:match("^@@ %-(%d+),?%d* %+(%d+),?%d* @@")
+    return tonumber(old_start), tonumber(new_start)
+  end
 
   local function diff_uri(uri, text_edits)
     local fname = vim.uri_to_fname(uri)
@@ -316,6 +371,9 @@ local function compute_diff(action, client)
     local modified = ok and vim.api.nvim_buf_get_lines(scratch, 0, -1, false) or orig
     vim.api.nvim_buf_delete(scratch, { force = true })
 
+    local ft = detect_filetype(fname, modified)
+    result.filetypes[ft] = true
+
     local a_text = table.concat(orig, "\n") .. "\n"
     local b_text = table.concat(modified, "\n") .. "\n"
     if a_text == b_text then
@@ -337,47 +395,73 @@ local function compute_diff(action, client)
       diff_lines[#diff_lines] = nil
     end
 
-    -- Header lines
     local base = #result.lines
-    result.lines[#result.lines + 1] = ("─── %s"):format(rel)
-    result.hl[#result.hl + 1] = { lnum = base, hl_group = HL.Header }
+    if base > 0 then
+      add_meta("")
+    end
+    add_meta(("File: %s"):format(rel), HL.Header)
+    add_meta(("Type: %s"):format(ft), HL.PreviewMeta)
 
     local truncated = false
-    for i, dl in ipairs(diff_lines) do
+    local old_lnum, new_lnum = 0, 0
+    local pending_removed = 0
+    for _, dl in ipairs(diff_lines) do
       if #result.lines - base > max_lines then
-        result.lines[#result.lines + 1] = "  … diff truncated"
+        add_meta("... diff truncated")
         truncated = true
         break
       end
-      local lnum = #result.lines
-      result.lines[#result.lines + 1] = dl
-      if dl:match("^%+") and not dl:match("^%+%+%+") then
-        result.hl[#result.hl + 1] = { lnum = lnum, hl_group = HL.DiffAdd }
-      elseif dl:match("^%-") and not dl:match("^%-%-%-") then
-        result.hl[#result.hl + 1] = { lnum = lnum, hl_group = HL.DiffDelete }
+
+      if dl:match("^%+%+%+") or dl:match("^%-%-%-") then
+        -- Skip synthetic unified-diff file headers; the preview has its own.
       elseif dl:match("^@@") then
-        result.hl[#result.hl + 1] = { lnum = lnum, hl_group = HL.DiffHunk }
+        pending_removed = 0
+        local old_start, new_start = parse_hunk_start(dl)
+        old_lnum = (old_start or 1) - 1
+        new_lnum = (new_start or 1) - 1
+        add_meta(dl, HL.DiffHunk)
+      elseif dl:match("^%+") then
+        new_lnum = new_lnum + 1
+        if pending_removed > 0 then
+          pending_removed = pending_removed - 1
+          add_line(dl:sub(2), HL.DiffChange, "~", HL.DiffChange)
+        else
+          add_line(dl:sub(2), HL.DiffAdd, "+", HL.DiffAdd)
+        end
+      elseif dl:match("^%-") then
+        old_lnum = old_lnum + 1
+        pending_removed = pending_removed + 1
+        add_line(dl:sub(2), HL.DiffDelete, "-", HL.DiffDelete)
+      elseif dl:match("^ ") then
+        pending_removed = 0
+        old_lnum = old_lnum + 1
+        new_lnum = new_lnum + 1
+        add_line(dl:sub(2), nil, " ", HL.PreviewSign)
+      elseif dl ~= "" then
+        pending_removed = 0
+        add_meta(dl)
       end
-      _ = i
       _ = truncated
+      _ = old_lnum
+      _ = new_lnum
     end
   end
 
   if action.edit.documentChanges then
     for _, change in ipairs(action.edit.documentChanges) do
       if change.kind == "rename" then
-        result.lines[#result.lines + 1] = ("Rename: %s → %s"):format(
+        add_meta(("Rename: %s -> %s"):format(
           vim.fn.fnamemodify(vim.uri_to_fname(change.oldUri), ":~:."),
           vim.fn.fnamemodify(vim.uri_to_fname(change.newUri), ":~:.")
-        )
+        ), HL.Header)
       elseif change.kind == "delete" then
-        result.lines[#result.lines + 1] = ("Delete: %s"):format(
+        add_meta(("Delete: %s"):format(
           vim.fn.fnamemodify(vim.uri_to_fname(change.uri), ":~:.")
-        )
+        ), HL.DiffDelete)
       elseif change.kind == "create" then
-        result.lines[#result.lines + 1] = ("Create: %s"):format(
+        add_meta(("Create: %s"):format(
           vim.fn.fnamemodify(vim.uri_to_fname(change.uri), ":~:.")
-        )
+        ), HL.DiffAdd)
       elseif change.textDocument and change.edits then
         diff_uri(change.textDocument.uri, change.edits)
       end
@@ -389,6 +473,16 @@ local function compute_diff(action, client)
       diff_uri(uri, action.edit.changes[uri])
     end
   end
+
+  local filetypes = vim.tbl_keys(result.filetypes)
+  table.sort(filetypes)
+  if #filetypes == 1 then
+    result.filetype = filetypes[1]
+    result.lang = treesitter_lang_for_filetype(result.filetype)
+  elseif #filetypes > 1 then
+    result.filetype = "diff"
+  end
+  result.filetypes = nil
 
   return (#result.lines > 0) and result or nil
 end
@@ -404,7 +498,7 @@ local function configure_float(win, opts)
   wo.cursorline = opts.cursorline or false
   wo.number = false
   wo.relativenumber = false
-  wo.signcolumn = "no"
+  wo.signcolumn = opts.signcolumn or "no"
   wo.wrap = opts.wrap or false
   wo.scrolloff = 0
   wo.winblend = opts.winblend or 0
@@ -498,6 +592,9 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
   ---@type { buf: integer|nil, win: integer|nil, open: boolean }
   local preview = { buf = nil, win = nil, open = false }
   local preview_mode = cfg_preview.show_diff and "diff" or "summary"
+  local preview_render_key = nil
+  local preview_request = 0
+  local preview_timer = nil
   local closed = false
 
   local filter_win = nil
@@ -574,8 +671,22 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
     end
   end
 
+  local stop_preview_treesitter
+
   local function close_preview()
     preview.open = false
+    preview_request = preview_request + 1
+    preview_render_key = nil
+    if preview_timer then
+      preview_timer:stop()
+      if not preview_timer:is_closing() then
+        preview_timer:close()
+      end
+      preview_timer = nil
+    end
+    if preview.buf and vim.api.nvim_buf_is_valid(preview.buf) then
+      stop_preview_treesitter(preview.buf)
+    end
     if preview.win and vim.api.nvim_win_is_valid(preview.win) then
       pcall(vim.api.nvim_win_close, preview.win, true)
     end
@@ -778,16 +889,37 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
       zindex = 59,
       noautocmd = true,
     })
-    configure_float(preview.win, { wrap = true, winblend = cfg_preview.winblend or 0 })
+    configure_float(preview.win, { wrap = true, winblend = cfg_preview.winblend or 0, signcolumn = "yes:1" })
     preview.open = true
+  end
+
+  function stop_preview_treesitter(bufnr)
+    if type(vim.treesitter) == "table" and type(vim.treesitter.stop) == "function" then
+      pcall(vim.treesitter.stop, bufnr)
+    end
+  end
+
+  local function apply_preview_language(bufnr, filetype, lang)
+    stop_preview_treesitter(bufnr)
+    vim.bo[bufnr].syntax = "manual"
+    vim.bo[bufnr].filetype = filetype or "codeactionpreview"
+
+    if filetype and filetype ~= "diff" and lang and has_treesitter_parser(bufnr, lang) then
+      pcall(vim.treesitter.start, bufnr, lang)
+      vim.bo[bufnr].syntax = "off"
+    elseif filetype == "diff" then
+      vim.bo[bufnr].syntax = "diff"
+    end
   end
 
   ---Write content into the preview buffer and apply extmark highlights.
   ---@param lines   string[]
   ---@param hl_list { lnum: integer, hl_group: string }[]|nil
+  ---@param signs   { lnum: integer, text: string, hl_group: string }[]|nil
   ---@param spans   table[]|nil   summary-mode label/value spans
   ---@param status  string
-  local function render_preview_content(lines, hl_list, spans, status)
+  ---@param lang_opts { filetype?: string, lang?: string }|nil
+  local function render_preview_content(lines, hl_list, signs, spans, status, lang_opts)
     local pbuf = preview.buf
     if not preview.open or not pbuf or not vim.api.nvim_buf_is_valid(pbuf) then
       return
@@ -797,12 +929,23 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
     vim.api.nvim_buf_set_lines(pbuf, 0, -1, false, lines)
     vim.bo[pbuf].modifiable = false
     vim.api.nvim_buf_clear_namespace(pbuf, NS, 0, -1)
+    apply_preview_language(pbuf, lang_opts and lang_opts.filetype or "codeactionpreview", lang_opts and lang_opts.lang or nil)
 
     -- Diff extmark highlights (add/remove/hunk header lines).
     for _, h in ipairs(hl_list or {}) do
       vim.api.nvim_buf_set_extmark(pbuf, NS, h.lnum, 0, {
         hl_group = h.hl_group,
         hl_eol = true,
+      })
+    end
+
+    for _, sign in ipairs(signs or {}) do
+      vim.api.nvim_buf_set_extmark(pbuf, NS, sign.lnum, 0, {
+        sign_text = sign.text,
+        sign_hl_group = sign.hl_group,
+        virt_text = { { sign.text .. " ", sign.hl_group } },
+        virt_text_pos = "inline",
+        priority = 120,
       })
     end
 
@@ -830,7 +973,13 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
     end
   end
 
-  local function update_preview(force)
+  local function selected_preview_key(item)
+    local title = item and item.action and item.action.title or ""
+    local client_id = item and item.client and item.client.id or "none"
+    return ("%s:%s:%s"):format(preview_mode, client_id, title)
+  end
+
+  local function update_preview_now(force)
     if not preview.open and not force then
       return
     end
@@ -840,37 +989,67 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
     end
 
     ensure_preview()
-    render_preview_content({ "  Loading…" }, {}, {}, " Preview ")
+    local render_key = selected_preview_key(item)
+    if preview_render_key == render_key and not force then
+      return
+    end
+    preview_render_key = render_key
+    preview_request = preview_request + 1
+    local request_id = preview_request
+    render_preview_content({ "Loading..." }, {}, {}, {}, " Preview ", { filetype = "codeactionpreview" })
 
     lsp.resolve_for_preview(item, function(err, action)
-      if closed or not preview.open then
+      if closed or not preview.open or request_id ~= preview_request then
         return
       end
       if err or not action then
-        render_preview_content({ "  " .. (err or "Failed to resolve action") }, {}, {}, " Preview Error ")
+        render_preview_content({ err or "Failed to resolve action" }, {}, {}, {}, " Preview Error ", {
+          filetype = "codeactionpreview",
+        })
         return
       end
 
       if preview_mode == "diff" then
         local diff = compute_diff(action, item.client)
         if diff then
-          render_preview_content(diff.lines, diff.hl, {}, " Diff  (d: summary) ")
+          render_preview_content(diff.lines, diff.hl, diff.signs, {}, " Diff  (d: summary) ", {
+            filetype = diff.filetype or "diff",
+            lang = diff.lang,
+          })
         else
           render_preview_content({
             "",
-            "  No diff available for this action.",
+            "No diff available for this action.",
             "",
-            "  Possible reasons:",
-            "  • Action uses lazy resolution (no edit yet)",
-            "  • Command-only action",
-            "  • File create / rename / delete",
-          }, {}, {}, " Diff  (d: summary) ")
+            "Possible reasons:",
+            "- Action uses lazy resolution (no edit yet)",
+            "- Command-only action",
+            "- File create / rename / delete",
+          }, {}, {}, {}, " Diff  (d: summary) ", { filetype = "markdown" })
         end
       else
         local lines, spans = summary_preview_lines(action, item)
-        render_preview_content(lines, {}, spans, " Summary  (d: diff) ")
+        render_preview_content(lines, {}, {}, spans, " Summary  (d: diff) ", { filetype = "codeactionpreview" })
       end
     end)
+  end
+
+  local function update_preview(force)
+    if preview_timer then
+      preview_timer:stop()
+      if not preview_timer:is_closing() then
+        preview_timer:close()
+      end
+      preview_timer = nil
+    end
+    if force then
+      update_preview_now(true)
+      return
+    end
+    preview_timer = vim.defer_fn(function()
+      preview_timer = nil
+      update_preview_now(false)
+    end, cfg_preview.debounce_ms or 35)
   end
 
   -- ── Actions ───────────────────────────────────────────────────────────────

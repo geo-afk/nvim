@@ -27,11 +27,14 @@ M.HL = {
   Disabled = "CodeActionMenuDisabled",
   PreviewLabel = "CodeActionMenuPreviewLabel",
   PreviewValue = "CodeActionMenuPreviewValue",
+  PreviewMeta = "CodeActionMenuPreviewMeta",
+  PreviewSign = "CodeActionMenuPreviewSign",
   Scrollbar = "CodeActionMenuScrollbar",
   ScrollTrack = "CodeActionMenuScrollTrack",
   FilterMatch = "CodeActionMenuFilterMatch",
   DiffAdd = "CodeActionMenuDiffAdd",
   DiffDelete = "CodeActionMenuDiffDelete",
+  DiffChange = "CodeActionMenuDiffChange",
   DiffHunk = "CodeActionMenuDiffHunk",
 }
 
@@ -95,11 +98,14 @@ function M.setup()
   vim.api.nvim_set_hl(0, M.HL.Disabled, { link = "Comment", default = true })
   vim.api.nvim_set_hl(0, M.HL.PreviewLabel, { link = "Identifier", default = true })
   vim.api.nvim_set_hl(0, M.HL.PreviewValue, { link = "Normal", default = true })
+  vim.api.nvim_set_hl(0, M.HL.PreviewMeta, { link = "Comment", default = true })
+  vim.api.nvim_set_hl(0, M.HL.PreviewSign, { link = "LineNr", default = true })
   vim.api.nvim_set_hl(0, M.HL.Scrollbar, { link = "PmenuThumb", default = true })
   vim.api.nvim_set_hl(0, M.HL.ScrollTrack, { link = "PmenuSbar", default = true })
   vim.api.nvim_set_hl(0, M.HL.FilterMatch, { link = "Search", default = true })
   vim.api.nvim_set_hl(0, M.HL.DiffAdd, { link = "DiffAdd", default = true })
   vim.api.nvim_set_hl(0, M.HL.DiffDelete, { link = "DiffDelete", default = true })
+  vim.api.nvim_set_hl(0, M.HL.DiffChange, { link = "DiffChange", default = true })
   vim.api.nvim_set_hl(0, M.HL.DiffHunk, { link = "DiffText", default = true })
 
   for i, fg in ipairs(SOURCE_PALETTE) do
