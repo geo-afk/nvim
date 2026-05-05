@@ -538,6 +538,9 @@ end
 local go_debugger = require("custom.go.debugger")
 go_debugger.setup()
 
+local go_config = require("custom.go.debugger_config")
+go_config.setup()
+
 -- =============================================================================
 --  Test runner
 --  FIX: go test / gotestsum requires package patterns (./pkg/dir or ./...),
