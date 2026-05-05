@@ -160,4 +160,57 @@ M.replace_word_under_cursor = function()
   })
 end
 
+--- Perform a basic fuzzy match between text and query
+--- @param text string The string to search in
+--- @param query string The fuzzy pattern to search for
+--- @return number|nil score The match score (higher is better) or nil if no match
+--- @return table positions The byte positions of matching characters
+M.fuzzy_match = function(text, query)
+  if not query or query == "" then
+    return 0, {}
+  end
+
+  local lo_text = text:lower()
+  local lo_query = query:lower()
+
+  -- Fast path: simple substring match
+  local s = lo_text:find(lo_query, 1, true)
+  if s then
+    local positions = {}
+    for i = s, s + #lo_query - 1 do
+      positions[#positions + 1] = i
+    end
+    -- Score substring matches much higher (100+)
+    return 100 + #lo_query, positions
+  end
+
+  -- Fuzzy path: match each character in order
+  local positions = {}
+  local score = 0
+  local run = 0
+  local pos = 1
+
+  for i = 1, #lo_query do
+    local ch = lo_query:sub(i, i)
+    local found = lo_text:find(ch, pos, true)
+    if not found then
+      return nil
+    end
+    positions[#positions + 1] = found
+    if found == pos then
+      -- Bonus for consecutive matches
+      run = run + 1
+      score = score + 5 + run * 2
+    else
+      run = 0
+      score = score + 1
+    end
+    pos = found + 1
+  end
+
+  -- Penalty for length difference to favor shorter matches
+  score = score - (#lo_text - #lo_query) * 0.05
+  return score, positions
+end
+
 return M
