@@ -1,41 +1,31 @@
 -- =============================================================================
---  go.lua — Neovim Go development utilities (updated)
+--  ftplugin/go.lua — Neovim Go development utilities
 --  Tools: gotests · gomodifytags · iferr · gotestsum · fillstruct · fillswitch
 --         dlv (Delve debugger) · govulncheck · go doc
---  NEW: go mod tidy, go generate, test/impl alternate, godoc browser, auto-organizeImports
---
---  Requires Neovim 0.9+ (uses vim.system for async shell calls)
 -- =============================================================================
 
 local file_picker = require("utils.file_selector")
 
--- to get coverage in golang html format:
--- go test -coverageprofile c.out ./...; go tool cover -html=c.out
-
-vim.opt.tabstop = 4
-vim.opt.shiftwidth = 4
-vim.opt.softtabstop = 0
-vim.opt.expandtab = false
-vim.opt.textwidth = 120
+vim.opt_local.tabstop = 4
+vim.opt_local.shiftwidth = 4
+vim.opt_local.softtabstop = 0
+vim.opt_local.expandtab = false
+vim.opt_local.textwidth = 120
 
 -- =============================================================================
---  Augroup (all autocmds belong here — prevents duplicates on re-source)
+--  Augroup
 -- =============================================================================
 local aug = vim.api.nvim_create_augroup("GoLua", { clear = true })
 
 -- =============================================================================
 --  Tool Registry
---  required = true  → ERROR on startup if missing
---  required = false → grouped WARN on startup if missing
 -- =============================================================================
 local TOOLS = {
   { cmd = "gotests", required = true, install = "go install github.com/cweill/gotests/gotests@latest" },
   { cmd = "gomodifytags", required = true, install = "go install github.com/fatih/gomodifytags@latest" },
   { cmd = "iferr", required = true, install = "go install github.com/koron/iferr@latest" },
   { cmd = "gotestsum", required = true, install = "go install gotest.tools/gotestsum@latest" },
-  -- NOTE: fillstruct/fillswitch are broken on Go ≥1.25 (tokeninternal issue).
-  --       The gopls LSP code-action fallback is used automatically when the CLI
-  --       tool is absent or returns an error.
+  -- fillstruct/fillswitch: broken on Go ≥1.25; gopls fallback used automatically.
   {
     cmd = "fillstruct",
     required = false,
@@ -50,9 +40,6 @@ local TOOLS = {
   { cmd = "govulncheck", required = false, install = "go install golang.org/x/vuln/cmd/govulncheck@latest" },
 }
 
--- =============================================================================
---  Startup Tool Check  (fires once per session, deferred 500 ms)
--- =============================================================================
 local _tools_checked = false
 
 local function check_tools()
@@ -74,7 +61,6 @@ local function check_tools()
     end
   end
 
-  -- Wrap in vim.schedule so notifications happen on the main loop
   vim.schedule(function()
     for _, tool in ipairs(missing_required) do
       vim.notify(
@@ -82,7 +68,6 @@ local function check_tools()
         vim.log.levels.ERROR
       )
     end
-
     if #missing_optional > 0 then
       local lines = { "[go.lua] Optional tools not installed:" }
       for _, tool in ipairs(missing_optional) do
@@ -93,8 +78,6 @@ local function check_tools()
   end)
 end
 
--- 'once = true' ensures this fires exactly once even if 'go' filetypes are
--- opened multiple times; combined with the augroup it will not accumulate.
 vim.api.nvim_create_autocmd("FileType", {
   group = aug,
   pattern = "go",
@@ -115,31 +98,27 @@ local function get_float_term()
   if float_term_mod then
     return float_term_mod
   end
-
   local ok, mod = pcall(require, "custom.float_term.term")
   if not ok then
     vim.notify("[go.lua] Failed to load float_term module: " .. tostring(mod), vim.log.levels.ERROR)
     return nil
   end
-
   float_term_mod = mod
   return mod
 end
 
--- Shared Go terminal styling
 local go_term_config = {
   width_ratio = 0.8,
   height_ratio = 0.7,
   transparent = true,
   winblend = 15,
   colors = {
-    title_bg = "#00ADD8", -- Go cyan
+    title_bg = "#00ADD8",
     title_fg = "#000000",
     border = "#00ADD8",
   },
 }
 
---- Create a floating terminal (fallback → bottom split).
 ---@param cmd   string  Shell command to run
 ---@param title string  Window title
 ---@param cwd?  string  Optional working directory
@@ -147,18 +126,14 @@ local function create_go_terminal(cmd, title, cwd)
   local ft = get_float_term()
 
   if not ft then
-    -- Fallback: simple bottom split terminal
-    local run_cmd = cmd
-    if cwd then
-      run_cmd = string.format("cd %s && %s", vim.fn.shellescape(cwd), run_cmd)
-    end
+    -- Fallback: simple bottom split
+    local run_cmd = cwd and string.format("cd %s && %s", vim.fn.shellescape(cwd), cmd) or cmd
     vim.cmd("botright 15split")
     vim.cmd("terminal " .. run_cmd)
     vim.cmd("startinsert")
     return
   end
 
-  -- Configure the module only once per session to avoid repeated side-effects
   if not _float_term_setup then
     ft.setup(go_term_config)
     _float_term_setup = true
@@ -169,7 +144,8 @@ local function create_go_terminal(cmd, title, cwd)
     if is_win then
       cmd = string.format('Push-Location -LiteralPath "%s"; %s; Pop-Location', cwd, cmd)
     else
-      cmd = string.format("cd %s && %s", vim.fn.shellescape(cwd), cmd)
+      -- Use subshell so the cd is scoped
+      cmd = string.format("(cd %s && %s)", vim.fn.shellescape(cwd), cmd)
     end
   end
 
@@ -180,38 +156,53 @@ end
 --  Generic Helpers
 -- =============================================================================
 
---- Write the buffer if modified, then run a shell command asynchronously.
---- Reloads the buffer on success (Neovim 0.9+ vim.system API).
----@param cmd string Full shell command string
-local function save_run_reload(cmd)
-  -- Ensure the tool operates on up-to-date file content
-  if vim.bo.modified then
-    vim.cmd("silent! write")
+---@param filepath string Absolute path
+---@return string
+local function escape_filepath(filepath)
+  if vim.uv.os_uname().sysname:match("Windows") ~= nil then
+    return '"' .. filepath:gsub("\\", "/") .. '"'
   end
-
-  -- Split into argv table so vim.system doesn't go through a shell
-  -- (avoids quoting issues; each token is one argument)
-  vim.system(vim.split(cmd, "%s+", { trimempty = true }), { text = true }, function(result)
-    vim.schedule(function()
-      if result.code ~= 0 then
-        local stderr = vim.trim(result.stderr or "")
-        local stdout = vim.trim(result.stdout or "")
-        local msg = stderr ~= "" and stderr or stdout
-        vim.notify("[go.lua] Command failed:\n" .. msg, vim.log.levels.ERROR)
-        return
-      end
-      local bufnr = vim.api.nvim_get_current_buf()
-      if vim.api.nvim_buf_is_valid(bufnr) then
-        vim.cmd("edit!")
-      end
-    end)
-  end)
+  return vim.fn.shellescape(filepath)
 end
 
---- Return the main/test file pair for any given Go file path.
----@param filepath string Absolute path to a .go file
----@return string|nil main_file
----@return string|nil test_file
+---Return filepath relative to cwd, or the original path if outside cwd.
+---@param filepath string Absolute path
+---@return string
+local function get_relative_path(filepath)
+  local cwd = vim.fn.getcwd():gsub("[/\\]$", "")
+  filepath = filepath:gsub("[/\\]$", "")
+  if filepath == cwd then
+    return "."
+  end
+  local sep = vim.uv.os_uname().sysname:match("Windows") ~= nil and "\\" or "/"
+  local prefix = cwd .. sep
+  if filepath:sub(1, #prefix) == prefix then
+    return filepath:sub(#prefix + 1)
+  end
+  return filepath
+end
+
+---Derive a `./pkg/dir` package pattern from an absolute file path.
+---This is what `go test` and `gotestsum` expect — NOT individual file paths.
+---@param filepath string Absolute path to any .go file
+---@return string  e.g. "./internal/server" or "."
+local function file_to_pkg_pattern(filepath)
+  local dir = vim.fn.fnamemodify(filepath, ":h")
+  local rel_dir = get_relative_path(dir)
+  if rel_dir == "." then
+    return "."
+  end
+  -- Normalise separators and ensure leading ./
+  rel_dir = rel_dir:gsub("\\", "/")
+  if not rel_dir:match("^%.?/") then
+    rel_dir = "./" .. rel_dir
+  end
+  return rel_dir
+end
+
+---Return the main/test file pair for a given .go path.
+---@param filepath string
+---@return string|nil main_file, string|nil test_file
 local function get_test_file_pair(filepath)
   if filepath:match("_test%.go$") then
     local main_file = filepath:gsub("_test%.go$", ".go")
@@ -222,36 +213,7 @@ local function get_test_file_pair(filepath)
   end
 end
 
---- Shell-escape a file path for use as a standalone CLI argument.
----@param filepath string
----@return string
-local function escape_filepath(filepath)
-  if vim.uv.os_uname().sysname:match("Windows") ~= nil then
-    return '"' .. filepath:gsub("\\", "/") .. '"'
-  end
-  return vim.fn.shellescape(filepath)
-end
-
---- Return filepath relative to cwd.  Returns "." when they are equal.
----@param filepath string Absolute path
----@return string
-local function get_relative_path(filepath)
-  local cwd = vim.fn.getcwd():gsub("[/\\]$", "")
-  filepath = filepath:gsub("[/\\]$", "")
-
-  if filepath == cwd then
-    return "."
-  end
-
-  local sep = vim.uv.os_uname().sysname:match("Windows") ~= nil and "\\" or "/"
-  local prefix = cwd .. sep
-  if filepath:sub(1, #prefix) == prefix then
-    return filepath:sub(#prefix + 1)
-  end
-  return filepath
-end
-
---- Find the directory that contains the project's main.go.
+---Find the directory that contains the project's main.go.
 ---@return string|nil
 local function find_main_go()
   local cwd = vim.fn.getcwd()
@@ -273,7 +235,7 @@ local function find_main_go()
   return nil
 end
 
---- Guard: notify and return false if the current buffer is not a Go file.
+---Guard: notify and return false when current buffer is not a Go file.
 ---@return boolean
 local function assert_go_file()
   if not vim.fn.expand("%:p"):match("%.go$") then
@@ -283,47 +245,59 @@ local function assert_go_file()
   return true
 end
 
---- Compute the byte offset of the cursor position for use as -offset=<N>.
---- Returns nil if the file has not been written (line2byte returns -1).
+---Byte offset of the cursor for -offset= flags.
 ---@return integer|nil
 local function cursor_byte_offset()
   local line, col = unpack(vim.api.nvim_win_get_cursor(0))
-  local line_start = vim.fn.line2byte(line) -- 1-based byte of line start; -1 if not indexed
+  local line_start = vim.fn.line2byte(line)
   if line_start < 0 then
     return nil
   end
-  return line_start + col -- col is 0-based, so final offset is 1-based — correct for reftools
+  return line_start + col
+end
+
+---Write buffer if modified, run `cmd` async, reload on success.
+---@param cmd string
+local function save_run_reload(cmd)
+  if vim.bo.modified then
+    vim.cmd("silent! write")
+  end
+  vim.system(vim.split(cmd, "%s+", { trimempty = true }), { text = true }, function(result)
+    vim.schedule(function()
+      if result.code ~= 0 then
+        local msg = vim.trim(result.stderr ~= "" and result.stderr or result.stdout)
+        vim.notify("[go.lua] Command failed:\n" .. msg, vim.log.levels.ERROR)
+        return
+      end
+      if vim.api.nvim_buf_is_valid(vim.api.nvim_get_current_buf()) then
+        vim.cmd("edit!")
+      end
+    end)
+  end)
 end
 
 -- =============================================================================
---  Floating Read-only Output Window  (goDoc, etc.)
+--  Floating Read-only Output Window  (GoDoc, etc.)
 -- =============================================================================
 
 ---@param lines   string[]
 ---@param title   string
----@param ft_name? string Filetype for syntax (default: 'text')
----@return integer|nil buf
----@return integer|nil win
+---@param ft_name? string
+---@return integer|nil buf, integer|nil win
 local function open_output_window(lines, title, ft_name)
   if not lines or #lines == 0 then
-    vim.notify("[go.lua] " .. title .. ": no output to display", vim.log.levels.WARN)
+    vim.notify("[go.lua] " .. title .. ": no output", vim.log.levels.WARN)
     return nil, nil
   end
 
   ft_name = ft_name or "text"
-
   local ui = vim.api.nvim_list_uis()[1]
   local width = math.floor(ui.width * 0.75)
   local height = math.floor(ui.height * 0.70)
-  local row = math.floor((ui.height - height) / 2)
-  local col = math.floor((ui.width - width) / 2)
 
   local buf = vim.api.nvim_create_buf(false, true)
-  -- Set buf options using the modern vim.bo accessor (nvim_buf_set_option deprecated)
   vim.bo[buf].bufhidden = "wipe"
   vim.bo[buf].filetype = ft_name
-
-  -- Populate then lock
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
   vim.bo[buf].modifiable = false
   vim.bo[buf].readonly = true
@@ -332,15 +306,14 @@ local function open_output_window(lines, title, ft_name)
     relative = "editor",
     width = width,
     height = height,
-    row = row,
-    col = col,
+    row = math.floor((ui.height - height) / 2),
+    col = math.floor((ui.width - width) / 2),
     style = "minimal",
     border = "rounded",
     title = " " .. title .. " ",
     title_pos = "center",
   })
 
-  -- Use modern vim.wo accessor (nvim_win_set_option deprecated)
   vim.wo[win].wrap = true
   vim.wo[win].number = false
   vim.wo[win].winhighlight = "Normal:NormalFloat,FloatBorder:FloatBorder,FloatTitle:FloatTitle"
@@ -350,7 +323,6 @@ local function open_output_window(lines, title, ft_name)
       vim.api.nvim_win_close(win, true)
     end
   end
-
   for _, key in ipairs({ "q", "<Esc>", "<CR>" }) do
     vim.keymap.set("n", key, close, { buffer = buf, nowait = true, silent = true })
   end
@@ -359,31 +331,29 @@ local function open_output_window(lines, title, ft_name)
 end
 
 -- =============================================================================
---  fillstruct — fill a struct literal with zero-value fields
---
---  CLI: fillstruct -file=<f> -offset=<bytes>|-line=<n>
---  Output: JSON [{ "start": N, "end": N, "code": "..." }]
---          Elements are in REVERSE order so iterating forward is safe.
---
---  Compatibility: fillstruct CLI is broken on Go ≥1.25.  When it fails we
---  automatically fall back to the gopls "Fill <struct>" code action.
+--  fillstruct / fillswitch
 -- =============================================================================
 
 local function fillstruct_via_lsp()
   if #vim.lsp.get_clients({ bufnr = 0, name = "gopls" }) == 0 then
-    vim.notify("[go.lua] fillstruct: gopls not attached — cannot use LSP fallback", vim.log.levels.ERROR)
+    vim.notify("[go.lua] fillstruct: gopls not attached", vim.log.levels.ERROR)
     return
   end
-  vim.lsp.buf.code_action({
-    context = { only = { "source.fillStruct" } },
-    apply = false,
-  })
+  vim.lsp.buf.code_action({ context = { only = { "source.fillStruct" } }, apply = false })
 end
 
---- Parse and apply the JSON edit list produced by fillstruct or fillswitch.
----@param output    string  Raw stdout from the CLI tool
----@param tool_name string  Used in error messages
----@return boolean          true if edits were applied
+local function fillswitch_via_lsp()
+  if #vim.lsp.get_clients({ bufnr = 0, name = "gopls" }) == 0 then
+    vim.notify("[go.lua] fillswitch: gopls not attached", vim.log.levels.ERROR)
+    return
+  end
+  vim.lsp.buf.code_action({ context = { only = { "source.fixAll" } }, apply = false })
+end
+
+---Parse and apply JSON edit list from fillstruct/fillswitch.
+---@param output    string
+---@param tool_name string
+---@return boolean
 local function apply_reftools_edits(output, tool_name)
   output = vim.trim(output)
   if output == "" or output == "[]" or output == "null" then
@@ -397,14 +367,8 @@ local function apply_reftools_edits(output, tool_name)
   end
 
   local bufnr = vim.api.nvim_get_current_buf()
-
-  -- Edits arrive in reverse occurrence order, so applying them sequentially
-  -- keeps earlier line numbers stable throughout the loop.
   for _, edit in ipairs(edits) do
-    local start_0 = edit.start - 1 -- convert 1-based → 0-based inclusive start
-    local end_excl = edit["end"] -- already 0-based exclusive end for nvim API
-    local code_lines = vim.split(edit.code, "\n", { plain = true })
-    vim.api.nvim_buf_set_lines(bufnr, start_0, end_excl, false, code_lines)
+    vim.api.nvim_buf_set_lines(bufnr, edit.start - 1, edit["end"], false, vim.split(edit.code, "\n", { plain = true }))
   end
 
   vim.notify(string.format("[go.lua] %s: applied %d replacement(s)", tool_name, #edits), vim.log.levels.INFO)
@@ -422,45 +386,18 @@ local function run_fillstruct()
   local file = vim.fn.expand("%:p")
   local line = vim.api.nvim_win_get_cursor(0)[1]
   local offset = cursor_byte_offset()
+  local pos = offset and string.format("-offset=%d", offset) or string.format("-line=%d", line)
+  local output = vim.fn.system(string.format("fillstruct -file=%s %s", escape_filepath(file), pos))
 
-  -- -offset is more precise than -line; use it when available
-  local pos_flag = offset and string.format("-offset=%d", offset) or string.format("-line=%d", line)
-
-  local cmd = string.format("fillstruct -file=%s %s", escape_filepath(file), pos_flag)
-  local output = vim.fn.system(cmd)
-  local exit = vim.v.shell_error
-
-  -- CLI failure most likely means Go ≥1.25 breakage → try gopls
-  if exit ~= 0 then
-    vim.notify(
-      "[go.lua] fillstruct CLI failed (may be Go ≥1.25 incompatibility) — trying gopls…",
-      vim.log.levels.WARN
-    )
+  if vim.v.shell_error ~= 0 then
+    vim.notify("[go.lua] fillstruct CLI failed — trying gopls…", vim.log.levels.WARN)
     fillstruct_via_lsp()
     return
   end
-
-  -- Empty output means cursor wasn't on a struct literal → try gopls
   if not apply_reftools_edits(output, "fillstruct") then
-    vim.notify("[go.lua] fillstruct: no struct literal found — trying gopls code action", vim.log.levels.INFO)
+    vim.notify("[go.lua] fillstruct: no struct literal found — trying gopls", vim.log.levels.INFO)
     fillstruct_via_lsp()
   end
-end
-
--- =============================================================================
---  fillswitch — fill a (type) switch with case statements
---  Same JSON contract and fallback strategy as fillstruct.
--- =============================================================================
-
-local function fillswitch_via_lsp()
-  if #vim.lsp.get_clients({ bufnr = 0, name = "gopls" }) == 0 then
-    vim.notify("[go.lua] fillswitch: gopls not attached — cannot use LSP fallback", vim.log.levels.ERROR)
-    return
-  end
-  vim.lsp.buf.code_action({
-    context = { only = { "source.fixAll" } },
-    apply = false,
-  })
 end
 
 local function run_fillswitch()
@@ -474,31 +411,25 @@ local function run_fillswitch()
   local file = vim.fn.expand("%:p")
   local line = vim.api.nvim_win_get_cursor(0)[1]
   local offset = cursor_byte_offset()
+  local pos = offset and string.format("-offset=%d", offset) or string.format("-line=%d", line)
+  local output = vim.fn.system(string.format("fillswitch -file=%s %s", escape_filepath(file), pos))
 
-  local pos_flag = offset and string.format("-offset=%d", offset) or string.format("-line=%d", line)
-
-  local cmd = string.format("fillswitch -file=%s %s", escape_filepath(file), pos_flag)
-  local output = vim.fn.system(cmd)
-  local exit = vim.v.shell_error
-
-  if exit ~= 0 then
+  if vim.v.shell_error ~= 0 then
     vim.notify("[go.lua] fillswitch CLI failed — trying gopls…", vim.log.levels.WARN)
     fillswitch_via_lsp()
     return
   end
-
   if not apply_reftools_edits(output, "fillswitch") then
-    vim.notify("[go.lua] fillswitch: no (type) switch found — trying gopls code action", vim.log.levels.INFO)
+    vim.notify("[go.lua] fillswitch: no (type) switch found — trying gopls", vim.log.levels.INFO)
     fillswitch_via_lsp()
   end
 end
 
 -- =============================================================================
---  goDoc — floating `go doc` window
---  Accepts full symbol paths: fmt.Println, encoding/json.Marshal, etc.
+--  GoDoc
 -- =============================================================================
 
----@param symbol? string Package/symbol; defaults to word under cursor
+---@param symbol? string
 local function run_godoc(symbol)
   symbol = vim.trim(symbol or "")
   if symbol == "" then
@@ -509,7 +440,6 @@ local function run_godoc(symbol)
     return
   end
 
-  -- -all shows full exported documentation; fall back to basic form
   local output = vim.fn.system("go doc -all " .. vim.fn.shellescape(symbol) .. " 2>&1")
   if vim.v.shell_error ~= 0 then
     output = vim.fn.system("go doc " .. vim.fn.shellescape(symbol) .. " 2>&1")
@@ -523,15 +453,14 @@ local function run_godoc(symbol)
   while #lines > 0 and vim.trim(lines[#lines]) == "" do
     table.remove(lines)
   end
-
   open_output_window(lines, "󰋖 Go Doc: " .. symbol, "go")
 end
 
 -- =============================================================================
---  govulncheck — security vulnerability scan
+--  govulncheck
 -- =============================================================================
 
----@param args? string Extra arguments (default: './...')
+---@param args? string
 local function run_govulncheck(args)
   if vim.fn.executable("govulncheck") == 0 then
     vim.notify(
@@ -545,7 +474,7 @@ local function run_govulncheck(args)
 end
 
 -- =============================================================================
---  NEW: Build / Module helpers (revamped with floating terminal + cross-platform)
+--  Module / Build helpers
 -- =============================================================================
 
 local function run_mod_tidy()
@@ -562,7 +491,6 @@ local function go_alternate()
   end
   local filepath = vim.fn.expand("%:p")
   if filepath:match("_test%.go$") then
-    -- in test → go to implementation
     local main_file = filepath:gsub("_test%.go$", ".go")
     if vim.fn.filereadable(main_file) == 1 then
       vim.cmd("edit " .. escape_filepath(main_file))
@@ -570,9 +498,7 @@ local function go_alternate()
       vim.notify("[go.lua] No implementation file found", vim.log.levels.WARN)
     end
   else
-    -- in implementation → go to (or create) test file
-    local test_file = filepath:gsub("%.go$", "_test.go")
-    vim.cmd("edit " .. escape_filepath(test_file))
+    vim.cmd("edit " .. escape_filepath(filepath:gsub("%.go$", "_test.go")))
   end
 end
 
@@ -584,17 +510,16 @@ local function go_doc_browser()
   end
 
   local url = "https://pkg.go.dev/search?q=" .. word
-
-  local cmd_str
+  local open_cmd
   if vim.fn.has("mac") == 1 then
-    cmd_str = "open " .. vim.fn.shellescape(url)
+    open_cmd = "open "
   elseif vim.fn.has("win32") == 1 or vim.fn.has("win64") == 1 then
-    cmd_str = 'start "" ' .. vim.fn.shellescape(url)
+    open_cmd = 'start "" '
   else
-    cmd_str = "xdg-open " .. vim.fn.shellescape(url)
+    open_cmd = "xdg-open "
   end
 
-  vim.fn.system(cmd_str)
+  vim.fn.system(open_cmd .. vim.fn.shellescape(url))
   if vim.v.shell_error == 0 then
     vim.notify('[go.lua] Opened pkg.go.dev for "' .. word .. '"', vim.log.levels.INFO)
   else
@@ -607,281 +532,56 @@ local function organize_go_imports()
     vim.notify("[go.lua] gopls not attached — cannot organize imports", vim.log.levels.WARN)
     return
   end
-  vim.lsp.buf.code_action({
-    context = { only = { "source.organizeImports" } },
-    apply = true,
-  })
+  vim.lsp.buf.code_action({ context = { only = { "source.organizeImports" } }, apply = true })
 end
+
+local go_debugger = require("custom.go.debugger")
+go_debugger.setup()
 
 -- =============================================================================
---  dlv (Delve debugger)
---  Terminal-first workflow:
---    * breakpoints are managed in Lua
---    * debug sessions are started with the real `dlv` CLI
---    * saved breakpoints are injected through `dlv --init`
--- =============================================================================
-local dlv_breakpoints = {}
-
----@return boolean
-local function ensure_dlv()
-  if vim.fn.executable("dlv") == 0 then
-    vim.notify(
-      "[go.lua] dlv not found.\n  Install: go install github.com/go-delve/delve/cmd/dlv@latest",
-      vim.log.levels.ERROR
-    )
-    return false
-  end
-  return true
-end
-
----@param filepath string
----@return string
-local function normalize_dlv_path(filepath)
-  return filepath:gsub("\\", "/")
-end
-
----@param file string
----@param line integer
----@return string
-local function breakpoint_key(file, line)
-  return string.format("%s:%d", normalize_dlv_path(file), line)
-end
-
----@return string|nil file
----@return integer|nil line
----@return string|nil key
-local function current_breakpoint_location()
-  if not assert_go_file() then
-    return nil, nil, nil
-  end
-  local file = vim.fn.expand("%:p")
-  local line = vim.api.nvim_win_get_cursor(0)[1]
-  return file, line, breakpoint_key(file, line)
-end
-
----@param cwd string
----@param file string
----@param line integer
----@return string
-local function breakpoint_locspec(cwd, file, line)
-  local abs_cwd = vim.fn.fnamemodify(cwd, ":p"):gsub("[/\\]$", "")
-  local abs_file = vim.fn.fnamemodify(file, ":p")
-  local file_for_dlv = abs_file
-
-  local prefix = abs_cwd .. "\\"
-  if abs_file:sub(1, #prefix):lower() == prefix:lower() then
-    file_for_dlv = abs_file:sub(#prefix + 1)
-  else
-    prefix = abs_cwd .. "/"
-    if abs_file:sub(1, #prefix):lower() == prefix:lower() then
-      file_for_dlv = abs_file:sub(#prefix + 1)
-    end
-  end
-
-  return string.format("%s:%d", normalize_dlv_path(file_for_dlv), line)
-end
-
----@return table[]
-local function list_dlv_breakpoints()
-  local items = {}
-  for _, bp in pairs(dlv_breakpoints) do
-    table.insert(items, bp)
-  end
-
-  table.sort(items, function(a, b)
-    if a.file == b.file then
-      return a.line < b.line
-    end
-    return a.file < b.file
-  end)
-
-  return items
-end
-
----@param cwd string
----@return string
-local function write_dlv_init_file(cwd)
-  local cache_dir = vim.fn.stdpath("cache")
-  vim.fn.mkdir(cache_dir, "p")
-
-  local init_path = cache_dir .. "/go-dlv-init.txt"
-  local lines = { "# Generated by ftplugin/go.lua" }
-
-  for index, bp in ipairs(list_dlv_breakpoints()) do
-    local name = string.format("go_lua_%d", index)
-    local locspec = breakpoint_locspec(cwd, bp.file, bp.line)
-
-    if bp.condition and vim.trim(bp.condition) ~= "" then
-      table.insert(lines, string.format("break %s %s if %s", name, locspec, bp.condition))
-    else
-      table.insert(lines, string.format("break %s %s", name, locspec))
-    end
-  end
-
-  vim.fn.writefile(lines, init_path)
-  return init_path
-end
-
----@param cwd string
----@return string
-local function dlv_init_flag(cwd)
-  local init_path = write_dlv_init_file(cwd)
-  return "--init " .. vim.fn.shellescape(init_path)
-end
-
----@param subcmd string
----@param target? string
----@param cwd? string
----@param extra_flags? string
-local function dlv_terminal(subcmd, target, cwd, extra_flags)
-  if not ensure_dlv() then
-    return
-  end
-
-  local parts = { "dlv", subcmd }
-  if target and target ~= "" then
-    table.insert(parts, target)
-  end
-  if extra_flags and extra_flags ~= "" then
-    table.insert(parts, extra_flags)
-  end
-
-  create_go_terminal(table.concat(parts, " "), string.format(" 󰃤 dlv %s ", subcmd), cwd)
-  vim.notify(
-    "[go.lua] Delve opened in a terminal. Use commands like continue, next, step, print, locals, bt, and quit inside dlv.",
-    vim.log.levels.INFO
-  )
-end
-
--- ── Debug entry points ────────────────────────────────────────────────────────
-
-local function dlv_debug()
-  local cwd = find_main_go() or vim.fn.expand("%:p:h")
-  dlv_terminal("debug", ".", cwd, dlv_init_flag(cwd))
-end
-
-local function dlv_debug_test()
-  local cwd = vim.fn.expand("%:p:h")
-  dlv_terminal("test", ".", cwd, dlv_init_flag(cwd))
-end
-
-local function dlv_toggle_breakpoint()
-  local file, line, key = current_breakpoint_location()
-  if not key then
-    return
-  end
-
-  if dlv_breakpoints[key] then
-    dlv_breakpoints[key] = nil
-    vim.notify(string.format("[go.lua] Removed Delve breakpoint at %s:%d", vim.fn.fnamemodify(file, ":t"), line))
-    return
-  end
-
-  dlv_breakpoints[key] = { file = file, line = line }
-  vim.notify(string.format("[go.lua] Added Delve breakpoint at %s:%d", vim.fn.fnamemodify(file, ":t"), line))
-end
-
-local function dlv_conditional_breakpoint()
-  local file, line, key = current_breakpoint_location()
-  if not key then
-    return
-  end
-
-  local existing = dlv_breakpoints[key]
-  local default = existing and existing.condition or ""
-  local condition = vim.trim(vim.fn.input("Breakpoint condition: ", default))
-
-  dlv_breakpoints[key] = {
-    file = file,
-    line = line,
-    condition = condition ~= "" and condition or nil,
-  }
-
-  if condition == "" then
-    vim.notify(string.format("[go.lua] Set plain Delve breakpoint at %s:%d", vim.fn.fnamemodify(file, ":t"), line))
-  else
-    vim.notify(
-      string.format("[go.lua] Set conditional Delve breakpoint at %s:%d", vim.fn.fnamemodify(file, ":t"), line)
-    )
-  end
-end
-
-local function dlv_clear_breakpoints()
-  dlv_breakpoints = {}
-  vim.notify("[go.lua] Cleared all saved Delve breakpoints", vim.log.levels.INFO)
-end
-
-local function dlv_attach()
-  local target = vim.trim(vim.fn.input("PID or host:port: "))
-  if target == "" then
-    vim.notify("[go.lua] Delve attach cancelled", vim.log.levels.INFO)
-    return
-  end
-
-  if target:match("^%d+$") then
-    dlv_terminal("attach", target, vim.fn.getcwd(), dlv_init_flag(vim.fn.getcwd()))
-    return
-  end
-
-  dlv_terminal("connect", target)
-end
-
--- =============================================================================
---  Shared test runner  (single source of truth — no duplication)
+--  Test runner
+--  FIX: go test / gotestsum requires package patterns (./pkg/dir or ./...),
+--       NOT individual file paths.  We derive the package directory from the
+--       file and pass that as the target.
 -- =============================================================================
 
----@param filepath string Absolute path to any .go file
+---@param filepath string  Absolute path to any .go file
 local function run_tests_for_file(filepath)
   if not filepath:match("%.go$") then
     vim.notify("[go.lua] Not a Go file", vim.log.levels.WARN)
     return
   end
 
-  local main_file, test_file = get_test_file_pair(filepath)
-  local files_to_test = {}
+  local _, test_file = get_test_file_pair(filepath)
 
-  if main_file then
-    table.insert(files_to_test, get_relative_path(main_file))
-  end
-  if test_file then
-    table.insert(files_to_test, get_relative_path(test_file))
-  end
+  -- Derive the package directory regardless of whether it's a test or impl file.
+  -- Both the impl and test file always live in the same directory.
+  local pkg_pattern = file_to_pkg_pattern(filepath)
+  local cwd = vim.fn.getcwd()
 
-  if #files_to_test == 0 then
-    vim.notify("[go.lua] No valid Go files found", vim.log.levels.ERROR)
+  if not test_file then
+    -- No _test.go found for this package — nothing to run.
+    vim.notify(
+      string.format("[go.lua] No test file found for %s", vim.fn.fnamemodify(filepath, ":t")),
+      vim.log.levels.WARN
+    )
     return
   end
 
-  local files_str = table.concat(files_to_test, " ")
-  local cmd = string.format("gotestsum --format pkgname --hide-summary=skipped %s", files_str)
+  -- gotestsum passes remaining arguments after '--' directly to 'go test'.
+  -- Using the package directory pattern ensures all imports resolve correctly
+  -- because Go builds the full package, not isolated files.
+  local cmd = string.format("gotestsum --format pkgname --hide-summary=skipped -- %s", pkg_pattern)
 
-  if main_file and test_file then
-    vim.notify(
-      string.format(
-        "[go.lua] Running tests: %s + %s",
-        vim.fn.fnamemodify(main_file, ":t"),
-        vim.fn.fnamemodify(test_file, ":t")
-      ),
-      vim.log.levels.INFO
-    )
-  elseif test_file then
-    vim.notify(
-      string.format("[go.lua] Running test file: %s (no main file found)", vim.fn.fnamemodify(test_file, ":t")),
-      vim.log.levels.WARN
-    )
-  else
-    vim.notify(
-      string.format("[go.lua] Running file: %s (no test file found)", vim.fn.fnamemodify(main_file, ":t")),
-      vim.log.levels.WARN
-    )
-  end
+  vim.notify(string.format("[go.lua] Running tests in package: %s", pkg_pattern), vim.log.levels.INFO)
 
-  create_go_terminal(cmd, " 󰤑 Go Tests ")
+  create_go_terminal(cmd, " 󰤑 Go Tests ", cwd)
 end
 
 -- =============================================================================
---  Auto-organize imports on save (sync so edits are applied BEFORE write)
+--  Auto-organize imports on save
 -- =============================================================================
+
 vim.api.nvim_create_autocmd("BufWritePre", {
   group = aug,
   pattern = "*.go",
@@ -912,15 +612,12 @@ vim.api.nvim_create_autocmd("BufWritePre", {
 --  User Commands
 -- =============================================================================
 
--- ── Code generation ──────────────────────────────────────────────────────────
-
 vim.api.nvim_create_user_command("GoTests", function(opts)
   if not assert_go_file() then
     return
   end
-  local file = vim.fn.expand("%:p")
   local args = opts.args ~= "" and opts.args or "-all"
-  save_run_reload(string.format("gotests -w %s %s", args, escape_filepath(file)))
+  save_run_reload(string.format("gotests -w %s %s", args, escape_filepath(vim.fn.expand("%:p"))))
 end, { nargs = "?", desc = "Generate tests with gotests" })
 
 vim.api.nvim_create_user_command("GoModifyTags", function(opts)
@@ -947,17 +644,14 @@ vim.api.nvim_create_user_command("GoIfErr", function()
   if vim.bo.modified then
     vim.cmd("silent! write")
   end
-  local line = vim.api.nvim_win_get_cursor(0)[1]
-  local file = vim.fn.expand("%:p")
-  save_run_reload(string.format("iferr -pos %d %s", line, escape_filepath(file)))
+  save_run_reload(
+    string.format("iferr -pos %d %s", vim.api.nvim_win_get_cursor(0)[1], escape_filepath(vim.fn.expand("%:p")))
+  )
 end, { desc = "Generate error handling with iferr" })
 
--- NEW: Organize imports (manual trigger)
 vim.api.nvim_create_user_command("GoOrganizeImports", function()
   organize_go_imports()
 end, { desc = "Organize imports with gopls" })
-
--- ── Run / Test ───────────────────────────────────────────────────────────────
 
 vim.api.nvim_create_user_command("GoRun", function()
   local main_dir = find_main_go()
@@ -1000,12 +694,10 @@ vim.api.nvim_create_user_command("GoTestRunCurrent", function()
   run_tests_for_file(vim.fn.expand("%:p"))
 end, { desc = "Run tests for current Go file" })
 
--- NEW: Alternate (test ↔ impl)
 vim.api.nvim_create_user_command("GoAlternate", function()
   go_alternate()
 end, { desc = "Toggle between .go and _test.go" })
 
--- NEW: Module / Build
 vim.api.nvim_create_user_command("GoModTidy", function()
   run_mod_tidy()
 end, { desc = "Run go mod tidy" })
@@ -1013,8 +705,6 @@ end, { desc = "Run go mod tidy" })
 vim.api.nvim_create_user_command("GoGenerate", function()
   run_go_generate()
 end, { desc = "Run go generate ./..." })
-
--- ── Refactoring ──────────────────────────────────────────────────────────────
 
 vim.api.nvim_create_user_command("GoFillStruct", function()
   run_fillstruct()
@@ -1024,111 +714,141 @@ vim.api.nvim_create_user_command("GoFillSwitch", function()
   run_fillswitch()
 end, { desc = "Fill (type) switch with cases (fillswitch / gopls fallback)" })
 
--- ── Documentation ────────────────────────────────────────────────────────────
-
--- nargs='*' allows multi-token symbol paths: GoDoc encoding/json Marshal
 vim.api.nvim_create_user_command("GoDoc", function(opts)
   run_godoc(opts.args)
-end, { nargs = "*", desc = "Show go doc for symbol (cursor word or argument)" })
+end, { nargs = "*", desc = "Show go doc for symbol" })
 
--- NEW: Godoc in browser
 vim.api.nvim_create_user_command("GoDocBrowser", function()
   go_doc_browser()
 end, { desc = "Open godoc search in browser" })
-
--- ── Security ─────────────────────────────────────────────────────────────────
 
 vim.api.nvim_create_user_command("GoVulnCheck", function(opts)
   run_govulncheck(opts.args)
 end, { nargs = "?", desc = "Run govulncheck on the project" })
 
--- ── Debugger ─────────────────────────────────────────────────────────────────
-
 vim.api.nvim_create_user_command("GoDlvDebug", function()
-  dlv_debug()
-end, { desc = "Start a Delve debug session for the current package" })
+  go_debugger.debug()
+end, { desc = "Start Delve debug session" })
 vim.api.nvim_create_user_command("GoDlvTest", function()
-  dlv_debug_test()
-end, { desc = "Start a Delve test debug session for the current package" })
+  go_debugger.test()
+end, { desc = "Debug tests in current package" })
 vim.api.nvim_create_user_command("GoDlvBreakpoint", function()
-  dlv_toggle_breakpoint()
+  go_debugger.toggle_breakpoint()
 end, { desc = "Toggle breakpoint at current line" })
+vim.api.nvim_create_user_command("GoDlvSetBreakpoint", function()
+  go_debugger.set_breakpoint()
+end, { desc = "Set breakpoint at current line" })
+vim.api.nvim_create_user_command("GoDlvRemoveBreakpoint", function()
+  go_debugger.remove_breakpoint()
+end, { desc = "Remove breakpoint at current line" })
+vim.api.nvim_create_user_command("GoDlvListBreakpoints", function()
+  go_debugger.list_breakpoints()
+end, { desc = "List breakpoints" })
 vim.api.nvim_create_user_command("GoDlvCondBreakpoint", function()
-  dlv_conditional_breakpoint()
+  go_debugger.conditional_breakpoint()
 end, { desc = "Set conditional breakpoint" })
 vim.api.nvim_create_user_command("GoDlvClearBreakpoints", function()
-  dlv_clear_breakpoints()
+  go_debugger.clear_breakpoints()
 end, { desc = "Clear all breakpoints" })
 vim.api.nvim_create_user_command("GoDlvAttach", function()
-  dlv_attach()
-end, { desc = "Attach to a PID or connect to a headless Delve server" })
+  go_debugger.attach_spawn()
+end, { desc = "Build, start, and attach to current Go program" })
+vim.api.nvim_create_user_command("GoDlvAttachPID", function()
+  go_debugger.attach()
+end, { desc = "Attach to an existing PID" })
+vim.api.nvim_create_user_command("GoDlvAttachSelect", function()
+  go_debugger.attach_select()
+end, { desc = "Pick a process and attach" })
+vim.api.nvim_create_user_command("GoDlvConnect", function(opts)
+  go_debugger.connect(opts.args)
+end, { nargs = "?", desc = "Connect to headless Delve DAP server" })
+vim.api.nvim_create_user_command("GoDlvContinue", function()
+  go_debugger.continue()
+end, { desc = "Continue debuggee" })
+vim.api.nvim_create_user_command("GoDlvStepOver", function()
+  go_debugger.step_over()
+end, { desc = "Step over" })
+vim.api.nvim_create_user_command("GoDlvStepInto", function()
+  go_debugger.step_into()
+end, { desc = "Step into" })
+vim.api.nvim_create_user_command("GoDlvStepOut", function()
+  go_debugger.step_out()
+end, { desc = "Step out" })
+vim.api.nvim_create_user_command("GoDlvStack", function()
+  go_debugger.stack()
+end, { desc = "Refresh stack frames" })
+vim.api.nvim_create_user_command("GoDlvVariables", function()
+  go_debugger.variables()
+end, { desc = "Refresh variables" })
+vim.api.nvim_create_user_command("GoDlvInspect", function(opts)
+  go_debugger.inspect(opts.args)
+end, { nargs = "*", desc = "Inspect expression" })
+vim.api.nvim_create_user_command("GoDlvStop", function()
+  go_debugger.stop()
+end, { desc = "Stop debug session" })
+vim.api.nvim_create_user_command("GoDlvToggleUI", function()
+  go_debugger.toggle_ui()
+end, { desc = "Toggle debugger UI" })
 
 -- =============================================================================
---  which-key Mappings (updated with new features)
+--  which-key Mappings
 -- =============================================================================
-local ok_wk, wk = pcall(require, "which-key")
-if not ok_wk then
-  vim.notify("[go.lua] which-key not found — keymaps not registered", vim.log.levels.WARN)
-  return
+
+local function go_map(lhs, rhs, desc)
+  vim.keymap.set("n", lhs, rhs, { buffer = true, silent = true, desc = desc })
 end
 
-wk.add({
-  -- ── Parent groups ────────────────────────────────────────────────────────
-  { "<leader>t", group = "Go", icon = "󰟓" },
-  { "<leader>td", group = "Go Debugger", icon = "󰃤" },
+local ok_wk, wk = pcall(require, "which-key")
+if ok_wk then
+  wk.add({
+    { "<leader>t", group = "Go", icon = "󰟓", buffer = 0 },
+    { "<leader>td", group = "Go Debugger", icon = "󰃤", buffer = 0 },
+  })
+end
 
-  -- ── Code generation ──────────────────────────────────────────────────────
-  { "<leader>tt", ":GoTests -all<CR>", desc = "Generate tests (all)", icon = "󰙨" },
-  { "<leader>tm", ":GoModifyTags -add-tags json<CR>", desc = "Add JSON struct tags", icon = "󰓹" },
-  { "<leader>tr", ":GoModifyTags -remove-tags json<CR>", desc = "Remove JSON struct tags", icon = "󰓹" },
-  { "<leader>te", ":GoIfErr<CR>", desc = "Insert if-err snippet", icon = "󰈸" },
-  { "<leader>ti", organize_go_imports, desc = "Organize imports (gopls)", icon = "󰒓" },
-
-  -- ── Refactoring ──────────────────────────────────────────────────────────
-  { "<leader>tf", run_fillstruct, desc = "Fill struct with defaults", icon = "󰉸" },
-  { "<leader>tw", run_fillswitch, desc = "Fill switch with cases", icon = "󰘬" },
-
-  -- ── Run / Test ───────────────────────────────────────────────────────────
-  { "<leader>to", ":GoRun<CR>", desc = "Run Go project", icon = "󰐊" },
-  { "<leader>ta", ":GoTestRun<CR>", desc = "Run tests (pick file)", icon = "󰤑" },
-  { "<leader>tc", ":GoTestRunCurrent<CR>", desc = "Run tests (current file)", icon = "󰤑" },
-  { "<leader>tA", go_alternate, desc = "Alternate test/impl", icon = "󰅂" },
-
-  -- ── Module / Build ───────────────────────────────────────────────────────
-  { "<leader>tT", run_mod_tidy, desc = "go mod tidy", icon = "󰏖" },
-  { "<leader>tg", run_go_generate, desc = "go generate ./...", icon = "󰠱" },
-
-  -- ── Documentation ────────────────────────────────────────────────────────
-  {
-    "<leader>tk",
-    function()
-      run_godoc()
-    end,
-    desc = "Go doc (cursor word)",
-    icon = "󰋖",
-  },
-  { "<leader>tD", go_doc_browser, desc = "Godoc (browser)", icon = "󰖟" },
-
-  -- ── Security ─────────────────────────────────────────────────────────────
-  { "<leader>tv", ":GoVulnCheck<CR>", desc = "govulncheck ./...", icon = "󰒃" },
-
-  -- ── Debugger ─────────────────────────────────────────────────────────────
-  { "<leader>tds", dlv_debug, desc = "Start debug session", icon = "󰐊" },
-  { "<leader>tdt", dlv_debug_test, desc = "Debug tests in current package", icon = "󰙨" },
-  { "<leader>tdb", dlv_toggle_breakpoint, desc = "Toggle breakpoint", icon = "󰝥" },
-  { "<leader>tdB", dlv_conditional_breakpoint, desc = "Conditional breakpoint", icon = "󰝥" },
-  { "<leader>tdx", dlv_clear_breakpoints, desc = "Clear all breakpoints", icon = "󰅙" },
-  { "<leader>tda", dlv_attach, desc = "Attach to PID or connect to server", icon = "󰌷" },
-})
+go_map("<leader>tt", "<cmd>GoTests -all<CR>", "Generate tests (all)")
+go_map("<leader>tm", "<cmd>GoModifyTags -add-tags json<CR>", "Add JSON struct tags")
+go_map("<leader>tr", "<cmd>GoModifyTags -remove-tags json<CR>", "Remove JSON struct tags")
+go_map("<leader>te", "<cmd>GoIfErr<CR>", "Insert if-err snippet")
+go_map("<leader>ti", organize_go_imports, "Organize imports (gopls)")
+go_map("<leader>tf", run_fillstruct, "Fill struct with defaults")
+go_map("<leader>tw", run_fillswitch, "Fill switch with cases")
+go_map("<leader>to", "<cmd>GoRun<CR>", "Run Go project")
+go_map("<leader>ta", "<cmd>GoTestRun<CR>", "Run tests (pick file)")
+go_map("<leader>tc", "<cmd>GoTestRunCurrent<CR>", "Run tests (current file)")
+go_map("<leader>tA", go_alternate, "Alternate test/impl")
+go_map("<leader>tT", run_mod_tidy, "go mod tidy")
+go_map("<leader>tg", run_go_generate, "go generate ./...")
+go_map("<leader>tk", function()
+  run_godoc()
+end, "Go doc (cursor word)")
+go_map("<leader>tD", go_doc_browser, "Godoc (browser)")
+go_map("<leader>tv", "<cmd>GoVulnCheck<CR>", "govulncheck ./...")
+go_map("<leader>tds", go_debugger.debug, "Start debug session")
+go_map("<leader>tdt", go_debugger.test, "Debug tests in current package")
+go_map("<leader>tdb", go_debugger.toggle_breakpoint, "Toggle breakpoint")
+go_map("<leader>tdB", go_debugger.conditional_breakpoint, "Conditional breakpoint")
+go_map("<leader>tdl", go_debugger.list_breakpoints, "List breakpoints")
+go_map("<leader>tdx", go_debugger.clear_breakpoints, "Clear all breakpoints")
+go_map("<leader>tda", go_debugger.attach_spawn, "Build, start, and attach")
+go_map("<leader>tdc", go_debugger.continue, "Continue")
+go_map("<leader>tdo", go_debugger.step_over, "Step over")
+go_map("<leader>tdi", go_debugger.step_into, "Step into")
+go_map("<leader>tdO", go_debugger.step_out, "Step out")
+go_map("<leader>tdv", go_debugger.variables, "Variables")
+go_map("<leader>tdf", go_debugger.stack, "Stack frames")
+go_map("<leader>tdp", go_debugger.inspect, "Inspect expression")
+go_map("<leader>tdq", go_debugger.stop, "Stop debugger")
+go_map("<leader>tdu", go_debugger.toggle_ui, "Toggle UI")
 
 -- =============================================================================
---  Buffer-local extras for Go files
+--  Buffer-local extras
 -- =============================================================================
+
 vim.api.nvim_create_autocmd("FileType", {
   group = aug,
   pattern = "go",
   callback = function(ev)
-    -- <leader>K → go doc in floating window (distinct from LSP hover on K)
     vim.keymap.set("n", "<leader>K", function()
       run_godoc()
     end, {
