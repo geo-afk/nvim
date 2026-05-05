@@ -153,7 +153,6 @@ function Session.new()
 
     initialized = false,
     configured = false,
-    bp_sent_early = false, -- BPs were synced before launch request
     stopped_tid = nil,
     current_fid = nil, -- current frame id for evaluate
     connected = false,
@@ -278,30 +277,24 @@ function Session:handle_event(msg)
 end
 
 -- called after "initialized" event
+-- dlv DAP sequence: initialize → launch → (dlv emits initialized) → setBreakpoints → configurationDone
+-- setBreakpoints MUST come after launch; never send them before it.
 function Session:on_initialized()
   self.initialized = true
-  if self.bp_sent_early then
-    -- BPs already sent; just call configurationDone
-    self:request("configurationDone", {}, function(r)
+  -- Sync all breakpoints now (correct post-launch timing), then signal done.
+  -- configurationDone arguments must be an empty JSON *object* {}, not an
+  -- array []. Lua's {} encodes as [] — use vim.empty_dict() for the object.
+  self:sync_breakpoints(function()
+    self:request("configurationDone", vim.empty_dict(), function(r)
       if r.success then
         self.configured = true
         ui.append_output("● configuration done")
       else
+        -- Non-fatal: dlv sometimes ignores configurationDone errors
         ui.append_output("[warn] configurationDone: " .. tostring(r.message))
       end
     end)
-  else
-    self:sync_breakpoints(function()
-      self:request("configurationDone", {}, function(r)
-        if r.success then
-          self.configured = true
-          ui.append_output("● configuration done")
-        else
-          ui.append_output("[warn] configurationDone: " .. tostring(r.message))
-        end
-      end)
-    end)
-  end
+  end)
 end
 
 -- ── Breakpoint sync ───────────────────────────────────────────────────────────
@@ -618,23 +611,21 @@ local function start_session(config, opts)
           return
         end
 
-        -- Send all breakpoints BEFORE launch so they are verified correctly.
-        session:sync_breakpoints(function()
-          session.bp_sent_early = true
-          local launch_cmd = (config.request == "attach") and "attach" or "launch"
-          session:request(launch_cmd, config, function(lresp)
-            if lresp.success then
-              ui.append_output(
-                "● " .. launch_cmd .. " accepted: " .. tostring(config.program or config.processId or "target")
-              )
-            else
-              local msg = tostring(lresp.message or "failed")
-              if lresp.body and lresp.body.error and lresp.body.error.format then
-                msg = msg .. "\n  " .. lresp.body.error.format
-              end
-              ui.append_output("[error] " .. launch_cmd .. ": " .. msg)
+        -- dlv requires: initialize → launch → (initialized event) → setBreakpoints → configurationDone
+        -- Do NOT send setBreakpoints here; on_initialized() handles it after launch.
+        local launch_cmd = (config.request == "attach") and "attach" or "launch"
+        session:request(launch_cmd, config, function(lresp)
+          if lresp.success then
+            ui.append_output(
+              "● " .. launch_cmd .. " accepted: " .. tostring(config.program or config.processId or "target")
+            )
+          else
+            local msg = tostring(lresp.message or "failed")
+            if lresp.body and lresp.body.error and lresp.body.error.format then
+              msg = msg .. "\n  " .. lresp.body.error.format
             end
-          end)
+            ui.append_output("[error] " .. launch_cmd .. ": " .. msg)
+          end
         end)
       end)
     end)
@@ -763,13 +754,11 @@ function M.connect(addr)
         ui.append_output("[error] initialize: " .. tostring(init_resp.message))
         return
       end
-      session:sync_breakpoints(function()
-        session.bp_sent_early = true
-        session:request("attach", { request = "attach", mode = "remote" }, function(r)
-          if not r.success then
-            ui.append_output("[error] attach: " .. tostring(r.message))
-          end
-        end)
+      -- For remote attach, send attach and let on_initialized handle BPs.
+      session:request("attach", { request = "attach", mode = "remote" }, function(r)
+        if not r.success then
+          ui.append_output("[error] attach: " .. tostring(r.message))
+        end
       end)
     end)
   end)
