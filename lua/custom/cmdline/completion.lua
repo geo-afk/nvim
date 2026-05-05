@@ -217,7 +217,7 @@ local state = {
   max_item_w = 0,
   popup_w = 0,
   locked = false,
-  gutter = 6,
+  gutter = 3,
   gutter_hl = "NvimCmdlineCompGutter",
 }
 
@@ -518,14 +518,18 @@ local function refresh_word_cache()
   local buffers = vim.api.nvim_list_bufs()
 
   for _, b in ipairs(buffers) do
-    if #_word_cache >= MAX_WORDS then break end
+    if #_word_cache >= MAX_WORDS then
+      break
+    end
     if vim.api.nvim_buf_is_loaded(b) and vim.api.nvim_buf_is_valid(b) then
       local bt = vim.bo[b].buftype
       if bt == "" then
         local nlines = vim.api.nvim_buf_line_count(b)
         local ls = vim.api.nvim_buf_get_lines(b, 0, math.min(nlines, 500), false)
         for _, ln in ipairs(ls) do
-          if #_word_cache >= MAX_WORDS then break end
+          if #_word_cache >= MAX_WORDS then
+            break
+          end
           for w in ln:gmatch("[%a_][%w_]+") do
             if #w > 3 and not seen[w] then
               seen[w] = true
