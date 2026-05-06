@@ -27,10 +27,13 @@ end
 
 local function nudge(c, delta)
   local r, g, b = unpack_rgb(c)
+  local is_dark = vim.o.background == "dark"
+  -- If light theme, we nudge more aggressively to ensure contrast
+  local d = is_dark and delta or (delta * -1.5)
   local clamp = function(v)
     return math.max(0, math.min(255, v))
   end
-  return clamp(r + delta) * 0x10000 + clamp(g + delta) * 0x100 + clamp(b + delta)
+  return clamp(r + d) * 0x10000 + clamp(g + d) * 0x100 + clamp(b + d)
 end
 
 local function get(name)
@@ -87,37 +90,42 @@ function M.ensure_hl()
 
   -- ── Core sidebar ────────────────────────────────────────────────────
   def("ExplorerNormal", { bg = sidebar_bg, fg = normal_fg })
-  local cursor_bg = cursor.bg or blend(accent, sidebar_bg, 0.10)
+  local cursor_bg = cursor.bg or blend(accent, sidebar_bg, 0.15)
   def("ExplorerCursorLine", { bg = cursor_bg })
   def("ExplorerDirectory", { fg = dir_fg, bold = true })
-  def("ExplorerFile", { fg = blend(normal_fg, sidebar_bg, 0.18) })
+  -- VISIBILITY SCALE (Level B/C):
+  -- Files: 75% brightness (Level B)
+  -- Connectors: 45% brightness (Level C)
+  def("ExplorerFile", { fg = blend(normal_fg, sidebar_bg, 0.75) })
   def("ExplorerFileAccent", { fg = normal_fg, bold = true })
-  def("ExplorerConnector", { fg = blend(dim_fg, sidebar_bg, 0.35) })
+  def("ExplorerConnector", { fg = blend(dim_fg, sidebar_bg, 0.45) })
 
   -- ── Inline search bar ────────────────────────────────────────────────
-  local search_bg = blend(accent, sidebar_bg, 0.055)
-  local search_active_bg = blend(accent, sidebar_bg, 0.10)
+  -- Increased blend for more distinct "vibrant wash" background
+  local search_bg = blend(accent, sidebar_bg, 0.12)
+  local search_active_bg = blend(accent, sidebar_bg, 0.20)
 
   def("ExplorerSearchBg", { bg = search_bg, fg = normal_fg })
   def("ExplorerSearchBgActive", { bg = search_active_bg, fg = normal_fg })
-  def("ExplorerSearchIcon", { fg = blend(accent, dim_fg, 0.65), bg = search_bg })
+  def("ExplorerSearchIcon", { fg = blend(accent, dim_fg, 0.75), bg = search_bg })
   def("ExplorerSearchIconActive", { fg = accent, bold = true, bg = search_active_bg })
-  def("ExplorerSearchBorder", { fg = blend(dim_fg, sidebar_bg, 0.45) })
-  def("ExplorerSearchBorderFilter", { fg = blend(accent, dim_fg, 0.50) })
+  def("ExplorerSearchBorder", { fg = blend(dim_fg, sidebar_bg, 0.40) })
+  def("ExplorerSearchBorderFilter", { fg = blend(accent, dim_fg, 0.55) })
   def("ExplorerSearchBorderActive", { fg = accent })
-  def("ExplorerSearchTitle", { fg = accent, bold = true })
-  def("ExplorerSearchPlaceholder", { fg = blend(dim_fg, sidebar_bg, 0.6), italic = true, bg = search_bg })
+  def("ExplorerSearchTitle", { fg = blend(accent, normal_fg, 0.85), bold = true })
+  def("ExplorerSearchPlaceholder", { fg = blend(dim_fg, sidebar_bg, 0.45), italic = true, bg = search_bg })
   def("ExplorerSearchActiveText", { fg = str_fg, bold = true })
-  def("ExplorerSearchCount", { fg = blend(accent, dim_fg, 0.5), italic = true })
+  def("ExplorerSearchCount", { fg = blend(accent, dim_fg, 0.6), italic = true })
   def("ExplorerSearchCountActive", { fg = accent, bold = true, bg = search_active_bg })
-  def("ExplorerSearchCursor", { bg = blend(accent, sidebar_bg, 0.22) })
+  def("ExplorerSearchCursor", { bg = blend(accent, sidebar_bg, 0.30) })
   def("ExplorerSearchMatch", { fg = accent, bold = true, underline = true })
 
   -- ── File-type icons ──────────────────────────────────────────────────
   def("ExplorerIconDir", { fg = dir_fg, bold = true })
   def("ExplorerIconDirOpen", { fg = blend(dir_fg, accent, 0.45), bold = true })
   def("ExplorerIconLink", { fg = note_fg, italic = true })
-  def("ExplorerIconDefault", { fg = blend(normal_fg, sidebar_bg, 0.12) })
+  -- Default icon: 70% brightness for better Level C visibility
+  def("ExplorerIconDefault", { fg = blend(normal_fg, sidebar_bg, 0.70) })
   def("ExplorerIconLua", { fg = note_fg })
   def("ExplorerIconVim", { fg = warn_fg })
   def("ExplorerIconShell", { fg = str_fg })

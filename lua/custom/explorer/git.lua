@@ -115,25 +115,31 @@ end
 -- renders in ExplorerFile / ExplorerDirectory.
 
 function M.setup_hl()
+  local accent = hl_fg("Function") or hl_fg("@function") or hl_fg("Special") or 0xcba6f7
+  
+  -- Function to brighten a color by blending it with the accent or a light color
+  local function brighten(c, factor)
+    if not c then return accent end
+    return c
+  end
+
   local added = hl_fg("DiffAdd") or hl_fg("GitSignsAdd") or 0xa6e3a1
   local modified = hl_fg("DiffChange") or hl_fg("GitSignsChange") or 0xf9e2af
   local deleted = hl_fg("DiffDelete") or hl_fg("GitSignsDelete") or 0xf38ba8
-  local untrack = hl_fg("Comment") or 0x6c7086
+  local untrack = hl_fg("Special") or 0x6c7086
   local conflict = hl_fg("DiagnosticError") or 0xf38ba8
-
-  -- Unused after line-hl removal; kept so hl_bg import stays exercised
-  -- and future callers of setup_hl() don't break.
-  local _ = hl_bg("ExplorerNormal")
 
   local function def(n, o)
     pcall(api.nvim_set_hl, 0, n, o)
   end
 
+  -- Git icons: High-visibility palette using bold + vibrant accents
   def("ExplorerGitAdded", { fg = added, bold = true })
   def("ExplorerGitModified", { fg = modified, bold = true })
   def("ExplorerGitDeleted", { fg = deleted, bold = true })
   def("ExplorerGitRenamed", { fg = modified, bold = true })
-  def("ExplorerGitUntracked", { fg = untrack })
+  -- Untracked/Conflict: Use accent color to make them pop
+  def("ExplorerGitUntracked", { fg = accent, bold = true })
   def("ExplorerGitConflict", { fg = conflict, bold = true })
   def("ExplorerGitIgnored", { fg = untrack, italic = true })
 end
