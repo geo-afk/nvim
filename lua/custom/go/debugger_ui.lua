@@ -22,6 +22,8 @@
 
 local M = {}
 
+local output_parser = require("custom.go.debugger_output")
+
 -- ─── namespaces ───────────────────────────────────────────────────────────────
 
 local NS = vim.api.nvim_create_namespace("go_dbg_ui")
@@ -31,6 +33,7 @@ local NS_SRC = vim.api.nvim_create_namespace("go_dbg_src")
 
 local SIGN_BP = "GoDbgBP"
 local SIGN_BP_COND = "GoDbgBPCond"
+local SIGN_BP_LOG = "GoDbgBPLog"
 local SIGN_PC = "GoDbgPC"
 
 -- ─── section definitions (render order) ──────────────────────────────────────
@@ -39,6 +42,7 @@ local SECTIONS = {
   { id = "variables", icon = "󰫧", title = "Variables" },
   { id = "stack", icon = "󰆼", title = "Call Stack" },
   { id = "breakpoints", icon = "󰝥", title = "Breakpoints" },
+  { id = "watches", icon = "󰈈", title = "Watches" },
 }
 
 -- ─── state ────────────────────────────────────────────────────────────────────
@@ -51,6 +55,7 @@ local S = {
     variables = { collapsed = false, items = {}, count = nil },
     stack = { collapsed = false, items = {}, count = nil },
     breakpoints = { collapsed = false, items = {}, count = nil },
+    watches = { collapsed = false, items = {}, count = nil },
   },
   sec_rows = {}, -- { [1-based row] = sec_id }  for <CR> toggle
   output = {},
@@ -96,6 +101,10 @@ local function setup_hl()
   def("GoDbgOutEvent", { link = "DiagnosticInfo" })
   def("GoDbgOutLog", { link = "Normal" })
   def("GoDbgOutErr", { link = "DiagnosticError" })
+  def("GoDbgOutWarn", { link = "DiagnosticWarn" })
+  def("GoDbgOutProgram", { link = "String" })
+  def("GoDbgOutProtocol", { link = "Comment" })
+  def("GoDbgOutRaw", { link = "DiagnosticUnnecessary" })
   -- source
   def("GoDbgExecLine", { link = "CursorLine" })
   def("GoDbgExecVirt", {
@@ -112,6 +121,11 @@ local function setup_hl()
     text = "◆",
     texthl = "DiagnosticWarn",
     numhl = "DiagnosticWarn",
+  })
+  vim.fn.sign_define(SIGN_BP_LOG, {
+    text = "◇",
+    texthl = "DiagnosticHint",
+    numhl = "DiagnosticHint",
   })
   vim.fn.sign_define(
     SIGN_PC,
@@ -430,17 +444,45 @@ end
 
 -- ─── output panel ─────────────────────────────────────────────────────────────
 
+local function output_line(item)
+  if type(item) == "string" then
+    return item, "GoDbgOutLog"
+  end
+
+  local kind = item.kind or "log"
+  local text = item.text or ""
+  if kind == "error" then
+    return "! " .. text, "GoDbgOutErr"
+  end
+  if kind == "warn" then
+    return "? " .. text, "GoDbgOutWarn"
+  end
+  if kind == "event" then
+    return text, "GoDbgOutEvent"
+  end
+  if kind == "program" then
+    return "> " .. text, "GoDbgOutProgram"
+  end
+  if kind == "protocol" then
+    return ". " .. text, "GoDbgOutProtocol"
+  end
+  if kind == "raw" then
+    return "? raw: " .. text, "GoDbgOutRaw"
+  end
+  if kind == "detail" then
+    return "  " .. text, "GoDbgOutProtocol"
+  end
+  return ". " .. text, "GoDbgOutLog"
+end
+
 function M.append_output(raw)
-  raw = tostring(raw or "")
-  if raw == "" then
+  if raw == nil or raw == "" then
     return
   end
-  raw = raw:gsub("\r\n", "\n"):gsub("\r", "\n")
-  for _, line in ipairs(vim.split(raw, "\n", { plain = true })) do
-    local t = vim.trim(line)
-    if t ~= "" then
-      table.insert(S.output, t)
-      S.last_status = t
+  for _, item in ipairs(output_parser.parse(raw)) do
+    table.insert(S.output, item)
+    if item.kind ~= "detail" and item.kind ~= "protocol" then
+      S.last_status = item.text
     end
   end
   while #S.output > S.max_output do
@@ -455,28 +497,24 @@ function M.append_output(raw)
 
     local view_start = math.max(1, #S.output - 180)
     local lines = {}
+    local groups = {}
     for i = view_start, #S.output do
-      table.insert(lines, "  " .. S.output[i])
+      local text, grp = output_line(S.output[i])
+      table.insert(lines, "  " .. text)
+      table.insert(groups, grp)
     end
     if #lines == 0 then
       lines = { "  (no output)" }
+      groups = { "GoDbgOutLog" }
     end
 
     write_buf(b, lines)
     vim.api.nvim_buf_clear_namespace(b, NS, 0, -1)
 
     for i, line in ipairs(lines) do
-      local grp
-      if line:match("^%s*%[error%]") or line:match("error", 1, true) then
-        grp = "GoDbgOutErr"
-      elseif line:match("^%s*[●▶⏸■]") then
-        grp = "GoDbgOutEvent"
-      else
-        grp = "GoDbgOutLog"
-      end
       pcall(vim.api.nvim_buf_set_extmark, b, NS, i - 1, 0, {
         end_col = #line,
-        hl_group = grp,
+        hl_group = groups[i] or "GoDbgOutLog",
         priority = 5,
       })
     end
@@ -583,6 +621,7 @@ function M.open()
   end
 
   setup_hl()
+  output_parser.reset()
 
   local origin = vim.api.nvim_get_current_win()
   local sb = get_buf("sidebar")
@@ -755,7 +794,7 @@ function M.render_breakpoint_signs(bps)
 
   for _, bp in ipairs(bps or {}) do
     local b = buf_for_file(bp.file)
-    local sign = bp.condition and SIGN_BP_COND or SIGN_BP
+    local sign = bp.logMessage and SIGN_BP_LOG or (bp.condition and SIGN_BP_COND) or SIGN_BP
     S.sign_ctr = S.sign_ctr + 1
     vim.fn.sign_place(S.sign_ctr, "go_dbg_bp", sign, b, { lnum = bp.line, priority = 50 })
     S.bp_signs[b] = S.bp_signs[b] or {}
@@ -763,7 +802,39 @@ function M.render_breakpoint_signs(bps)
   end
 end
 
--- ─── setup ────────────────────────────────────────────────────────────────────
+function M.render_watches(watch_list)
+  watch_list = watch_list or {}
+  defer("sidebar", function()
+    local items, count = {}, 0
+    if #watch_list == 0 then
+      table.insert(items, {
+        text = "  no watches",
+        hls = { { col0 = 2, col1 = 10, grp = "GoDbgVarNil" } },
+      })
+    else
+      for _, w in ipairs(watch_list) do
+        count = count + 1
+        local val = tostring(w.value or "…")
+        if #val > 40 then
+          val = val:sub(1, 38) .. "…"
+        end
+        local pad = string.format("  %-18s", w.expr)
+        local text = pad .. "= " .. val
+        local grp = w.error and "GoDbgOutErr" or "GoDbgVarVal"
+        table.insert(items, {
+          text = text,
+          hls = {
+            { col0 = 0, col1 = #pad, grp = "GoDbgVarName" },
+            { col0 = #pad + 2, col1 = #text, grp = grp },
+          },
+        })
+      end
+    end
+    S.sections.watches.items = items
+    S.sections.watches.count = count > 0 and count or nil
+    render_sidebar()
+  end)
+end
 
 function M.setup()
   setup_hl()

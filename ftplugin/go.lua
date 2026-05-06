@@ -78,14 +78,7 @@ local function check_tools()
   end)
 end
 
-vim.api.nvim_create_autocmd("FileType", {
-  group = aug,
-  pattern = "go",
-  once = true,
-  callback = function()
-    vim.defer_fn(check_tools, 500)
-  end,
-})
+vim.defer_fn(check_tools, 500)
 
 -- =============================================================================
 --  Floating Terminal (lazy-loaded, configured only once per session)
@@ -256,13 +249,13 @@ local function cursor_byte_offset()
   return line_start + col
 end
 
----Write buffer if modified, run `cmd` async, reload on success.
----@param cmd string
-local function save_run_reload(cmd)
+---Write buffer if modified, run `argv` async, reload on success.
+---@param argv string[]
+local function save_run_reload(argv)
   if vim.bo.modified then
     vim.cmd("silent! write")
   end
-  vim.system(vim.split(cmd, "%s+", { trimempty = true }), { text = true }, function(result)
+  vim.system(argv, { text = true }, function(result)
     vim.schedule(function()
       if result.code ~= 0 then
         local msg = vim.trim(result.stderr ~= "" and result.stderr or result.stdout)
@@ -274,6 +267,19 @@ local function save_run_reload(cmd)
       end
     end)
   end)
+end
+
+---@param kind string
+---@param label string
+local function apply_gopls_code_action(kind, label)
+  if #vim.lsp.get_clients({ bufnr = 0, name = "gopls" }) == 0 then
+    vim.notify(string.format("[go.lua] %s: gopls not attached", label), vim.log.levels.ERROR)
+    return
+  end
+  vim.lsp.buf.code_action({
+    context = { only = { kind } },
+    apply = true,
+  })
 end
 
 -- =============================================================================
@@ -335,19 +341,11 @@ end
 -- =============================================================================
 
 local function fillstruct_via_lsp()
-  if #vim.lsp.get_clients({ bufnr = 0, name = "gopls" }) == 0 then
-    vim.notify("[go.lua] fillstruct: gopls not attached", vim.log.levels.ERROR)
-    return
-  end
-  vim.lsp.buf.code_action({ context = { only = { "source.fillStruct" } }, apply = false })
+  apply_gopls_code_action("refactor.rewrite.fillStruct", "fillstruct")
 end
 
 local function fillswitch_via_lsp()
-  if #vim.lsp.get_clients({ bufnr = 0, name = "gopls" }) == 0 then
-    vim.notify("[go.lua] fillswitch: gopls not attached", vim.log.levels.ERROR)
-    return
-  end
-  vim.lsp.buf.code_action({ context = { only = { "source.fixAll" } }, apply = false })
+  apply_gopls_code_action("refactor.rewrite.fillSwitch", "fillswitch")
 end
 
 ---Parse and apply JSON edit list from fillstruct/fillswitch.
@@ -510,20 +508,11 @@ local function go_doc_browser()
   end
 
   local url = "https://pkg.go.dev/search?q=" .. word
-  local open_cmd
-  if vim.fn.has("mac") == 1 then
-    open_cmd = "open "
-  elseif vim.fn.has("win32") == 1 or vim.fn.has("win64") == 1 then
-    open_cmd = 'start "" '
-  else
-    open_cmd = "xdg-open "
-  end
-
-  vim.fn.system(open_cmd .. vim.fn.shellescape(url))
-  if vim.v.shell_error == 0 then
+  local ok, err = pcall(vim.ui.open, url)
+  if ok then
     vim.notify('[go.lua] Opened pkg.go.dev for "' .. word .. '"', vim.log.levels.INFO)
   else
-    vim.notify("[go.lua] Failed to open browser", vim.log.levels.ERROR)
+    vim.notify("[go.lua] Failed to open browser: " .. tostring(err), vim.log.levels.ERROR)
   end
 end
 
@@ -535,11 +524,31 @@ local function organize_go_imports()
   vim.lsp.buf.code_action({ context = { only = { "source.organizeImports" } }, apply = true })
 end
 
-local go_debugger = require("custom.go.debugger")
-go_debugger.setup()
+local go_debugger = nil
 
-local go_config = require("custom.go.debugger_config")
-go_config.setup()
+local function get_go_debugger()
+  if go_debugger then
+    return go_debugger
+  end
+  local ok, mod = pcall(require, "custom.go.debugger")
+  if not ok then
+    vim.notify("[go.lua] Failed to load Go debugger: " .. tostring(mod), vim.log.levels.ERROR)
+    return nil
+  end
+  mod.setup()
+  go_debugger = mod
+  return mod
+end
+
+local function with_go_debugger(action)
+  return function(...)
+    local dbg = get_go_debugger()
+    if not dbg then
+      return
+    end
+    return dbg[action](...)
+  end
+end
 
 -- =============================================================================
 --  Test runner
@@ -620,7 +629,10 @@ vim.api.nvim_create_user_command("GoTests", function(opts)
     return
   end
   local args = opts.args ~= "" and opts.args or "-all"
-  save_run_reload(string.format("gotests -w %s %s", args, escape_filepath(vim.fn.expand("%:p"))))
+  local argv = { "gotests", "-w" }
+  vim.list_extend(argv, vim.split(args, "%s+", { trimempty = true }))
+  table.insert(argv, vim.fn.expand("%:p"))
+  save_run_reload(argv)
 end, { nargs = "?", desc = "Generate tests with gotests" })
 
 vim.api.nvim_create_user_command("GoModifyTags", function(opts)
@@ -637,7 +649,9 @@ vim.api.nvim_create_user_command("GoModifyTags", function(opts)
   then
     args = "-all " .. args
   end
-  save_run_reload(string.format("gomodifytags -file %s -w %s", escape_filepath(file), args))
+  local argv = { "gomodifytags", "-file", file, "-w" }
+  vim.list_extend(argv, vim.split(args, "%s+", { trimempty = true }))
+  save_run_reload(argv)
 end, { nargs = "?", desc = "Modify struct tags with gomodifytags" })
 
 vim.api.nvim_create_user_command("GoIfErr", function()
@@ -647,9 +661,7 @@ vim.api.nvim_create_user_command("GoIfErr", function()
   if vim.bo.modified then
     vim.cmd("silent! write")
   end
-  save_run_reload(
-    string.format("iferr -pos %d %s", vim.api.nvim_win_get_cursor(0)[1], escape_filepath(vim.fn.expand("%:p")))
-  )
+  save_run_reload({ "iferr", "-pos", tostring(vim.api.nvim_win_get_cursor(0)[1]), vim.fn.expand("%:p") })
 end, { desc = "Generate error handling with iferr" })
 
 vim.api.nvim_create_user_command("GoOrganizeImports", function()
@@ -730,67 +742,67 @@ vim.api.nvim_create_user_command("GoVulnCheck", function(opts)
 end, { nargs = "?", desc = "Run govulncheck on the project" })
 
 vim.api.nvim_create_user_command("GoDlvDebug", function()
-  go_debugger.debug()
+  with_go_debugger("debug")()
 end, { desc = "Start Delve debug session" })
 vim.api.nvim_create_user_command("GoDlvTest", function()
-  go_debugger.test()
+  with_go_debugger("test")()
 end, { desc = "Debug tests in current package" })
 vim.api.nvim_create_user_command("GoDlvBreakpoint", function()
-  go_debugger.toggle_breakpoint()
+  with_go_debugger("toggle_breakpoint")()
 end, { desc = "Toggle breakpoint at current line" })
 vim.api.nvim_create_user_command("GoDlvSetBreakpoint", function()
-  go_debugger.set_breakpoint()
+  with_go_debugger("set_breakpoint")()
 end, { desc = "Set breakpoint at current line" })
 vim.api.nvim_create_user_command("GoDlvRemoveBreakpoint", function()
-  go_debugger.remove_breakpoint()
+  with_go_debugger("remove_breakpoint")()
 end, { desc = "Remove breakpoint at current line" })
 vim.api.nvim_create_user_command("GoDlvListBreakpoints", function()
-  go_debugger.list_breakpoints()
+  with_go_debugger("list_breakpoints")()
 end, { desc = "List breakpoints" })
 vim.api.nvim_create_user_command("GoDlvCondBreakpoint", function()
-  go_debugger.conditional_breakpoint()
+  with_go_debugger("conditional_breakpoint")()
 end, { desc = "Set conditional breakpoint" })
 vim.api.nvim_create_user_command("GoDlvClearBreakpoints", function()
-  go_debugger.clear_breakpoints()
+  with_go_debugger("clear_breakpoints")()
 end, { desc = "Clear all breakpoints" })
 vim.api.nvim_create_user_command("GoDlvAttach", function()
-  go_debugger.attach_spawn()
+  with_go_debugger("attach_spawn")()
 end, { desc = "Build, start, and attach to current Go program" })
 vim.api.nvim_create_user_command("GoDlvAttachPID", function()
-  go_debugger.attach()
+  with_go_debugger("attach")()
 end, { desc = "Attach to an existing PID" })
 vim.api.nvim_create_user_command("GoDlvAttachSelect", function()
-  go_debugger.attach_select()
+  with_go_debugger("attach_select")()
 end, { desc = "Pick a process and attach" })
 vim.api.nvim_create_user_command("GoDlvConnect", function(opts)
-  go_debugger.connect(opts.args)
+  with_go_debugger("connect")(opts.args)
 end, { nargs = "?", desc = "Connect to headless Delve DAP server" })
 vim.api.nvim_create_user_command("GoDlvContinue", function()
-  go_debugger.continue()
+  with_go_debugger("continue")()
 end, { desc = "Continue debuggee" })
 vim.api.nvim_create_user_command("GoDlvStepOver", function()
-  go_debugger.step_over()
+  with_go_debugger("step_over")()
 end, { desc = "Step over" })
 vim.api.nvim_create_user_command("GoDlvStepInto", function()
-  go_debugger.step_into()
+  with_go_debugger("step_into")()
 end, { desc = "Step into" })
 vim.api.nvim_create_user_command("GoDlvStepOut", function()
-  go_debugger.step_out()
+  with_go_debugger("step_out")()
 end, { desc = "Step out" })
 vim.api.nvim_create_user_command("GoDlvStack", function()
-  go_debugger.stack()
+  with_go_debugger("stack")()
 end, { desc = "Refresh stack frames" })
 vim.api.nvim_create_user_command("GoDlvVariables", function()
-  go_debugger.variables()
+  with_go_debugger("variables")()
 end, { desc = "Refresh variables" })
 vim.api.nvim_create_user_command("GoDlvInspect", function(opts)
-  go_debugger.inspect(opts.args)
+  with_go_debugger("inspect")(opts.args)
 end, { nargs = "*", desc = "Inspect expression" })
 vim.api.nvim_create_user_command("GoDlvStop", function()
-  go_debugger.stop()
+  with_go_debugger("stop")()
 end, { desc = "Stop debug session" })
 vim.api.nvim_create_user_command("GoDlvToggleUI", function()
-  go_debugger.toggle_ui()
+  with_go_debugger("toggle_ui")()
 end, { desc = "Toggle debugger UI" })
 
 -- =============================================================================
@@ -827,37 +839,31 @@ go_map("<leader>tk", function()
 end, "Go doc (cursor word)")
 go_map("<leader>tD", go_doc_browser, "Godoc (browser)")
 go_map("<leader>tv", "<cmd>GoVulnCheck<CR>", "govulncheck ./...")
-go_map("<leader>tds", go_debugger.debug, "Start debug session")
-go_map("<leader>tdt", go_debugger.test, "Debug tests in current package")
-go_map("<leader>tdb", go_debugger.toggle_breakpoint, "Toggle breakpoint")
-go_map("<leader>tdB", go_debugger.conditional_breakpoint, "Conditional breakpoint")
-go_map("<leader>tdl", go_debugger.list_breakpoints, "List breakpoints")
-go_map("<leader>tdx", go_debugger.clear_breakpoints, "Clear all breakpoints")
-go_map("<leader>tda", go_debugger.attach_spawn, "Build, start, and attach")
-go_map("<leader>tdc", go_debugger.continue, "Continue")
-go_map("<leader>tdo", go_debugger.step_over, "Step over")
-go_map("<leader>tdi", go_debugger.step_into, "Step into")
-go_map("<leader>tdO", go_debugger.step_out, "Step out")
-go_map("<leader>tdv", go_debugger.variables, "Variables")
-go_map("<leader>tdf", go_debugger.stack, "Stack frames")
-go_map("<leader>tdp", go_debugger.inspect, "Inspect expression")
-go_map("<leader>tdq", go_debugger.stop, "Stop debugger")
-go_map("<leader>tdu", go_debugger.toggle_ui, "Toggle UI")
+go_map("<leader>tds", with_go_debugger("debug"), "Start debug session")
+go_map("<leader>tdt", with_go_debugger("test"), "Debug tests in current package")
+go_map("<leader>tdb", with_go_debugger("toggle_breakpoint"), "Toggle breakpoint")
+go_map("<leader>tdB", with_go_debugger("conditional_breakpoint"), "Conditional breakpoint")
+go_map("<leader>tdl", with_go_debugger("list_breakpoints"), "List breakpoints")
+go_map("<leader>tdx", with_go_debugger("clear_breakpoints"), "Clear all breakpoints")
+go_map("<leader>tda", with_go_debugger("attach_spawn"), "Build, start, and attach")
+go_map("<leader>tdc", with_go_debugger("continue"), "Continue")
+go_map("<leader>tdo", with_go_debugger("step_over"), "Step over")
+go_map("<leader>tdi", with_go_debugger("step_into"), "Step into")
+go_map("<leader>tdO", with_go_debugger("step_out"), "Step out")
+go_map("<leader>tdv", with_go_debugger("variables"), "Variables")
+go_map("<leader>tdf", with_go_debugger("stack"), "Stack frames")
+go_map("<leader>tdp", with_go_debugger("inspect"), "Inspect expression")
+go_map("<leader>tdq", with_go_debugger("stop"), "Stop debugger")
+go_map("<leader>tdu", with_go_debugger("toggle_ui"), "Toggle UI")
 
 -- =============================================================================
 --  Buffer-local extras
 -- =============================================================================
 
-vim.api.nvim_create_autocmd("FileType", {
-  group = aug,
-  pattern = "go",
-  callback = function(ev)
-    vim.keymap.set("n", "<leader>K", function()
-      run_godoc()
-    end, {
-      buffer = ev.buf,
-      silent = true,
-      desc = "Go doc (floating window)",
-    })
-  end,
+vim.keymap.set("n", "<leader>K", function()
+  run_godoc()
+end, {
+  buffer = true,
+  silent = true,
+  desc = "Go doc (floating window)",
 })

@@ -2,13 +2,18 @@
 local M = {}
 
 local ui = require("custom.go.debugger_ui")
+local virt = require("custom.go.debugger_virt")
+local watches = require("custom.go.debugger_watches")
+local hover = require("custom.go.debugger_hover")
 
--- ─── shared state ─────────────────────────────────────────────────────────────
+-- ─── state ────────────────────────────────────────────────────────────────────
 
 local state = {
-  breakpoints = {}, -- [key] = { file, line, condition }
-  session = nil, -- active Session
-  synced_bp_files = {}, -- files whose BPs have been sent to dlv
+  breakpoints = {}, -- [key] = { file, line, condition, hitCondition, logMessage, _tmp }
+  session = nil,
+  synced_bp_files = {},
+  last_config = nil, -- { config, opts }
+  run_to_cursor_key = nil,
 }
 
 -- ─── utility ──────────────────────────────────────────────────────────────────
@@ -19,12 +24,12 @@ local function notify(msg, level)
   end)
 end
 
-local function normalize_path(path)
+local function norm(path)
   return vim.fn.fnamemodify(path, ":p"):gsub("\\", "/")
 end
 
 local function bp_key(file, line)
-  return string.format("%s:%d", normalize_path(file), line)
+  return string.format("%s:%d", norm(file), line)
 end
 
 local function ensure_dlv()
@@ -44,34 +49,43 @@ local function assert_go_file()
   return f
 end
 
--- ─── breakpoints helpers ──────────────────────────────────────────────────────
+local function current_location()
+  local f = assert_go_file()
+  if not f then
+    return nil, nil
+  end
+  return f, vim.api.nvim_win_get_cursor(0)[1]
+end
+
+-- ─── breakpoint helpers ───────────────────────────────────────────────────────
 
 local function sorted_breakpoints()
   local items = {}
   for _, bp in pairs(state.breakpoints) do
-    table.insert(items, vim.deepcopy(bp))
+    if not bp._tmp then
+      table.insert(items, vim.deepcopy(bp))
+    end
   end
   table.sort(items, function(a, b)
-    local af, bf = normalize_path(a.file), normalize_path(b.file)
+    local af, bf = norm(a.file), norm(b.file)
     return af == bf and a.line < b.line or af < bf
   end)
   return items
 end
 
 local function grouped_breakpoints()
-  local grouped = {}
+  local g = {}
   for _, bp in pairs(state.breakpoints) do
-    local f = normalize_path(bp.file)
-    grouped[f] = grouped[f] or {}
-    table.insert(grouped[f], bp)
+    local f = norm(bp.file)
+    g[f] = g[f] or {}
+    table.insert(g[f], bp)
   end
-  return grouped
+  return g
 end
 
 local function refresh_bp_signs()
   ui.render_breakpoint_signs(sorted_breakpoints())
 end
-
 local function render_breakpoints()
   ui.render_breakpoints(sorted_breakpoints())
 end
@@ -97,7 +111,6 @@ local function current_package_name()
       return pkg
     end
   end
-  return nil
 end
 
 local function find_main_package()
@@ -107,18 +120,14 @@ local function find_main_package()
     return fdir
   end
   local root = project_root(fdir)
-  local candidates = {
-    root .. "/main.go",
-    root .. "/cmd/main.go",
-  }
-  for _, c in ipairs(candidates) do
+  for _, c in ipairs({ root .. "/main.go", root .. "/cmd/main.go" }) do
     if vim.fn.filereadable(c) == 1 then
       return vim.fn.fnamemodify(c, ":h")
     end
   end
-  local matches = vim.fn.glob(root .. "/cmd/*/main.go", false, true)
-  if #matches > 0 then
-    return vim.fn.fnamemodify(matches[1], ":h")
+  local ms = vim.fn.glob(root .. "/cmd/*/main.go", false, true)
+  if #ms > 0 then
+    return vim.fn.fnamemodify(ms[1], ":h")
   end
   return root
 end
@@ -134,8 +143,51 @@ local function binary_name(program)
   return name
 end
 
+-- ─── persistence ──────────────────────────────────────────────────────────────
+
+local function save_breakpoints()
+  local path = project_root() .. "/.nvim-debug-bps.json"
+  local f = io.open(path, "w")
+  if f then
+    f:write(vim.json.encode(sorted_breakpoints()))
+    f:close()
+  end
+end
+
+local function load_breakpoints()
+  local path = project_root() .. "/.nvim-debug-bps.json"
+  local f = io.open(path, "r")
+  if not f then
+    return
+  end
+  local ok, items = pcall(vim.json.decode, f:read("*a"))
+  f:close()
+  if not ok or type(items) ~= "table" then
+    return
+  end
+  state.breakpoints = {}
+  for _, bp in ipairs(items) do
+    if bp.file and bp.line then
+      state.breakpoints[bp_key(bp.file, bp.line)] = bp
+    end
+  end
+  refresh_bp_signs()
+  render_breakpoints()
+  if #items > 0 then
+    ui.append_output(string.format("● loaded %d breakpoints", #items))
+  end
+end
+
+local function bp_changed()
+  refresh_bp_signs()
+  render_breakpoints()
+  save_breakpoints()
+  if state.session and state.session.initialized then
+    state.session:sync_breakpoints()
+  end
+end
+
 -- ─── Session ──────────────────────────────────────────────────────────────────
--- Wraps a single Delve DAP connection.  One instance per debug run.
 
 local Session = {}
 Session.__index = Session
@@ -150,43 +202,34 @@ function Session.new()
     stdout = nil,
     stderr = nil,
     closed = false,
-
     initialized = false,
     configured = false,
     stopped_tid = nil,
-    current_fid = nil, -- current frame id for evaluate
+    current_fid = nil,
+    last_scope_ref = nil,
     connected = false,
+    capabilities = {},
   }, Session)
 end
 
--- low-level write
 function Session:send(msg)
   if not self.client or self.closed then
     return
   end
   local encoded = vim.json.encode(msg)
-  local packet = string.format("Content-Length: %d\r\n\r\n%s", #encoded, encoded)
-  self.client:write(packet)
+  self.client:write(string.format("Content-Length: %d\r\n\r\n%s", #encoded, encoded))
 end
 
--- send a DAP request; callback(response) called on vim main thread
 function Session:request(command, args, callback)
   if self.closed then
     return
   end
   local seq = self.seq
   self.seq = self.seq + 1
-  self.callbacks[seq] = callback -- may be nil
-  self:send({
-    seq = seq,
-    type = "request",
-    command = command,
-    arguments = args or {},
-  })
+  self.callbacks[seq] = callback
+  self:send({ seq = seq, type = "request", command = command, arguments = args or {} })
   return seq
 end
-
--- ── DAP protocol parsing ─────────────────────────────────────────────────────
 
 function Session:consume(data)
   self.buffer = self.buffer .. data
@@ -195,20 +238,18 @@ function Session:consume(data)
     if not hend then
       break
     end
-    local header = self.buffer:sub(1, hend - 1)
-    local len = tonumber(header:match("[Cc]ontent%-[Ll]ength:%s*(%d+)"))
+    local len = tonumber(self.buffer:sub(1, hend - 1):match("[Cc]ontent%-[Ll]ength:%s*(%d+)"))
     if not len then
-      -- corrupt stream — reset
       self.buffer = ""
       break
     end
-    local body_start = hend + 4
-    local body_end = body_start + len - 1
-    if #self.buffer < body_end then
+    local bs = hend + 4
+    local be = bs + len - 1
+    if #self.buffer < be then
       break
     end
-    local body = self.buffer:sub(body_start, body_end)
-    self.buffer = self.buffer:sub(body_end + 1)
+    local body = self.buffer:sub(bs, be)
+    self.buffer = self.buffer:sub(be + 1)
     local ok, msg = pcall(vim.json.decode, body)
     if ok then
       self:dispatch(msg)
@@ -227,8 +268,7 @@ function Session:dispatch(msg)
         cb(msg)
       end)
     elseif not msg.success then
-      local text = msg.message or "DAP error (no message)"
-      -- surface error detail from body if present
+      local text = msg.message or "DAP error"
       if msg.body and msg.body.error and msg.body.error.format then
         text = text .. ": " .. msg.body.error.format
       end
@@ -241,15 +281,13 @@ function Session:dispatch(msg)
   end
 end
 
--- ── DAP events ───────────────────────────────────────────────────────────────
-
 function Session:handle_event(msg)
   local ev = msg.event
   if ev == "initialized" then
     ui.append_output("● dlv initialized")
     self:on_initialized()
   elseif ev == "stopped" then
-    local reason = msg.body and msg.body.reason or "stopped"
+    local reason = (msg.body and msg.body.reason) or "stopped"
     ui.append_output("⏸  " .. reason)
     self:refresh_stopped(msg)
   elseif ev == "continued" then
@@ -257,49 +295,51 @@ function Session:handle_event(msg)
     ui.clear_execution_line()
     ui.render_stack({})
     ui.render_variables({}, {})
+    virt.clear()
   elseif ev == "output" then
-    local body = msg.body or {}
-    local text = body.output or ""
+    local text = (msg.body and msg.body.output) or ""
     if text ~= "" then
       ui.append_output(text)
     end
   elseif ev == "terminated" then
     ui.append_output("■ process terminated")
     ui.clear_execution_line()
+    virt.clear()
   elseif ev == "exited" then
     local code = msg.body and msg.body.exitCode
     ui.append_output("■ exited" .. (code ~= nil and (" (code " .. tostring(code) .. ")") or ""))
     ui.clear_execution_line()
+    virt.clear()
   elseif ev == "process" then
-    local body = msg.body or {}
-    ui.append_output(string.format("process %s (pid %s)", body.name or "?", tostring(body.systemProcessId or "?")))
+    local b = msg.body or {}
+    ui.append_output(string.format("process %s (pid %s)", b.name or "?", tostring(b.systemProcessId or "?")))
   end
 end
 
--- called after "initialized" event
--- dlv DAP sequence: initialize → launch → (dlv emits initialized) → setBreakpoints → configurationDone
--- setBreakpoints MUST come after launch; never send them before it.
+-- dlv sequence: initialize → launch → [initialized event] →
+--   setExceptionBreakpoints → setBreakpoints → configurationDone
 function Session:on_initialized()
   self.initialized = true
-  -- Sync all breakpoints now (correct post-launch timing), then signal done.
-  -- configurationDone arguments must be an empty JSON *object* {}, not an
-  -- array []. Lua's {} encodes as [] — use vim.empty_dict() for the object.
+
+  self:request("setExceptionBreakpoints", {
+    filters = { "unrecovered-panic", "runtime-fatal-throw" },
+  }, function(r)
+    if r.success then
+      ui.append_output("● exception breakpoints active")
+    end
+  end)
+
   self:sync_breakpoints(function()
     self:request("configurationDone", vim.empty_dict(), function(r)
       if r.success then
         self.configured = true
         ui.append_output("● configuration done")
       else
-        -- Non-fatal: dlv sometimes ignores configurationDone errors
         ui.append_output("[warn] configurationDone: " .. tostring(r.message))
       end
     end)
   end)
 end
-
--- ── Breakpoint sync ───────────────────────────────────────────────────────────
--- Sends setBreakpoints for every file that has (or had) BPs.
--- Calls done() when all requests complete.
 
 function Session:sync_breakpoints(done)
   if self.closed then
@@ -310,7 +350,6 @@ function Session:sync_breakpoints(done)
   end
 
   local grouped = grouped_breakpoints()
-  -- union of current files and previously synced files (to clear removed BPs)
   local file_set = {}
   for f in pairs(grouped) do
     file_set[f] = true
@@ -331,17 +370,22 @@ function Session:sync_breakpoints(done)
 
   for _, file in ipairs(files) do
     local bps_for_file = grouped[file] or {}
-    local source = { path = file, name = vim.fn.fnamemodify(file, ":t") }
     local dap_bps = vim.tbl_map(function(bp)
       local entry = { line = bp.line }
       if bp.condition and bp.condition ~= "" then
         entry.condition = bp.condition
       end
+      if bp.hitCondition and bp.hitCondition ~= "" then
+        entry.hitCondition = bp.hitCondition
+      end
+      if bp.logMessage and bp.logMessage ~= "" then
+        entry.logMessage = bp.logMessage
+      end
       return entry
     end, bps_for_file)
 
     self:request("setBreakpoints", {
-      source = source,
+      source = { path = file, name = vim.fn.fnamemodify(file, ":t") },
       breakpoints = dap_bps,
       lines = vim.tbl_map(function(bp)
         return bp.line
@@ -353,7 +397,6 @@ function Session:sync_breakpoints(done)
           state.synced_bp_files[file] = nil
         else
           state.synced_bp_files[file] = true
-          -- report verified BPs
           local verified = 0
           if resp.body and resp.body.breakpoints then
             for _, b in ipairs(resp.body.breakpoints) do
@@ -379,38 +422,44 @@ function Session:sync_breakpoints(done)
   end
 end
 
--- ── Stopped state refresh ─────────────────────────────────────────────────────
-
 function Session:refresh_stopped(event)
   local tid = (event.body and event.body.threadId) or self.stopped_tid or 1
   self.stopped_tid = tid
 
-  self:request("stackTrace", {
-    threadId = tid,
-    startFrame = 0,
-    levels = 20,
-  }, function(resp)
-    local frames = resp.body and resp.body.stackFrames or {}
+  -- clean up run-to-cursor temp BP
+  if state.run_to_cursor_key then
+    state.breakpoints[state.run_to_cursor_key] = nil
+    state.run_to_cursor_key = nil
+    self:sync_breakpoints()
+    refresh_bp_signs()
+    render_breakpoints()
+  end
+
+  self:request("stackTrace", { threadId = tid, startFrame = 0, levels = 20 }, function(resp)
+    local frames = (resp.body and resp.body.stackFrames) or {}
     ui.render_stack(frames)
     local top = frames[1]
     self.current_fid = top and top.id or nil
 
     if top and top.source and top.source.path and top.line then
-      local reason = event.body and event.body.reason or "stopped"
-      ui.show_execution_line(top.source.path, top.line, reason)
+      ui.show_execution_line(top.source.path, top.line, (event.body and event.body.reason) or "stopped")
     end
 
     if not top then
       ui.render_variables({}, {})
+      watches.eval_all(self, nil)
       return
     end
 
     self:request("scopes", { frameId = top.id }, function(sresp)
-      local scopes = sresp.body and sresp.body.scopes or {}
+      local scopes = (sresp.body and sresp.body.scopes) or {}
       if #scopes == 0 then
         ui.render_variables({}, {})
+        watches.eval_all(self, self.current_fid)
         return
       end
+
+      self.last_scope_ref = scopes[1] and scopes[1].variablesReference or nil
 
       local vars_by_scope = {}
       local pending = #scopes
@@ -420,10 +469,18 @@ function Session:refresh_stopped(event)
           variablesReference = scope.variablesReference,
           count = 200,
         }, function(vresp)
-          vars_by_scope[scope.variablesReference] = vresp.body and vresp.body.variables or {}
+          vars_by_scope[scope.variablesReference] = (vresp.body and vresp.body.variables) or {}
           pending = pending - 1
           if pending == 0 then
             ui.render_variables(scopes, vars_by_scope)
+            if top.source and top.source.path then
+              local all_vars = {}
+              for _, vlist in pairs(vars_by_scope) do
+                vim.list_extend(all_vars, vlist)
+              end
+              virt.apply(top.source.path, all_vars)
+            end
+            watches.eval_all(self, self.current_fid)
           end
         end)
       end
@@ -431,12 +488,9 @@ function Session:refresh_stopped(event)
   end)
 end
 
--- ── TCP connection ────────────────────────────────────────────────────────────
-
 function Session:connect(host, port, callback)
   local tcp = vim.uv.new_tcp()
   self.client = tcp
-
   tcp:connect(host, port, function(err)
     if err then
       notify("failed to connect to Delve DAP: " .. err, vim.log.levels.ERROR)
@@ -452,11 +506,8 @@ function Session:connect(host, port, callback)
       end
       if data then
         self:consume(data)
-      else
-        -- EOF — connection closed
-        if not self.closed then
-          ui.append_output("● DAP connection closed")
-        end
+      elseif not self.closed then
+        ui.append_output("● DAP connection closed")
       end
     end)
     if callback then
@@ -465,14 +516,11 @@ function Session:connect(host, port, callback)
   end)
 end
 
--- ── Teardown ─────────────────────────────────────────────────────────────────
-
 function Session:close()
   if self.closed then
     return
   end
   self.closed = true
-  -- cancel pending callbacks
   for seq, cb in pairs(self.callbacks) do
     self.callbacks[seq] = nil
     if cb then
@@ -481,18 +529,18 @@ function Session:close()
       end)
     end
   end
-  local function safe_close(h)
+  local function sc(h)
     if h and not h:is_closing() then
       h:close()
     end
   end
-  safe_close(self.client)
-  safe_close(self.stdout)
-  safe_close(self.stderr)
+  sc(self.client)
+  sc(self.stdout)
+  sc(self.stderr)
   if self.handle and not self.handle:is_closing() then
     self.handle:kill("sigterm")
     vim.defer_fn(function()
-      safe_close(self.handle)
+      sc(self.handle)
     end, 500)
   end
 end
@@ -506,16 +554,13 @@ local function close_session()
   end
 end
 
--- Spawn `dlv dap --listen 127.0.0.1:0`, parse the actual port from stdout/stderr,
--- then call on_listen(host, port).
 local function launch_dlv_dap(session, cwd, on_listen)
   local stdout = vim.uv.new_pipe(false)
   local stderr = vim.uv.new_pipe(false)
   session.stdout = stdout
   session.stderr = stderr
 
-  local handle
-  handle = vim.uv.spawn("dlv", {
+  local handle = vim.uv.spawn("dlv", {
     args = { "dap", "--listen", "127.0.0.1:0", "--log-output", "dap", "--log" },
     stdio = { nil, stdout, stderr },
     cwd = cwd,
@@ -534,8 +579,6 @@ local function launch_dlv_dap(session, cwd, on_listen)
   end
   session.handle = handle
 
-  -- Shared logic: watch output lines for the "listening at" line.
-  -- dlv prints to stderr by default; listen on both to be safe.
   local function watch(data)
     if not data or data == "" then
       return
@@ -545,11 +588,9 @@ local function launch_dlv_dap(session, cwd, on_listen)
         ui.append_output(line)
       end
     end)
-    -- Pattern: "DAP server listening at: 127.0.0.1:PORT"
     if not session.connected then
       local host, port = data:match("DAP server listening at:%s*([%d%.]+):(%d+)")
       if not host then
-        -- older dlv just prints the port
         port = data:match("DAP server listening at:%s*:(%d+)")
         host = port and "127.0.0.1" or nil
       end
@@ -569,8 +610,6 @@ local function launch_dlv_dap(session, cwd, on_listen)
   return true
 end
 
--- ─── session start ────────────────────────────────────────────────────────────
-
 local function start_session(config, opts)
   opts = opts or {}
   if not ensure_dlv() then
@@ -580,10 +619,12 @@ local function start_session(config, opts)
   ui.open()
   render_breakpoints()
   ui.clear_execution_line()
+  virt.clear()
   close_session()
 
   local session = Session.new()
   state.session = session
+  state.last_config = { config = vim.deepcopy(config), opts = opts }
 
   local dap_cwd = opts.dap_cwd or config.cwd or vim.fn.getcwd()
   ui.append_output("starting dlv dap in: " .. vim.fn.fnamemodify(dap_cwd, ":~:."))
@@ -603,16 +644,14 @@ local function start_session(config, opts)
         supportsVariablePaging = true,
         supportsRunInTerminalRequest = false,
         supportsProgressReporting = false,
-        -- dlv-specific: allow stepping into vendor/std
         supportsDelayedStackTraceLoading = false,
       }, function(init_resp)
         if not init_resp.success then
           ui.append_output("[error] initialize: " .. tostring(init_resp.message))
           return
         end
+        session.capabilities = init_resp.body or {}
 
-        -- dlv requires: initialize → launch → (initialized event) → setBreakpoints → configurationDone
-        -- Do NOT send setBreakpoints here; on_initialized() handles it after launch.
         local launch_cmd = (config.request == "attach") and "attach" or "launch"
         session:request(launch_cmd, config, function(lresp)
           if lresp.success then
@@ -636,7 +675,7 @@ local function start_session(config, opts)
   end
 end
 
--- ─── public: launch modes ─────────────────────────────────────────────────────
+-- ─── public: launch ───────────────────────────────────────────────────────────
 
 function M.debug()
   local program = find_main_package()
@@ -693,7 +732,6 @@ function M.attach(target)
   }, { dap_cwd = root })
 end
 
--- Build a debug binary then attach to it via `exec` mode
 function M.attach_spawn()
   local program = find_main_package()
   local root = project_root(program)
@@ -707,8 +745,7 @@ function M.attach_spawn()
   vim.system({ "go", "build", "-gcflags=all=-N -l", "-o", exe, "." }, { cwd = program, text = true }, function(res)
     vim.schedule(function()
       if res.code ~= 0 then
-        local msg = vim.trim((res.stderr ~= "" and res.stderr) or res.stdout)
-        ui.append_output("build failed:\n" .. msg)
+        ui.append_output("build failed:\n" .. vim.trim((res.stderr ~= "" and res.stderr) or res.stdout))
         notify("build failed", vim.log.levels.ERROR)
         return
       end
@@ -728,7 +765,6 @@ function M.attach_spawn()
   end)
 end
 
--- Connect to a running headless `dlv dap --headless` server
 function M.connect(addr)
   addr = vim.trim(addr or vim.fn.input("host:port: "))
   local host, port = addr:match("^([^:]+):(%d+)$")
@@ -754,7 +790,7 @@ function M.connect(addr)
         ui.append_output("[error] initialize: " .. tostring(init_resp.message))
         return
       end
-      -- For remote attach, send attach and let on_initialized handle BPs.
+      session.capabilities = init_resp.body or {}
       session:request("attach", { request = "attach", mode = "remote" }, function(r)
         if not r.success then
           ui.append_output("[error] attach: " .. tostring(r.message))
@@ -764,18 +800,29 @@ function M.connect(addr)
   end)
 end
 
--- ─── public: process discovery ───────────────────────────────────────────────
+function M.restart()
+  if not state.last_config then
+    notify("no previous session to restart", vim.log.levels.WARN)
+    return
+  end
+  local cfg = state.last_config
+  M.stop()
+  vim.defer_fn(function()
+    start_session(cfg.config, cfg.opts)
+  end, 300)
+end
+
+-- ─── process discovery ────────────────────────────────────────────────────────
 
 local function parse_ps_windows(output)
   local list = {}
   for _, line in ipairs(vim.split(output or "", "\n", { plain = true, trimempty = true })) do
     local pid, name, cmd = line:match("^(%d+)\t([^\t]*)\t?(.*)$")
     if pid then
-      table.insert(list, {
-        pid = tonumber(pid),
-        name = name ~= "" and name or "?",
-        command = cmd ~= "" and cmd or name,
-      })
+      table.insert(
+        list,
+        { pid = tonumber(pid), name = name ~= "" and name or "?", command = cmd ~= "" and cmd or name }
+      )
     end
   end
   table.sort(list, function(a, b)
@@ -785,21 +832,18 @@ local function parse_ps_windows(output)
 end
 
 local function discover_processes(callback)
-  local is_windows = vim.uv.os_uname().sysname:find("Windows") ~= nil
-  local cmd
-  if is_windows then
-    cmd = {
-      "powershell",
-      "-NoProfile",
-      "-Command",
-      "$ErrorActionPreference='SilentlyContinue';"
-        .. "Get-CimInstance Win32_Process |"
-        .. "Where-Object { $_.ExecutablePath -and ($_.Name -notmatch '^(dlv|go|gopls)(\\.exe)?$') } |"
-        .. 'ForEach-Object { "$($_.ProcessId)`t$($_.Name)`t$($_.CommandLine)" }',
-    }
-  else
-    cmd = { "ps", "-axo", "pid=,comm=,args=" }
-  end
+  local is_win = vim.uv.os_uname().sysname:find("Windows") ~= nil
+  local cmd = is_win
+      and {
+        "powershell",
+        "-NoProfile",
+        "-Command",
+        "$ErrorActionPreference='SilentlyContinue';"
+          .. "Get-CimInstance Win32_Process |"
+          .. "Where-Object { $_.ExecutablePath -and ($_.Name -notmatch '^(dlv|go|gopls)(\\.exe)?$') } |"
+          .. 'ForEach-Object { "$($_.ProcessId)`t$($_.Name)`t$($_.CommandLine)" }',
+      }
+    or { "ps", "-axo", "pid=,comm=,args=" }
 
   vim.system(cmd, { text = true }, function(res)
     vim.schedule(function()
@@ -808,7 +852,7 @@ local function discover_processes(callback)
         return
       end
       local procs
-      if is_windows then
+      if is_win then
         procs = parse_ps_windows(res.stdout)
       else
         procs = {}
@@ -847,46 +891,7 @@ function M.attach_select()
   end)
 end
 
--- ─── public: breakpoints ─────────────────────────────────────────────────────
-
-local function current_location()
-  local f = assert_go_file()
-  if not f then
-    return nil, nil
-  end
-  return f, vim.api.nvim_win_get_cursor(0)[1]
-end
-
-local function bp_changed()
-  refresh_bp_signs()
-  render_breakpoints()
-  if state.session and state.session.initialized then
-    state.session:sync_breakpoints()
-  end
-end
-
-function M.set_breakpoint(opts)
-  local file, line = current_location()
-  if not file then
-    return
-  end
-  opts = opts or {}
-  state.breakpoints[bp_key(file, line)] = {
-    file = normalize_path(file),
-    line = line,
-    condition = opts.condition,
-  }
-  bp_changed()
-end
-
-function M.remove_breakpoint()
-  local file, line = current_location()
-  if not file then
-    return
-  end
-  state.breakpoints[bp_key(file, line)] = nil
-  bp_changed()
-end
+-- ─── breakpoints ──────────────────────────────────────────────────────────────
 
 function M.toggle_breakpoint()
   local file, line = current_location()
@@ -897,7 +902,7 @@ function M.toggle_breakpoint()
   if state.breakpoints[key] then
     state.breakpoints[key] = nil
   else
-    state.breakpoints[key] = { file = normalize_path(file), line = line }
+    state.breakpoints[key] = { file = norm(file), line = line }
   end
   bp_changed()
 end
@@ -910,10 +915,45 @@ function M.conditional_breakpoint()
   local existing = state.breakpoints[bp_key(file, line)]
   local cond = vim.trim(vim.fn.input("Condition: ", existing and existing.condition or ""))
   state.breakpoints[bp_key(file, line)] = {
-    file = normalize_path(file),
+    file = norm(file),
     line = line,
     condition = cond ~= "" and cond or nil,
   }
+  bp_changed()
+end
+
+function M.logpoint()
+  local file, line = current_location()
+  if not file then
+    return
+  end
+  local msg = vim.trim(vim.fn.input("Log message ({expr} for values): "))
+  if msg == "" then
+    return
+  end
+  state.breakpoints[bp_key(file, line)] = { file = norm(file), line = line, logMessage = msg }
+  bp_changed()
+end
+
+function M.hit_breakpoint()
+  local file, line = current_location()
+  if not file then
+    return
+  end
+  local hit = vim.trim(vim.fn.input("Hit count (e.g. >=5, %3): "))
+  if hit == "" then
+    return
+  end
+  state.breakpoints[bp_key(file, line)] = { file = norm(file), line = line, hitCondition = hit }
+  bp_changed()
+end
+
+function M.remove_breakpoint()
+  local file, line = current_location()
+  if not file then
+    return
+  end
+  state.breakpoints[bp_key(file, line)] = nil
   bp_changed()
 end
 
@@ -928,7 +968,7 @@ function M.list_breakpoints()
   return sorted_breakpoints()
 end
 
--- ─── public: execution control ───────────────────────────────────────────────
+-- ─── execution control ────────────────────────────────────────────────────────
 
 local function need_session()
   if not state.session or state.session.closed then
@@ -971,19 +1011,40 @@ function M.step_out()
   end
 end
 
--- ─── public: inspection ──────────────────────────────────────────────────────
+function M.pause()
+  local s = need_session()
+  if s then
+    s:request("pause", { threadId = s.stopped_tid or 1 })
+  end
+end
+
+function M.run_to_cursor()
+  local file, line = current_location()
+  if not file then
+    return
+  end
+  local real_key = bp_key(file, line)
+  if not state.breakpoints[real_key] then
+    local tmp_key = real_key .. ":tmp"
+    state.breakpoints[tmp_key] = { file = norm(file), line = line, _tmp = true }
+    state.run_to_cursor_key = tmp_key
+    if state.session and state.session.initialized then
+      state.session:sync_breakpoints()
+    end
+    refresh_bp_signs()
+  end
+  M.continue()
+end
+
+-- ─── inspection ───────────────────────────────────────────────────────────────
 
 function M.stack()
   local s = need_session()
   if not s then
     return
   end
-  s:request("stackTrace", {
-    threadId = s.stopped_tid or 1,
-    startFrame = 0,
-    levels = 50,
-  }, function(resp)
-    ui.render_stack(resp.body and resp.body.stackFrames or {})
+  s:request("stackTrace", { threadId = s.stopped_tid or 1, startFrame = 0, levels = 50 }, function(resp)
+    ui.render_stack((resp.body and resp.body.stackFrames) or {})
   end)
 end
 
@@ -992,17 +1053,13 @@ function M.variables()
   if not s then
     return
   end
-  s:request("stackTrace", {
-    threadId = s.stopped_tid or 1,
-    startFrame = 0,
-    levels = 1,
-  }, function(resp)
+  s:request("stackTrace", { threadId = s.stopped_tid or 1, startFrame = 0, levels = 1 }, function(resp)
     local frame = resp.body and resp.body.stackFrames and resp.body.stackFrames[1]
     if not frame then
       return
     end
     s:request("scopes", { frameId = frame.id }, function(sresp)
-      local scopes = sresp.body and sresp.body.scopes or {}
+      local scopes = (sresp.body and sresp.body.scopes) or {}
       local vars = {}
       local pending = #scopes
       if pending == 0 then
@@ -1010,11 +1067,8 @@ function M.variables()
         return
       end
       for _, scope in ipairs(scopes) do
-        s:request("variables", {
-          variablesReference = scope.variablesReference,
-          count = 200,
-        }, function(vresp)
-          vars[scope.variablesReference] = vresp.body and vresp.body.variables or {}
+        s:request("variables", { variablesReference = scope.variablesReference, count = 200 }, function(vresp)
+          vars[scope.variablesReference] = (vresp.body and vresp.body.variables) or {}
           pending = pending - 1
           if pending == 0 then
             ui.render_variables(scopes, vars)
@@ -1034,11 +1088,7 @@ function M.inspect(expr)
   if not s then
     return
   end
-  s:request("evaluate", {
-    expression = expr,
-    context = "repl",
-    frameId = s.current_fid,
-  }, function(resp)
+  s:request("evaluate", { expression = expr, context = "repl", frameId = s.current_fid }, function(resp)
     if resp.success and resp.body then
       ui.append_output(expr .. " = " .. tostring(resp.body.result))
     else
@@ -1047,7 +1097,74 @@ function M.inspect(expr)
   end)
 end
 
--- ─── public: stop / ui ───────────────────────────────────────────────────────
+function M.set_variable()
+  local s = need_session()
+  if not s then
+    return
+  end
+  local name = vim.trim(vim.fn.input("Variable name: ", vim.fn.expand("<cword>")))
+  if name == "" then
+    return
+  end
+  local val = vim.trim(vim.fn.input("New value: "))
+  if val == "" then
+    return
+  end
+  if not s.last_scope_ref then
+    ui.append_output("[warn] no active scope — stop at a breakpoint first")
+    return
+  end
+  s:request("setVariable", {
+    variablesReference = s.last_scope_ref,
+    name = name,
+    value = val,
+  }, function(resp)
+    if resp.success then
+      ui.append_output(string.format("set %s = %s", name, val))
+      M.variables()
+    else
+      ui.append_output("[error] setVariable: " .. tostring(resp.message))
+    end
+  end)
+end
+
+function M.hover_eval(expr)
+  local s = state.session
+  if not s or s.closed then
+    return
+  end
+  if not expr then
+    expr = vim.fn.expand("<cword>")
+  end
+  hover.eval(s, s.current_fid, expr)
+end
+
+-- ─── watches ──────────────────────────────────────────────────────────────────
+
+function M.watch_add(expr)
+  expr = expr or vim.trim(vim.fn.input("Watch expression: ", vim.fn.expand("<cword>")))
+  watches.add(expr)
+end
+
+function M.watch_remove()
+  local list = watches.get()
+  if #list == 0 then
+    notify("no watches", vim.log.levels.WARN)
+    return
+  end
+  vim.ui.select(list, {
+    prompt = "Remove watch:",
+    format_item = function(w)
+      return w.expr .. " = " .. (w.value or "?")
+    end,
+  }, function(choice)
+    if choice then
+      watches.remove(choice.expr)
+    end
+  end)
+end
+
+-- ─── stop / ui ────────────────────────────────────────────────────────────────
 
 function M.stop()
   local s = state.session
@@ -1057,13 +1174,12 @@ function M.stop()
       if state.session == s then
         state.session = nil
       end
-      ui.clear_execution_line()
     end)
   end
-  -- clear UI regardless
   ui.clear_execution_line()
   ui.render_stack({})
   ui.render_variables({}, {})
+  virt.clear()
 end
 
 function M.toggle_ui()
@@ -1072,11 +1188,20 @@ function M.toggle_ui()
   return ui.is_open()
 end
 
+function M.get_session()
+  return state.session
+end
+
 -- ─── setup ────────────────────────────────────────────────────────────────────
 
 function M.setup()
   ui.setup()
-  refresh_bp_signs()
+
+  watches.set_callback(function(w)
+    ui.render_watches(w)
+  end)
+
+  load_breakpoints()
 
   vim.api.nvim_create_autocmd({ "BufReadPost", "BufWinEnter" }, {
     group = vim.api.nvim_create_augroup("GoDebugBPSigns", { clear = true }),
