@@ -44,7 +44,7 @@ M.build = function()
   state.ui.sidebar_win = vim.api.nvim_get_current_win()
   state.ui.term_win = right_win
 
-  state.ui.sidebar_buf = vim.api.nvim_create_buf(false, true)
+  state.ui.sidebar_buf = require("custom.ui.buffer").create_raw(false, true)
   apply_sidebar_opts(state.ui.sidebar_win, state.ui.sidebar_buf)
   apply_term_opts(state.ui.term_win)
 

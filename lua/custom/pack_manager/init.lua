@@ -350,14 +350,14 @@ local function render_list()
   set_buf_opt(buf, "modifiable", false)
   api.nvim_buf_clear_namespace(buf, NS, 0, -1)
 
-  api.nvim_buf_add_highlight(buf, NS, "PackManagerSection", 0, 0, -1)
+  require("custom.ui.render").add_highlight(buf, NS, "PackManagerSection", 0, 0, -1)
   for _, item in ipairs(meta) do
     local group = item.active and "PackManagerOk" or "PackManagerMuted"
-    api.nvim_buf_add_highlight(buf, NS, group, item.row, 2, 3)
-    api.nvim_buf_add_highlight(buf, NS, "PackManagerAccent", item.row, 4, 32)
-    api.nvim_buf_add_highlight(buf, NS, "PackManagerValue", item.row, 33, -1)
+    require("custom.ui.render").add_highlight(buf, NS, group, item.row, 2, 3)
+    require("custom.ui.render").add_highlight(buf, NS, "PackManagerAccent", item.row, 4, 32)
+    require("custom.ui.render").add_highlight(buf, NS, "PackManagerValue", item.row, 33, -1)
     if item.selected then
-      api.nvim_buf_add_highlight(buf, NS, "PackManagerCursor", item.row, 0, -1)
+      require("custom.ui.render").add_highlight(buf, NS, "PackManagerCursor", item.row, 0, -1)
     end
   end
 
@@ -536,7 +536,7 @@ local function render_detail()
   api.nvim_buf_clear_namespace(buf, NS, 0, -1)
 
   for _, hl in ipairs(hls) do
-    api.nvim_buf_add_highlight(buf, NS, hl.group, hl.row, hl.start_col, hl.end_col)
+    require("custom.ui.render").add_highlight(buf, NS, hl.group, hl.row, hl.start_col, hl.end_col)
   end
 end
 
@@ -750,7 +750,7 @@ local function show_help()
     " Messages and prompts are designed to work nicely with your enabled ui2.",
   }
 
-  local buf = api.nvim_create_buf(false, true)
+  local buf = require("custom.ui.buffer").create_raw(false, true)
   api.nvim_buf_set_lines(buf, 0, -1, false, lines)
   set_buf_opt(buf, "buftype", "nofile")
   set_buf_opt(buf, "bufhidden", "wipe")
@@ -758,7 +758,7 @@ local function show_help()
 
   local width = 74
   local height = #lines
-  local win = api.nvim_open_win(buf, true, {
+  local win = require("custom.ui.window").open_raw(buf, true, {
     relative = "editor",
     width = width,
     height = height,
@@ -838,9 +838,9 @@ function M.open()
   setup_highlights()
   state.augroup = nvim_utils.augroup("custom_pack_manager_runtime", { clear = true })
 
-  local frame_buf = api.nvim_create_buf(false, true)
-  local list_buf = api.nvim_create_buf(false, true)
-  local detail_buf = api.nvim_create_buf(false, true)
+  local frame_buf = require("custom.ui.buffer").create_raw(false, true)
+  local list_buf = require("custom.ui.buffer").create_raw(false, true)
+  local detail_buf = require("custom.ui.buffer").create_raw(false, true)
 
   state.bufs = {
     frame = frame_buf,
@@ -862,7 +862,7 @@ function M.open()
   set_buf_opt(detail_buf, "modifiable", false)
   set_buf_opt(detail_buf, "filetype", "pack-manager-detail")
 
-  local frame_win = api.nvim_open_win(frame_buf, true, {
+  local frame_win = require("custom.ui.window").open_raw(frame_buf, true, {
     relative = "editor",
     row = 1,
     col = 1,
@@ -873,7 +873,7 @@ function M.open()
     title = TITLE,
     title_pos = "center",
   })
-  local list_win = api.nvim_open_win(list_buf, true, {
+  local list_win = require("custom.ui.window").open_raw(list_buf, true, {
     relative = "win",
     win = frame_win,
     row = 1,
@@ -883,7 +883,7 @@ function M.open()
     style = "minimal",
     border = "none",
   })
-  local detail_win = api.nvim_open_win(detail_buf, false, {
+  local detail_win = require("custom.ui.window").open_raw(detail_buf, false, {
     relative = "win",
     win = frame_win,
     row = 1,

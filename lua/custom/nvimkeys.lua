@@ -80,10 +80,10 @@ local function open()
   local col = math.floor((cols - w) / 2)
 
   -- Create a scratch buffer for the terminal.
-  _buf = vim.api.nvim_create_buf(false, true)
+  _buf = require("custom.ui.buffer").create_raw(false, true)
 
   -- Open a floating window.
-  _win = vim.api.nvim_open_win(_buf, true, {
+  _win = require("custom.ui.window").open_raw(_buf, true, {
     relative = "editor",
     width = w,
     height = h,

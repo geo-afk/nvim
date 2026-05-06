@@ -153,7 +153,7 @@ function M.refresh_highlights(buf)
   for _, m in ipairs(matches) do
     local abs_lnum = start_line + m.lnum - 1
     local hl = m.kind == "url" and URL_HL or FILE_HL
-    pcall(vim.api.nvim_buf_set_extmark, buf, state.link_ns, abs_lnum, m.col_s, {
+    pcall(require("custom.ui.render").set_extmark, buf, state.link_ns, abs_lnum, m.col_s, {
       end_col = m.col_e,
       hl_group = hl,
       priority = 50,

@@ -218,7 +218,7 @@ function M.close(bufnr, focus)
 
   -- If this is the last listed buffer, open a blank buffer first
   if #bufs == 1 then
-    local replacement = vim.api.nvim_create_buf(true, false)
+    local replacement = require("custom.ui.buffer").create_raw(true, false)
     if not replacement or not vim.api.nvim_buf_is_valid(replacement) then
       vim.notify("tabline: could not create replacement buffer", vim.log.levels.WARN)
       return

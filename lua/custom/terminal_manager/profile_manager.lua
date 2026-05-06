@@ -100,28 +100,28 @@ local function render(buf, cursor_idx)
   vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
 
   -- Header highlights
-  vim.api.nvim_buf_add_highlight(buf, ns, "TMPMgrHeader", 0, 0, -1)
-  vim.api.nvim_buf_add_highlight(buf, ns, "TMPMgrSep", 1, 0, -1)
+  require("custom.ui.render").add_highlight(buf, ns, "TMPMgrHeader", 0, 0, -1)
+  require("custom.ui.render").add_highlight(buf, ns, "TMPMgrSep", 1, 0, -1)
   -- Column header
-  vim.api.nvim_buf_add_highlight(buf, ns, "TMPMgrDesc", 3, 0, -1)
+  require("custom.ui.render").add_highlight(buf, ns, "TMPMgrDesc", 3, 0, -1)
 
   -- Per-profile highlights
   for row, idx in pairs(profile_rows) do
     local r0 = row - 1
     local hl_grp = (idx == cursor_idx) and "TMPMgrActive" or "Normal"
-    vim.api.nvim_buf_add_highlight(buf, ns, hl_grp, r0, 0, -1)
+    require("custom.ui.render").add_highlight(buf, ns, hl_grp, r0, 0, -1)
     -- Star (default marker)
-    vim.api.nvim_buf_add_highlight(buf, ns, "TMPMgrDefault", r0, 6, 8)
+    require("custom.ui.render").add_highlight(buf, ns, "TMPMgrDefault", r0, 6, 8)
     -- Shell column
-    vim.api.nvim_buf_add_highlight(buf, ns, "TMPMgrShell", r0, 28, 44)
+    require("custom.ui.render").add_highlight(buf, ns, "TMPMgrShell", r0, 28, 44)
     -- Keymap column
-    vim.api.nvim_buf_add_highlight(buf, ns, "TMPMgrKeymap", r0, 46, -1)
+    require("custom.ui.render").add_highlight(buf, ns, "TMPMgrKeymap", r0, 46, -1)
   end
 
   -- Footer
   local last = #lines
-  vim.api.nvim_buf_add_highlight(buf, ns, "TMPMgrSep", last - 2, 0, -1)
-  vim.api.nvim_buf_add_highlight(buf, ns, "TMPMgrFooter", last - 1, 0, -1)
+  require("custom.ui.render").add_highlight(buf, ns, "TMPMgrSep", last - 2, 0, -1)
+  require("custom.ui.render").add_highlight(buf, ns, "TMPMgrFooter", last - 1, 0, -1)
 
   return profile_rows
 end
@@ -140,11 +140,11 @@ function M.open()
   local row = math.max(0, math.floor((vim.o.lines - height) / 2))
   local col = math.max(0, math.floor((vim.o.columns - WIDTH) / 2))
 
-  local buf = vim.api.nvim_create_buf(false, true)
+  local buf = require("custom.ui.buffer").create_raw(false, true)
   utils.buf_opt(buf, "filetype", "TermManagerProfileMgr")
   utils.buf_opt(buf, "modifiable", false)
 
-  local win = vim.api.nvim_open_win(buf, true, {
+  local win = require("custom.ui.window").open_raw(buf, true, {
     relative = "editor",
     row = row,
     col = col,

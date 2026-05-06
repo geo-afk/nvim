@@ -70,7 +70,7 @@ end
 local function open_float(title, lines)
   local col, row, w, h = win_geometry(0.72, 0.78)
 
-  local buf = vim.api.nvim_create_buf(false, true)
+  local buf = require("custom.ui.buffer").create_raw(false, true)
   -- Sanitize every line: nvim_buf_set_lines rejects strings with embedded newlines
   local safe_lines = {}
   for _, l in ipairs(lines) do
@@ -82,7 +82,7 @@ local function open_float(title, lines)
   vim.api.nvim_set_option_value('modifiable', false, { buf = buf })
   vim.api.nvim_set_option_value('filetype', 'lsp-keymapper', { buf = buf })
 
-  local win = vim.api.nvim_open_win(buf, true, {
+  local win = require("custom.ui.window").open_raw(buf, true, {
     relative = 'editor',
     col = col,
     row = row,
@@ -111,20 +111,20 @@ local function apply_highlights(buf, entries)
   for _, e in ipairs(entries) do
     local row = e.row
     if e.is_header then
-      vim.api.nvim_buf_add_highlight(buf, NS, HL_HEADER, row, 0, -1)
+      require("custom.ui.render").add_highlight(buf, NS, HL_HEADER, row, 0, -1)
     elseif e.is_discovered then
       local icon_hl = e.has_handler and HL_DISCOVERED or HL_NO_HANDLER
-      vim.api.nvim_buf_add_highlight(buf, NS, icon_hl, row, 0, 4)
-      vim.api.nvim_buf_add_highlight(buf, NS, HL_KEY, row, 4, e.label_end)
-      vim.api.nvim_buf_add_highlight(buf, NS, HL_DIM, row, e.label_end, -1)
+      require("custom.ui.render").add_highlight(buf, NS, icon_hl, row, 0, 4)
+      require("custom.ui.render").add_highlight(buf, NS, HL_KEY, row, 4, e.label_end)
+      require("custom.ui.render").add_highlight(buf, NS, HL_DIM, row, e.label_end, -1)
     elseif e.is_mapped then
-      vim.api.nvim_buf_add_highlight(buf, NS, HL_MAPPED, row, 0, 4)
-      vim.api.nvim_buf_add_highlight(buf, NS, HL_KEY, row, 4, e.label_end)
-      vim.api.nvim_buf_add_highlight(buf, NS, HL_DIM, row, e.label_end, -1)
+      require("custom.ui.render").add_highlight(buf, NS, HL_MAPPED, row, 0, 4)
+      require("custom.ui.render").add_highlight(buf, NS, HL_KEY, row, 4, e.label_end)
+      require("custom.ui.render").add_highlight(buf, NS, HL_DIM, row, e.label_end, -1)
     else
-      vim.api.nvim_buf_add_highlight(buf, NS, HL_FREE, row, 0, 4)
-      vim.api.nvim_buf_add_highlight(buf, NS, HL_KEY, row, 4, e.label_end)
-      vim.api.nvim_buf_add_highlight(buf, NS, HL_DIM, row, e.label_end, -1)
+      require("custom.ui.render").add_highlight(buf, NS, HL_FREE, row, 0, 4)
+      require("custom.ui.render").add_highlight(buf, NS, HL_KEY, row, 4, e.label_end)
+      require("custom.ui.render").add_highlight(buf, NS, HL_DIM, row, e.label_end, -1)
     end
   end
 end

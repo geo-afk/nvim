@@ -218,26 +218,26 @@ local function render(buf, fields, cursor_field, mode)
 
   -- Highlights
   -- Title
-  vim.api.nvim_buf_add_highlight(buf, ns, "Title", 0, 0, -1)
-  vim.api.nvim_buf_add_highlight(buf, ns, "FloatBorder", 1, 0, -1)
+  require("custom.ui.render").add_highlight(buf, ns, "Title", 0, 0, -1)
+  require("custom.ui.render").add_highlight(buf, ns, "FloatBorder", 1, 0, -1)
 
   for i, f in ipairs(fields) do
     local row = field_rows[i] - 1 -- 0-based
     if i == cursor_field then
-      vim.api.nvim_buf_add_highlight(buf, ns, "PmenuSel", row, 0, -1)
+      require("custom.ui.render").add_highlight(buf, ns, "PmenuSel", row, 0, -1)
     else
-      vim.api.nvim_buf_add_highlight(buf, ns, "Normal", row, 0, -1)
+      require("custom.ui.render").add_highlight(buf, ns, "Normal", row, 0, -1)
     end
     -- Highlight the label in Comment, value in Normal
     local label_end = 2 + #f.label
-    vim.api.nvim_buf_add_highlight(buf, ns, "Comment", row, 2, label_end)
+    require("custom.ui.render").add_highlight(buf, ns, "Comment", row, 2, label_end)
     local val_start = 2 + TITLE_W + 2
-    vim.api.nvim_buf_add_highlight(buf, ns, "String", row, val_start, -1)
+    require("custom.ui.render").add_highlight(buf, ns, "String", row, val_start, -1)
   end
 
   -- Footer line highlight
   local footer_row = #lines - 1
-  vim.api.nvim_buf_add_highlight(buf, ns, "Comment", footer_row, 0, -1)
+  require("custom.ui.render").add_highlight(buf, ns, "Comment", footer_row, 0, -1)
 
   return field_rows
 end
@@ -318,11 +318,11 @@ function M.open(existing_profile, on_save)
   local row = math.max(0, math.floor((vim.o.lines - height) / 2))
   local col = math.max(0, math.floor((vim.o.columns - width) / 2))
 
-  local buf = vim.api.nvim_create_buf(false, true)
+  local buf = require("custom.ui.buffer").create_raw(false, true)
   utils.buf_opt(buf, "filetype", "TermManagerWizard")
   utils.buf_opt(buf, "modifiable", false)
 
-  local win = vim.api.nvim_open_win(buf, true, {
+  local win = require("custom.ui.window").open_raw(buf, true, {
     relative = "editor",
     row = row,
     col = col,

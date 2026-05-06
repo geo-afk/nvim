@@ -146,7 +146,7 @@ function M.render()
 
   vim.api.nvim_buf_clear_namespace(buf, state.ns, 0, -1)
   for _, h in ipairs(hls) do
-    vim.api.nvim_buf_add_highlight(buf, state.ns, h[4], h[1], h[2], h[3])
+    require("custom.ui.render").add_highlight(buf, state.ns, h[4], h[1], h[2], h[3])
   end
 
   state.sidebar_meta = meta

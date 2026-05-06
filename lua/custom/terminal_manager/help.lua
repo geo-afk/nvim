@@ -104,12 +104,12 @@ function M.open()
   local row = math.max(0, math.floor((vim.o.lines - height) / 2))
   local col = math.max(0, math.floor((vim.o.columns - WIDTH) / 2))
 
-  local hbuf = vim.api.nvim_create_buf(false, true)
+  local hbuf = require("custom.ui.buffer").create_raw(false, true)
   vim.api.nvim_buf_set_lines(hbuf, 0, -1, false, lines)
   utils.buf_opt(hbuf, "modifiable", false)
   utils.buf_opt(hbuf, "filetype", "TermManagerHelp")
 
-  local hwin = vim.api.nvim_open_win(hbuf, true, {
+  local hwin = require("custom.ui.window").open_raw(hbuf, true, {
     relative = "editor",
     row = row,
     col = col,
@@ -132,14 +132,14 @@ function M.open()
   for i, line in ipairs(lines) do
     local r0 = i - 1
     if line:match("^   Terminal Manager") then
-      vim.api.nvim_buf_add_highlight(hbuf, hns, "Title", r0, 0, -1)
+      require("custom.ui.render").add_highlight(hbuf, hns, "Title", r0, 0, -1)
     elseif line:match("^  %a") and not line:match("^  <") and not line:match("^  :") then
-      vim.api.nvim_buf_add_highlight(hbuf, hns, "Title", r0, 0, -1)
+      require("custom.ui.render").add_highlight(hbuf, hns, "Title", r0, 0, -1)
     elseif line:match("^  ─") then
-      vim.api.nvim_buf_add_highlight(hbuf, hns, "FloatBorder", r0, 0, -1)
+      require("custom.ui.render").add_highlight(hbuf, hns, "FloatBorder", r0, 0, -1)
     elseif line:match("^  <%S") or line:match("^  :%S") then
       local key_end = (line:find("%s%s") or (#line + 1)) - 1
-      vim.api.nvim_buf_add_highlight(hbuf, hns, "SpecialKey", r0, 2, key_end)
+      require("custom.ui.render").add_highlight(hbuf, hns, "SpecialKey", r0, 2, key_end)
     end
   end
 

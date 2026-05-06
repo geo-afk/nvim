@@ -56,7 +56,7 @@ local function highlight_matches()
   end
   for i, m in ipairs(active.matches) do
     local hl = (i == active.cursor) and "IncSearch" or "Search"
-    pcall(vim.api.nvim_buf_add_highlight, active.term_buf, ns, hl, m.lnum, m.col_s, m.col_e)
+    pcall(require("custom.ui.render").add_highlight, active.term_buf, ns, hl, m.lnum, m.col_s, m.col_e)
   end
 end
 
@@ -191,7 +191,7 @@ function M.open(term_buf, term_win)
   active.term_win = term_win
 
   -- Build the float buffer.
-  local fbuf = vim.api.nvim_create_buf(false, true)
+  local fbuf = require("custom.ui.buffer").create_raw(false, true)
   active.float_buf = fbuf
   vim.api.nvim_buf_set_lines(fbuf, 0, -1, false, {
     "  🔍 Search terminal  (type to filter)",
@@ -210,7 +210,7 @@ function M.open(term_buf, term_win)
     col_off = tw_pos[2] + 2
   end
 
-  local fwin = vim.api.nvim_open_win(fbuf, false, {
+  local fwin = require("custom.ui.window").open_raw(fbuf, false, {
     relative = "editor",
     row = math.max(0, row_off),
     col = math.max(0, col_off),

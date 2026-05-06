@@ -155,10 +155,10 @@ local function open_float_terminal(args)
   local col = math.floor((ui_w - win_w) / 2)
 
   -- Create a scratch buffer for the terminal
-  local buf = vim.api.nvim_create_buf(false, true)
+  local buf = require("custom.ui.buffer").create_raw(false, true)
   vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
 
-  local win = vim.api.nvim_open_win(buf, true, {
+  local win = require("custom.ui.window").open_raw(buf, true, {
     relative = "editor",
     width = win_w,
     height = win_h,

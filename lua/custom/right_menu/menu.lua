@@ -56,7 +56,7 @@ function Menu:new(get_items, format, actions, opts)
 end
 
 function Menu.create_buffer()
-  local buf = vim.api.nvim_create_buf(false, true)
+  local buf = require("custom.ui.buffer").create_raw(false, true)
   vim.bo[buf].bufhidden = 'wipe'
   vim.bo[buf].swapfile = false
   vim.bo[buf].modifiable = false
@@ -136,7 +136,7 @@ function Menu:create_window()
     style = self.opts.win_opts.style,
   }, self.opts.win_opts)
 
-  self.win = vim.api.nvim_open_win(self.buf, true, win_opts)
+  self.win = require("custom.ui.window").open_raw(self.buf, true, win_opts)
   vim.wo[self.win].winhighlight = string.format('Normal:%s,FloatBorder:%s', self.opts.highlight.normal, self.opts.highlight.border)
   vim.wo[self.win].cursorline = true
 

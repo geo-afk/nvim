@@ -28,7 +28,7 @@ local function show_in_win(win, t)
   end
 
   if not utils.buf_ok(t.buf) then
-    t.buf = vim.api.nvim_create_buf(false, false)
+    t.buf = require("custom.ui.buffer").create_raw(false, false)
     utils.buf_opt(t.buf, "bufhidden", "hide")
   end
 
