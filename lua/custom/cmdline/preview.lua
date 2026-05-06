@@ -198,7 +198,7 @@ local function apply_substitute_preview(buf, parsed, first, last)
       local abs_ms = col + ms
       local abs_me = col + me
 
-      pcall(vim.api.nvim_buf_set_extmark, buf, NS_MATCH, lnum - 1, abs_ms, {
+      pcall(require("custom.ui.render").set_extmark, buf, NS_MATCH, lnum - 1, abs_ms, {
         end_col = abs_me,
         hl_group = "NvimCmdlinePreviewDel",
         priority = 200,
@@ -208,13 +208,13 @@ local function apply_substitute_preview(buf, parsed, first, last)
         local rep = parsed.replacement:gsub("\\0", line:sub(abs_ms + 1, abs_me)):gsub("&", line:sub(abs_ms + 1, abs_me))
 
         if HAS_INLINE then
-          pcall(vim.api.nvim_buf_set_extmark, buf, NS_REPLACE, lnum - 1, abs_ms, {
+          pcall(require("custom.ui.render").set_extmark, buf, NS_REPLACE, lnum - 1, abs_ms, {
             virt_text = { { rep, "NvimCmdlinePreviewAdd" } },
             virt_text_pos = "inline",
             priority = 201,
           })
         else
-          pcall(vim.api.nvim_buf_set_extmark, buf, NS_REPLACE, lnum - 1, 0, {
+          pcall(require("custom.ui.render").set_extmark, buf, NS_REPLACE, lnum - 1, 0, {
             virt_text = { { " → " .. rep, "NvimCmdlinePreviewAdd" } },
             virt_text_pos = "eol",
             priority = 201,
@@ -266,7 +266,7 @@ local function apply_global_preview(buf, parsed, first, last)
     local matched = re:match_str(line) ~= nil
     local should_hl = (matched and not parsed.invert) or (not matched and parsed.invert)
     if should_hl then
-      pcall(vim.api.nvim_buf_set_extmark, buf, NS_MATCH, lnum - 1, 0, {
+      pcall(require("custom.ui.render").set_extmark, buf, NS_MATCH, lnum - 1, 0, {
         line_hl_group = "NvimCmdlinePreviewLine",
         priority = 200,
       })
@@ -289,7 +289,7 @@ local function apply_range_preview(buf, first, last, is_yank)
   local hl = is_yank and "NvimCmdlinePreviewYank" or "NvimCmdlinePreviewLine"
   local count = 0
   for lnum = first, math.min(last, first + MAX_SCAN_LINES) do
-    local ok, _ = pcall(vim.api.nvim_buf_set_extmark, buf, NS_MATCH, lnum - 1, 0, {
+    local ok, _ = pcall(require("custom.ui.render").set_extmark, buf, NS_MATCH, lnum - 1, 0, {
       line_hl_group = hl,
       priority = 200,
     })

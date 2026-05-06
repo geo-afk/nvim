@@ -1,6 +1,6 @@
 -- nvim-cmdline/vim_ui.lua
 -- Modern floating UI for vim.ui.input and vim.ui.select.
--- Title is rendered via the native nvim_open_win `title` segment API so it
+-- Title is rendered via the native custom.ui.window `title` segment API so it
 -- sits *inside* the border line — identical to noice.nvim's visual style.
 -- No buffer row is consumed for the title; the window body is pure content.
 --
@@ -45,7 +45,7 @@ end
 
 ---@return integer
 local function make_buf()
-  local buf = vim.api.nvim_create_buf(false, true)
+  local buf = require("custom.ui.buffer").create_raw(false, true)
   vim.bo[buf].buftype = "nofile"
   vim.bo[buf].bufhidden = "wipe"
   vim.bo[buf].swapfile = false
@@ -66,11 +66,11 @@ local function del_aug(ag)
   end
 end
 
---- Build the two-segment border title used by nvim_open_win.
+--- Build the two-segment border title used by custom.ui.window.
 --- Produces:  ╭─  icon  label ─╮  (styled like noice.nvim)
 ---@param icon  string   e.g. " " or "󰒓 "
 ---@param label string   human-readable prompt text
----@return table  segment list accepted by nvim_open_win title
+---@return table  segment list accepted by custom.ui.window title
 local function make_title(icon, label)
   local segments = {}
   if icon and icon ~= "" then
@@ -86,7 +86,7 @@ end
 local function apply_prompt_virt(buf, row)
   vim.api.nvim_buf_clear_namespace(buf, NS_DEC, 0, -1)
   -- Overlay on the leading space trick
-  vim.api.nvim_buf_set_extmark(buf, NS_DEC, row, 0, {
+  require("custom.ui.render").set_extmark(buf, NS_DEC, row, 0, {
     virt_text = { { "› ", "NvimCmdlineUiPrompt" } },
     virt_text_pos = "overlay",
     priority = 10,
@@ -100,7 +100,7 @@ local function apply_sel_hl(buf, buf_row)
   local line_count = vim.api.nvim_buf_line_count(buf)
   vim.api.nvim_buf_clear_namespace(buf, NS_SEL, 0, -1)
   if buf_row >= 0 and buf_row < line_count then
-    vim.api.nvim_buf_add_highlight(buf, NS_SEL, "NvimCmdlineUiSel", buf_row, 0, -1)
+    require("custom.ui.render").add_highlight(buf, NS_SEL, "NvimCmdlineUiSel", buf_row, 0, -1)
   end
 end
 
@@ -158,7 +158,7 @@ function M.input(opts, on_confirm)
   -- Using 2 spaces because the prompt "› " is 2 cells wide.
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "  " .. default })
 
-  local win = vim.api.nvim_open_win(buf, true, {
+  local win = require("custom.ui.window").open_raw(buf, true, {
     relative = "editor",
     row = row,
     col = col,
@@ -331,7 +331,7 @@ function M.select(items, opts, on_choice)
   -- Add right-aligned index virtual text for each row
   for i = 1, n_items do
     local counter = string.format("%d/%d", i, n_items)
-    vim.api.nvim_buf_set_extmark(buf, NS_DEC, i - 1, 0, {
+    require("custom.ui.render").set_extmark(buf, NS_DEC, i - 1, 0, {
       virt_text = { { counter .. " ", "NvimCmdlineUiDim" } },
       virt_text_pos = "right_align",
       priority = 5,
@@ -340,7 +340,7 @@ function M.select(items, opts, on_choice)
 
   vim.bo[buf].modifiable = false
 
-  local win = vim.api.nvim_open_win(buf, true, {
+  local win = require("custom.ui.window").open_raw(buf, true, {
     relative = "editor",
     row = row,
     col = col,

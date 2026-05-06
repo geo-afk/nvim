@@ -133,7 +133,7 @@ local function set_viewer_buffer(buf, lines, format, syntax_enabled)
 end
 
 local function create_buffer(lines, format, syntax_enabled)
-  local buf = vim.api.nvim_create_buf(false, true)
+  local buf = require("custom.ui.buffer").create_raw(false, true)
   set_viewer_buffer(buf, lines, format, syntax_enabled)
   return buf
 end
@@ -335,7 +335,7 @@ function M.show(spec)
   local col = math.floor((vim.o.columns - width) / 2)
 
   local buf = create_buffer(lines, format, config.enable_syntax)
-  local win = vim.api.nvim_open_win(buf, true, {
+  local win = require("custom.ui.window").open_raw(buf, true, {
     relative = "editor",
     row = row,
     col = col,

@@ -142,7 +142,7 @@ local function paint_header()
   api.nvim_buf_clear_namespace(P.buf, NS, 0, 1)
 
   -- 1. Background wash
-  pcall(api.nvim_buf_set_extmark, P.buf, NS, 0, 0, {
+  pcall(require("custom.ui.render").set_extmark, P.buf, NS, 0, 0, {
     end_col = -1,
     hl_group = "ExplorerSearchBgActive",
     hl_eol = true,
@@ -150,7 +150,7 @@ local function paint_header()
   })
 
   -- 2. Folder icon overlay
-  pcall(api.nvim_buf_set_extmark, P.buf, NS, 0, 0, {
+  pcall(require("custom.ui.render").set_extmark, P.buf, NS, 0, 0, {
     virt_text = { { SEARCH_ICON, "ExplorerSearchIconActive" } },
     virt_text_pos = "overlay",
     priority = 100,
@@ -158,7 +158,7 @@ local function paint_header()
 
   -- 3. Placeholder when filter is empty
   if P.filter == "" then
-    pcall(api.nvim_buf_set_extmark, P.buf, NS, 0, #ICON_PREFIX, {
+    pcall(require("custom.ui.render").set_extmark, P.buf, NS, 0, #ICON_PREFIX, {
       virt_text = { { PLACEHOLDER, "ExplorerSearchPlaceholder" } },
       virt_text_pos = "overlay",
       priority = 50,
@@ -166,7 +166,7 @@ local function paint_header()
   end
 
   -- 4. Right-aligned target directory badge
-  pcall(api.nvim_buf_set_extmark, P.buf, NS, 0, 0, {
+  pcall(require("custom.ui.render").set_extmark, P.buf, NS, 0, 0, {
     virt_text = { { " target: " .. relative_to_root(P.current_dir) .. " ", "ExplorerSearchCountActive" } },
     virt_text_pos = "right_align",
     priority = 70,
@@ -174,7 +174,7 @@ local function paint_header()
 
   -- 5. Full-width heavy separator (picker is always "active" / insert mode)
   local inner_w = (P.win and api.nvim_win_is_valid(P.win)) and api.nvim_win_get_width(P.win) or 60
-  pcall(api.nvim_buf_set_extmark, P.buf, NS, 0, 0, {
+  pcall(require("custom.ui.render").set_extmark, P.buf, NS, 0, 0, {
     virt_lines = { { { ("━"):rep(inner_w), "ExplorerSearchBorderActive" } } },
     priority = 100,
   })
@@ -225,14 +225,14 @@ local function paint_items()
 
   for _, m in ipairs(marks) do
     if m.kind == "hl" then
-      pcall(api.nvim_buf_set_extmark, P.buf, NS, m.row, m.cs, {
+      pcall(require("custom.ui.render").set_extmark, P.buf, NS, m.row, m.cs, {
         end_col = m.ce,
         hl_group = m.hl,
         hl_eol = m.eol,
         priority = m.pri,
       })
     else
-      pcall(api.nvim_buf_set_extmark, P.buf, NS, m.row, m.col, {
+      pcall(require("custom.ui.render").set_extmark, P.buf, NS, m.row, m.col, {
         virt_text = m.vt,
         virt_text_pos = m.pos,
         priority = m.pri,
@@ -325,7 +325,7 @@ function M.open(opts)
   P.current_dir = opts.start_dir or S.root
   P.on_confirm = opts.on_confirm
 
-  local buf = api.nvim_create_buf(false, true)
+  local buf = require("custom.ui.buffer").create_raw(false, true)
   P.buf = buf
 
   local bo = vim.bo[buf]
@@ -355,7 +355,7 @@ function M.open(opts)
   local row = math.floor((editor_h - height) / 2)
   local col = math.floor((editor_w - width) / 2)
 
-  local win = api.nvim_open_win(buf, true, {
+  local win = require("custom.ui.window").open_raw(buf, true, {
     relative = "editor",
     width = width,
     height = height,

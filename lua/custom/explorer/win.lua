@@ -216,7 +216,7 @@ end
 -- ── Buffer ────────────────────────────────────────────────────────────────
 
 function M.make_buf()
-  local buf = api.nvim_create_buf(false, true)
+  local buf = require("custom.ui.buffer").create_raw(false, true)
   pcall(api.nvim_buf_set_name, buf, "explorer://")
   local bo = vim.bo[buf]
   bo.buftype = "nofile"

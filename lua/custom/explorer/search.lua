@@ -98,7 +98,7 @@ local function paint_match_layer()
 
   local idx = S._search_cursor
   if idx and idx >= 1 and idx <= #S.items then
-    pcall(api.nvim_buf_set_extmark, buf, S.match_ns, search_ui.row_for_item(idx), 0, {
+    pcall(require("custom.ui.render").set_extmark, buf, S.match_ns, search_ui.row_for_item(idx), 0, {
       end_col = -1,
       hl_group = "ExplorerSearchCursor",
       hl_eol = true,
@@ -112,7 +112,7 @@ local function paint_match_layer()
       if positions and item._col_name then
         for _, byte_pos in ipairs(positions) do
           local buf_col = item._col_name + byte_pos - 1
-          pcall(api.nvim_buf_set_extmark, buf, S.match_ns, search_ui.row_for_item(i), buf_col, {
+          pcall(require("custom.ui.render").set_extmark, buf, S.match_ns, search_ui.row_for_item(i), buf_col, {
             end_col = buf_col + 1,
             hl_group = "ExplorerSearchMatch",
             priority = 40,

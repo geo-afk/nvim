@@ -297,7 +297,7 @@ local function apply_hl(buf, row, item, query, kind, is_sel)
   local gutter_hl = state.gutter_hl
 
   -- 1. Base row highlight
-  vim.api.nvim_buf_set_extmark(buf, NS, row, 0, {
+  require("custom.ui.render").set_extmark(buf, NS, row, 0, {
     end_col = llen,
     hl_group = base_hl,
     priority = 10,
@@ -305,7 +305,7 @@ local function apply_hl(buf, row, item, query, kind, is_sel)
 
   -- 2. Gutter strip background
   if G > 0 and G <= llen then
-    vim.api.nvim_buf_set_extmark(buf, NS, row, 0, {
+    require("custom.ui.render").set_extmark(buf, NS, row, 0, {
       end_col = G,
       hl_group = gutter_hl,
       priority = 20,
@@ -314,7 +314,7 @@ local function apply_hl(buf, row, item, query, kind, is_sel)
 
   -- 3. Gutter separator "│"
   if G < llen then
-    vim.api.nvim_buf_set_extmark(buf, NS, row, G, {
+    require("custom.ui.render").set_extmark(buf, NS, row, G, {
       virt_text = { { "│", "NvimCmdlineSep" } },
       virt_text_pos = "overlay",
       priority = 65,
@@ -323,7 +323,7 @@ local function apply_hl(buf, row, item, query, kind, is_sel)
 
   -- 4. Selection marker "▸ " / "  "
   if G + 1 < llen then
-    vim.api.nvim_buf_set_extmark(buf, NS, row, G, {
+    require("custom.ui.render").set_extmark(buf, NS, row, G, {
       virt_text = { { is_sel and "▸ " or "  ", mark_hl } },
       virt_text_pos = "overlay",
       priority = 60,
@@ -335,7 +335,7 @@ local function apply_hl(buf, row, item, query, kind, is_sel)
     local icon_start = G + MARK_DISPLAY
     local icon_end = icon_start + #kind.icon
     if icon_end <= llen then
-      vim.api.nvim_buf_set_extmark(buf, NS, row, icon_start, {
+      require("custom.ui.render").set_extmark(buf, NS, row, icon_start, {
         end_col = icon_end,
         hl_group = icon_hl,
         priority = 55,
@@ -345,7 +345,7 @@ local function apply_hl(buf, row, item, query, kind, is_sel)
 
   -- 6. Kind badge pill (right-aligned eol)
   if kind.label and kind.label ~= "" then
-    vim.api.nvim_buf_set_extmark(buf, NS, row, 0, {
+    require("custom.ui.render").set_extmark(buf, NS, row, 0, {
       virt_text = { { " " .. kind.label .. " ", badge_hl } },
       virt_text_pos = "eol",
       priority = 45,
@@ -365,7 +365,7 @@ local function apply_hl(buf, row, item, query, kind, is_sel)
       if item:sub(ci, ci):lower() == ql:sub(qi, qi) then
         local col = text_start + ci - 1
         if col + 1 <= llen then
-          vim.api.nvim_buf_set_extmark(buf, NS, row, col, {
+          require("custom.ui.render").set_extmark(buf, NS, row, col, {
             end_col = col + 1,
             hl_group = match_hl,
             priority = 30,
@@ -400,7 +400,7 @@ local function render_scrollbar()
     local in_thumb = row >= thumb_top and row < thumb_top + thumb_size
     local ch = in_thumb and "█" or "░"
     local grp = in_thumb and "NvimCmdlineScrollThumb" or "NvimCmdlineScrollTrack"
-    pcall(vim.api.nvim_buf_set_extmark, state.buf, NS, row, 0, {
+    pcall(require("custom.ui.render").set_extmark, state.buf, NS, row, 0, {
       virt_text = { { ch, grp } },
       virt_text_pos = "right_align",
       priority = 200,
@@ -664,13 +664,13 @@ function M.open(parent_win, items, query, prefix, cmdline_row, gutter, mode)
 
   local lines = build_lines()
 
-  local buf = vim.api.nvim_create_buf(false, true)
+  local buf = require("custom.ui.buffer").create_raw(false, true)
   vim.api.nvim_set_option_value("buftype", "nofile", { buf = buf })
   vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
   vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
 
-  local win = vim.api.nvim_open_win(buf, false, {
+  local win = require("custom.ui.window").open_raw(buf, false, {
     relative = "editor",
     row = popup_row,
     col = popup_col,
@@ -768,7 +768,7 @@ function M._redraw_highlights()
     local fr = state.window_size
     local ft = vim.api.nvim_buf_get_lines(state.buf, fr, fr + 1, false)[1] or ""
     if #ft > 0 then
-      vim.api.nvim_buf_set_extmark(state.buf, NS, fr, 0, {
+      require("custom.ui.render").set_extmark(state.buf, NS, fr, 0, {
         end_col = #ft,
         hl_group = "NvimCmdlineMenuFooter",
         priority = 10,

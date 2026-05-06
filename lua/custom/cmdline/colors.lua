@@ -184,7 +184,7 @@ function M.setup_highlights()
 
   -- ── Title accent segments (border title only) ─────────────────────────────
   -- These highlights are ONLY passed to the floating-window title segment API
-  -- (nvim_open_win / nvim_win_set_config title field).  They are never used
+  -- (custom.ui.window / nvim_win_set_config title field).  They are never used
   -- as buffer extmark or winhighlight groups, so their bg cannot bleed.
   hl("NvimCmdlineTitleIconCmd", { fg = c.cyan, bg = c.tbg_cmd, bold = true })
   hl("NvimCmdlineTitleTextCmd", { fg = c.fg2, bg = c.tbg_cmd })

@@ -343,21 +343,21 @@ local function paint_header()
   local w = win_width()
 
   -- Background wash
-  pcall(api.nvim_buf_set_extmark, buf, _ns, 0, 0, {
+  pcall(require("custom.ui.render").set_extmark, buf, _ns, 0, 0, {
     end_col = -1,
     hl_group = "ExplorerSearchBgActive",
     hl_eol = true,
     priority = 5,
   })
   -- Icon overlay (covers ICON_PREFIX with a Nerd Font glyph)
-  pcall(api.nvim_buf_set_extmark, buf, _ns, 0, 0, {
+  pcall(require("custom.ui.render").set_extmark, buf, _ns, 0, 0, {
     virt_text = { { SEARCH_ICON, "ExplorerSearchIconActive" } },
     virt_text_pos = "overlay",
     priority = 100,
   })
   -- Placeholder shown when filter is empty
   if P.filter == "" then
-    pcall(api.nvim_buf_set_extmark, buf, _ns, 0, #ICON_PREFIX, {
+    pcall(require("custom.ui.render").set_extmark, buf, _ns, 0, #ICON_PREFIX, {
       virt_text = { { PLACEHOLDER, "ExplorerSearchPlaceholder" } },
       virt_text_pos = "overlay",
       priority = 50,
@@ -367,14 +367,14 @@ local function paint_header()
   if P.filter ~= "" then
     local n = #P.filtered
     local label = n == 0 and " no matches " or (" " .. n .. (n == 1 and " match " or " matches "))
-    pcall(api.nvim_buf_set_extmark, buf, _ns, 0, 0, {
+    pcall(require("custom.ui.render").set_extmark, buf, _ns, 0, 0, {
       virt_text = { { label, "ExplorerSearchCount" } },
       virt_text_pos = "right_align",
       priority = 70,
     })
   end
   -- Separator virt_line below the search bar
-  pcall(api.nvim_buf_set_extmark, buf, _ns, 0, 0, {
+  pcall(require("custom.ui.render").set_extmark, buf, _ns, 0, 0, {
     virt_lines = { { { ("─"):rep(w), "ExplorerSearchBorderActive" } } },
     priority = 100,
   })
@@ -485,20 +485,20 @@ local function paint_items()
 
   for _, m in ipairs(marks) do
     if m.kind == "vt" then
-      pcall(api.nvim_buf_set_extmark, buf, _ns, m.row, m.col, {
+      pcall(require("custom.ui.render").set_extmark, buf, _ns, m.row, m.col, {
         virt_text = m.vt,
         virt_text_pos = m.pos or "overlay",
         priority = m.priority or m.pri,
       })
     elseif m.ce == -1 then
-      pcall(api.nvim_buf_set_extmark, buf, _ns, m.row, m.cs, {
+      pcall(require("custom.ui.render").set_extmark, buf, _ns, m.row, m.cs, {
         end_col = -1,
         hl_group = m.hl,
         hl_eol = m.eol,
         priority = m.pri,
       })
     else
-      pcall(api.nvim_buf_set_extmark, buf, _ns, m.row, m.cs, {
+      pcall(require("custom.ui.render").set_extmark, buf, _ns, m.row, m.cs, {
         end_col = m.ce,
         hl_group = m.hl,
         priority = m.pri,
@@ -616,7 +616,7 @@ function M.open()
   require("custom.explorer.ui").ensure_hl()
 
   -- ── Buffer ──────────────────────────────────────────────────────────
-  local buf = api.nvim_create_buf(false, true)
+  local buf = require("custom.ui.buffer").create_raw(false, true)
   P.buf = buf
   P.filter = ""
   P.cursor = 1
@@ -646,7 +646,7 @@ function M.open()
   local row = math.floor((editor_height - height) / 2)
   local col = math.floor((editor_width - width) / 2)
 
-  local win = api.nvim_open_win(buf, true, {
+  local win = require("custom.ui.window").open_raw(buf, true, {
     relative = "editor",
     width = width,
     height = height,

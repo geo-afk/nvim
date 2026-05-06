@@ -105,7 +105,7 @@ local function prompt_float(opts)
   local width =
     clamp(math.max(28, prompt_width + default_width + 6, footer_width + 4, title_width + 6), 28, editor_w - 8)
 
-  local buf = api.nvim_create_buf(false, true)
+  local buf = require("custom.ui.buffer").create_raw(false, true)
   set_buf_option(buf, "buftype", "prompt")
   set_buf_option(buf, "bufhidden", "wipe")
   set_buf_option(buf, "swapfile", false)
@@ -114,7 +114,7 @@ local function prompt_float(opts)
 
   fn.prompt_setprompt(buf, prompt)
 
-  local win = api.nvim_open_win(buf, true, {
+  local win = require("custom.ui.window").open_raw(buf, true, {
     relative = "editor",
     style = "minimal",
     border = "rounded",
@@ -254,13 +254,13 @@ local function open_text_popup(opts)
   end
   local height = clamp(#lines, 1, editor_h - 6)
 
-  local buf = api.nvim_create_buf(false, true)
+  local buf = require("custom.ui.buffer").create_raw(false, true)
   api.nvim_buf_set_lines(buf, 0, -1, false, lines)
   set_buf_option(buf, "bufhidden", "wipe")
   set_buf_option(buf, "modifiable", false)
   set_buf_option(buf, "filetype", opts.filetype or "explorer_popup")
 
-  local win = api.nvim_open_win(buf, true, {
+  local win = require("custom.ui.window").open_raw(buf, true, {
     relative = "editor",
     style = "minimal",
     border = "rounded",
@@ -301,7 +301,7 @@ local function open_text_popup(opts)
       if hl.col_end and hl.col_end >= 0 then
         extmark.end_col = hl.col_end
       end
-      pcall(api.nvim_buf_set_extmark, buf, ns, hl.row, hl.col_start, extmark)
+      pcall(require("custom.ui.render").set_extmark, buf, ns, hl.row, hl.col_start, extmark)
     end
   end
 

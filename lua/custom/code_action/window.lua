@@ -9,7 +9,7 @@
 --   • vim.text.diff for unified diffs
 --   • Buffer-picker style preview (live diff in a real scratch buffer, tiny-code-action style)
 --   • Inline diff highlights applied via extmarks (no 'diff' option quirks)
---   • Footer / title use nvim_open_win's native fields (0.10+)
+--   • Footer / title use custom.ui.window's native fields (0.10+)
 --   • noautocmd = true on every float open to skip slow BufEnter handlers
 --   • All win-scoped options via vim.wo[win] = value (0.11+ scoped API)
 
@@ -363,7 +363,7 @@ local function compute_diff(action, client)
     end
 
     -- Apply edits onto a scratch buffer.
-    local scratch = vim.api.nvim_create_buf(false, true)
+    local scratch = require("custom.ui.buffer").create_raw(false, true)
     local ok = pcall(function()
       vim.api.nvim_buf_set_lines(scratch, 0, -1, false, orig)
       vim.lsp.util.apply_text_edits(text_edits, scratch, encoding)
@@ -613,7 +613,7 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
 
   -- ── Picker buffer + window ────────────────────────────────────────────────
 
-  local picker_buf = vim.api.nvim_create_buf(false, true)
+  local picker_buf = require("custom.ui.buffer").create_raw(false, true)
   vim.bo[picker_buf].bufhidden = "wipe"
   vim.bo[picker_buf].buftype = "nofile"
   vim.bo[picker_buf].swapfile = false
@@ -621,7 +621,7 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
   -- Prevent accidental modification.
   vim.bo[picker_buf].modifiable = false
 
-  local picker_win = vim.api.nvim_open_win(picker_buf, true, {
+  local picker_win = require("custom.ui.window").open_raw(picker_buf, true, {
     relative = "editor",
     row = picker_row,
     col = picker_col,
@@ -723,7 +723,7 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
       vim.bo[picker_buf].modifiable = true
       vim.api.nvim_buf_set_lines(picker_buf, 0, -1, false, lines)
       vim.bo[picker_buf].modifiable = false
-      vim.api.nvim_buf_set_extmark(picker_buf, NS, 0, 0, {
+      require("custom.ui.render").set_extmark(picker_buf, NS, 0, 0, {
         end_line = 1,
         hl_group = HL.Disabled,
         hl_mode = "replace",
@@ -747,29 +747,29 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
       local rownr = idx - 1
       if row.kind == "header" then
         local ll = #(vim.api.nvim_buf_get_lines(picker_buf, rownr, rownr + 1, false)[1] or "")
-        vim.api.nvim_buf_set_extmark(picker_buf, NS, rownr, 0, {
+        require("custom.ui.render").set_extmark(picker_buf, NS, rownr, 0, {
           end_col = ll,
           hl_group = HL.Header,
           hl_eol = true,
         })
-        vim.api.nvim_buf_set_extmark(picker_buf, NS, rownr, 0, {
+        require("custom.ui.render").set_extmark(picker_buf, NS, rownr, 0, {
           virt_text = { { ("(%d)"):format(row.count), HL.HeaderCount } },
           virt_text_pos = "right_align",
         })
       else
         local icon = kinds.get(row.item.action.kind)
-        vim.api.nvim_buf_set_extmark(picker_buf, NS, rownr, 1, {
+        require("custom.ui.render").set_extmark(picker_buf, NS, rownr, 1, {
           end_col = 1 + #icon,
           hl_group = HL.Kind,
         })
         if row.item.action.isPreferred then
-          vim.api.nvim_buf_set_extmark(picker_buf, NS, rownr, 0, {
+          require("custom.ui.render").set_extmark(picker_buf, NS, rownr, 0, {
             sign_text = "★",
             sign_hl_group = HL.Preferred,
           })
         end
         if row.item.action.disabled then
-          vim.api.nvim_buf_set_extmark(picker_buf, NS, rownr, 0, {
+          require("custom.ui.render").set_extmark(picker_buf, NS, rownr, 0, {
             hl_group = HL.Disabled,
             hl_eol = true,
           })
@@ -780,7 +780,7 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
           local ms, me = title:find(q, 1, true)
           if ms then
             local prefix = 1 + #icon + 1
-            vim.api.nvim_buf_set_extmark(picker_buf, NS, rownr, prefix + ms - 1, {
+            require("custom.ui.render").set_extmark(picker_buf, NS, rownr, prefix + ms - 1, {
               end_col = prefix + me,
               hl_group = HL.FilterMatch,
             })
@@ -792,7 +792,7 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
           for _, badge in ipairs(badges) do
             virt[#virt + 1] = { badge[1] .. " ", badge[2] }
           end
-          vim.api.nvim_buf_set_extmark(picker_buf, NS, rownr, 0, {
+          require("custom.ui.render").set_extmark(picker_buf, NS, rownr, 0, {
             virt_text = virt,
             virt_text_pos = "right_align",
           })
@@ -867,14 +867,14 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
       return
     end
 
-    preview.buf = vim.api.nvim_create_buf(false, true)
+    preview.buf = require("custom.ui.buffer").create_raw(false, true)
     vim.bo[preview.buf].bufhidden = "wipe"
     vim.bo[preview.buf].buftype = "nofile"
     vim.bo[preview.buf].swapfile = false
     vim.bo[preview.buf].modifiable = false
 
     local row, col = place_preview(picker_row, picker_col, picker_width, picker_height, preview_width)
-    preview.win = vim.api.nvim_open_win(preview.buf, false, {
+    preview.win = require("custom.ui.window").open_raw(preview.buf, false, {
       relative = "editor",
       row = row,
       col = col,
@@ -933,14 +933,14 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
 
     -- Diff extmark highlights (add/remove/hunk header lines).
     for _, h in ipairs(hl_list or {}) do
-      vim.api.nvim_buf_set_extmark(pbuf, NS, h.lnum, 0, {
+      require("custom.ui.render").set_extmark(pbuf, NS, h.lnum, 0, {
         hl_group = h.hl_group,
         hl_eol = true,
       })
     end
 
     for _, sign in ipairs(signs or {}) do
-      vim.api.nvim_buf_set_extmark(pbuf, NS, sign.lnum, 0, {
+      require("custom.ui.render").set_extmark(pbuf, NS, sign.lnum, 0, {
         sign_text = sign.text,
         sign_hl_group = sign.hl_group,
         virt_text = { { sign.text .. " ", sign.hl_group } },
@@ -952,16 +952,16 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
     -- Summary-mode key/value and section highlights.
     for _, span in ipairs(spans or {}) do
       if span.file then
-        vim.api.nvim_buf_set_extmark(pbuf, NS, span.row, 0, {
+        require("custom.ui.render").set_extmark(pbuf, NS, span.row, 0, {
           hl_group = HL.Header,
           hl_eol = true,
         })
       elseif span.label_end then
-        vim.api.nvim_buf_set_extmark(pbuf, NS, span.row, 0, {
+        require("custom.ui.render").set_extmark(pbuf, NS, span.row, 0, {
           end_col = span.label_end,
           hl_group = HL.PreviewLabel,
         })
-        vim.api.nvim_buf_set_extmark(pbuf, NS, span.row, span.value_start, {
+        require("custom.ui.render").set_extmark(pbuf, NS, span.row, span.value_start, {
           hl_group = HL.PreviewValue,
           hl_eol = true,
         })
@@ -1115,7 +1115,7 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
       return
     end
 
-    filter_buf_ref = vim.api.nvim_create_buf(false, true)
+    filter_buf_ref = require("custom.ui.buffer").create_raw(false, true)
     vim.bo[filter_buf_ref].bufhidden = "wipe"
     vim.bo[filter_buf_ref].buftype = "nofile"
 
@@ -1128,7 +1128,7 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
       f_row = math.max(0, picker_row - 3)
     end
 
-    filter_win = vim.api.nvim_open_win(filter_buf_ref, true, {
+    filter_win = require("custom.ui.window").open_raw(filter_buf_ref, true, {
       relative = "editor",
       row = f_row,
       col = picker_col,

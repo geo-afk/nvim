@@ -209,7 +209,7 @@ function M.apply()
     end
 
     if ch then
-      pcall(api.nvim_buf_set_extmark, buf, S.git_ns, search_ui.row_for_item(i), 0, {
+      pcall(require("custom.ui.render").set_extmark, buf, S.git_ns, search_ui.row_for_item(i), 0, {
         end_col = SIGN_WIDTH,
         virt_text = { { M.sign_str(ch), SIGN_HL[ch] or "Comment" } },
         virt_text_pos = "overlay",

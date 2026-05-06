@@ -209,7 +209,7 @@ end
 -- ── Paint helpers ─────────────────────────────────────────────────────────
 
 local function paint_top_border(buf, lines, border_hl)
-  pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, 0, 0, {
+  pcall(require("custom.ui.render").set_extmark, buf, S.hdr_ns, 0, 0, {
     end_col = -1,
     hl_group = border_hl,
     hl_eol = true,
@@ -218,7 +218,7 @@ local function paint_top_border(buf, lines, border_hl)
   local top_line = lines[1] or ""
   local title_pos = top_line:find(TITLE, 1, true)
   if title_pos then
-    pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, 0, title_pos - 1, {
+    pcall(require("custom.ui.render").set_extmark, buf, S.hdr_ns, 0, title_pos - 1, {
       end_col = title_pos - 1 + #TITLE,
       hl_group = "ExplorerSearchTitle",
       priority = 20,
@@ -235,20 +235,20 @@ local function paint_input_row(buf, lines, is_active, has_filter, chunks)
   local input_line_bytes = #input_line
 
   -- 1. Full-row background
-  pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, M.INPUT_ROW, 0, {
+  pcall(require("custom.ui.render").set_extmark, buf, S.hdr_ns, M.INPUT_ROW, 0, {
     end_col = -1,
     hl_group = bg_hl,
     hl_eol = true,
     priority = 5,
   })
   -- 2. Left border │
-  pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, M.INPUT_ROW, 0, {
+  pcall(require("custom.ui.render").set_extmark, buf, S.hdr_ns, M.INPUT_ROW, 0, {
     end_col = BORDER_CHAR_BYTES,
     hl_group = border_hl,
     priority = 15,
   })
   -- 3. Search icon
-  pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, M.INPUT_ROW, ICON_BYTE_OFFSET, {
+  pcall(require("custom.ui.render").set_extmark, buf, S.hdr_ns, M.INPUT_ROW, ICON_BYTE_OFFSET, {
     end_col = ICON_BYTE_OFFSET + SEARCH_ICON_BYTES,
     hl_group = icon_hl,
     priority = 20,
@@ -258,7 +258,7 @@ local function paint_input_row(buf, lines, is_active, has_filter, chunks)
 
   -- 4. Active filter text highlight
   if has_filter and not is_active and input_line_bytes > INPUT_PREFIX_BYTES then
-    pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, M.INPUT_ROW, text_byte_start, {
+    pcall(require("custom.ui.render").set_extmark, buf, S.hdr_ns, M.INPUT_ROW, text_byte_start, {
       end_row = M.INPUT_ROW,
       end_col = input_line_bytes,
       hl_group = "ExplorerSearchActiveText",
@@ -267,7 +267,7 @@ local function paint_input_row(buf, lines, is_active, has_filter, chunks)
   end
 
   -- 5. Right-aligned count + closing │
-  pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, M.INPUT_ROW, 0, {
+  pcall(require("custom.ui.render").set_extmark, buf, S.hdr_ns, M.INPUT_ROW, 0, {
     virt_text = chunks,
     virt_text_pos = "right_align",
     priority = 100,
@@ -275,7 +275,7 @@ local function paint_input_row(buf, lines, is_active, has_filter, chunks)
 end
 
 local function paint_bottom_border(buf, border_hl)
-  pcall(api.nvim_buf_set_extmark, buf, S.hdr_ns, BOTTOM_ROW, 0, {
+  pcall(require("custom.ui.render").set_extmark, buf, S.hdr_ns, BOTTOM_ROW, 0, {
     end_col = -1,
     hl_group = border_hl,
     hl_eol = true,

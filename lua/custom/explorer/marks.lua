@@ -73,7 +73,7 @@ function M.apply()
   api.nvim_buf_clear_namespace(buf, S.mark_ns, 0, -1)
   for i, item in ipairs(S.items) do
     if S.marks[item.path] then
-      pcall(api.nvim_buf_set_extmark, buf, S.mark_ns, search_ui.row_for_item(i), 0, {
+      pcall(require("custom.ui.render").set_extmark, buf, S.mark_ns, search_ui.row_for_item(i), 0, {
         end_col = 2,
         virt_text = { { MARK_SIGN, MARK_HL } },
         virt_text_pos = "overlay",

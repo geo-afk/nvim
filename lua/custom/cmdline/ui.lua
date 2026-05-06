@@ -416,7 +416,7 @@ local function render_badge(buf, info, subtype)
   local icon = (subtype and type(subtype.icon) == "string" and subtype.icon ~= "") and subtype.icon or info.icon
   local ascii_icon = (info.icon_ascii or " :  "):gsub("%s+", "")
   local badge_text = nf and ("  " .. icon .. " ") or (" " .. truncate_label(ascii_icon, 4) .. " ")
-  pcall(vim.api.nvim_buf_set_extmark, buf, NS_BADGE, 0, 0, {
+  pcall(require("custom.ui.render").set_extmark, buf, NS_BADGE, 0, 0, {
     virt_text = {
       { badge_text, info.badge_hl },
       { "│ ", info.sep_hl },
@@ -425,7 +425,7 @@ local function render_badge(buf, info, subtype)
     priority = 60,
   })
 
-  pcall(vim.api.nvim_buf_set_extmark, buf, NS_BADGE, 0, 0, {
+  pcall(require("custom.ui.render").set_extmark, buf, NS_BADGE, 0, 0, {
     end_col = PROMPT_LEN,
     hl_group = col_hl,
     priority = 40,
@@ -444,7 +444,7 @@ end
 ---Keep prompt background consistent (behind the badge overlay).
 local function render_prompt_hl(buf)
   vim.api.nvim_buf_clear_namespace(buf, NS_PROMPT, 0, -1)
-  pcall(vim.api.nvim_buf_set_extmark, buf, NS_PROMPT, 0, 0, {
+  pcall(require("custom.ui.render").set_extmark, buf, NS_PROMPT, 0, 0, {
     end_col = PROMPT_LEN,
     hl_group = "NvimCmdlinePrompt",
     priority = 50,
@@ -455,7 +455,7 @@ end
 local function render_counter(buf, count)
   vim.api.nvim_buf_clear_namespace(buf, NS_COUNTER, 0, -1)
   local label, hl = search.counter_label(count)
-  pcall(vim.api.nvim_buf_set_extmark, buf, NS_COUNTER, 0, 0, {
+  pcall(require("custom.ui.render").set_extmark, buf, NS_COUNTER, 0, 0, {
     virt_text = { { label, hl } },
     virt_text_pos = "eol",
     priority = 100,
@@ -470,7 +470,7 @@ local function render_hint(buf, info, subtype)
   end
   local hint = info.hint
   if type(hint) ~= "table" then
-    pcall(vim.api.nvim_buf_set_extmark, buf, NS_HINT, 0, 0, {
+    pcall(require("custom.ui.render").set_extmark, buf, NS_HINT, 0, 0, {
       virt_lines = { { { tostring(hint or ""), "NvimCmdlineHint" } } },
       virt_lines_above = false,
       priority = 5,
@@ -489,7 +489,7 @@ local function render_hint(buf, info, subtype)
   end
   chunks[#chunks + 1] = { "  ", "NvimCmdlineHintPad" }
 
-  pcall(vim.api.nvim_buf_set_extmark, buf, NS_HINT, 0, 0, {
+  pcall(require("custom.ui.render").set_extmark, buf, NS_HINT, 0, 0, {
     virt_lines = { chunks },
     virt_lines_above = false,
     priority = 5,
@@ -612,13 +612,13 @@ local function show_range_preview(input, parent_win)
   local height = math.min(#lines, max_ln + 1)
   local row = math.max(0, (type(pc.row) == "number" and pc.row or 0) - height - 2)
 
-  local pbuf = vim.api.nvim_create_buf(false, true)
+  local pbuf = require("custom.ui.buffer").create_raw(false, true)
   vim.api.nvim_set_option_value("buftype", "nofile", { buf = pbuf })
   vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = pbuf })
   vim.api.nvim_buf_set_lines(pbuf, 0, -1, false, lines)
   vim.api.nvim_set_option_value("modifiable", false, { buf = pbuf })
 
-  local pwin = vim.api.nvim_open_win(pbuf, false, {
+  local pwin = require("custom.ui.window").open_raw(pbuf, false, {
     relative = "editor",
     row = row,
     col = type(pc.col) == "number" and pc.col or 0,
@@ -642,7 +642,7 @@ local function show_range_preview(input, parent_win)
   for i = 1, #lines do
     local abs = first + i - 1
     if abs >= lo and abs <= hi then
-      pcall(vim.api.nvim_buf_set_extmark, pbuf, ns, i - 1, 0, {
+      pcall(require("custom.ui.render").set_extmark, pbuf, ns, i - 1, 0, {
         line_hl_group = "NvimCmdlineMenuSel",
         priority = 10,
       })
@@ -1216,7 +1216,7 @@ function M.open(mode, opts)
     or M.config.border
 
   -- ── Buffer ────────────────────────────────────────────────────────────────
-  local buf = vim.api.nvim_create_buf(false, true)
+  local buf = require("custom.ui.buffer").create_raw(false, true)
   vim.api.nvim_set_option_value("buftype", "nofile", { buf = buf })
   vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
   vim.api.nvim_set_option_value("filetype", "nvim-cmdline", { buf = buf })
@@ -1233,7 +1233,7 @@ function M.open(mode, opts)
 
   local title_text = get_title_chunks(mode, info, subtype)
 
-  local win = vim.api.nvim_open_win(buf, true, {
+  local win = require("custom.ui.window").open_raw(buf, true, {
     relative = "editor",
     row = start_row,
     col = col,

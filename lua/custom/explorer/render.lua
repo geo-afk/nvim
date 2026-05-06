@@ -213,7 +213,7 @@ function M._paint()
   api.nvim_buf_set_lines(buf, 0, -1, false, all_lines)
   api.nvim_buf_clear_namespace(buf, S.ns, 0, -1)
   for _, h in ipairs(hls) do
-    pcall(api.nvim_buf_set_extmark, buf, S.ns, h[1], h[2], {
+    pcall(require("custom.ui.render").set_extmark, buf, S.ns, h[1], h[2], {
       end_col = h[3],
       hl_group = h[4],
       priority = 10,
@@ -265,7 +265,7 @@ function M._paint_items_only()
   api.nvim_buf_set_lines(buf, search_ui.HEADER_LINES, -1, false, item_lines)
   api.nvim_buf_clear_namespace(buf, S.ns, search_ui.HEADER_LINES, -1)
   for _, h in ipairs(hls) do
-    pcall(api.nvim_buf_set_extmark, buf, S.ns, h[1], h[2], {
+    pcall(require("custom.ui.render").set_extmark, buf, S.ns, h[1], h[2], {
       end_col = h[3],
       hl_group = h[4],
       priority = 10,

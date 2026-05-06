@@ -125,7 +125,7 @@ function M.open(opts)
 
   local buf = opts.buf
   if not buf or not vim.api.nvim_buf_is_valid(buf) then
-    buf = vim.api.nvim_create_buf(false, true)
+    buf = require("custom.ui.buffer").create_raw(false, true)
   end
 
   if opts.filetype then
@@ -141,7 +141,7 @@ function M.open(opts)
   end
 
   local wc = build_win_config(opts, width, height)
-  local win = vim.api.nvim_open_win(buf, opts.enter ~= false, wc)
+  local win = require("custom.ui.window").open_raw(buf, opts.enter ~= false, wc)
 
   vim.wo[win].wrap = false
   vim.wo[win].cursorline = true
