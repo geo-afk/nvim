@@ -196,11 +196,15 @@ local function coalesce(entries)
   local out = {}
   for _, item in ipairs(entries) do
     local signature = item.kind .. "\n" .. item.text
-    if signature == state.last_signature then
+    if signature == state.last_signature and #out > 0 then
       state.repeat_count = state.repeat_count + 1
-      if #out > 0 then
-        out[#out].text = out[#out].text .. " (x" .. tostring(state.repeat_count + 1) .. ")"
-      end
+      out[#out].text = item.text .. " (x" .. tostring(state.repeat_count + 1) .. ")"
+    elseif signature == state.last_signature then
+      -- repeat from previous call, we can't easily update the UI's historical log here
+      -- so we just treat it as a new entry for now to avoid losing data
+      state.last_signature = signature
+      state.repeat_count = 0
+      table.insert(out, item)
     else
       state.last_signature = signature
       state.repeat_count = 0

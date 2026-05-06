@@ -154,58 +154,6 @@ function M.setup(opts)
 
   map("n", "u", ui.toggle, "toggle debug UI")
 
-  -- ─── user commands ──────────────────────────────────────────────────────────
-
-  local cmds = {
-    GoDlvDebug = { fn = dbg.debug, nargs = 0 },
-    GoDlvTest = { fn = dbg.test, nargs = 0 },
-    GoDlvBuild = { fn = dbg.attach_spawn, nargs = 0 },
-    GoDlvAttach = { fn = dbg.attach_select, nargs = 0 },
-    GoDlvConnect = {
-      fn = function(i)
-        dbg.connect(i.args ~= "" and i.args or nil)
-      end,
-      nargs = "?",
-    },
-    GoDlvRestart = { fn = dbg.restart, nargs = 0 },
-    GoDlvStop = { fn = dbg.stop, nargs = 0 },
-    GoDlvContinue = { fn = dbg.continue, nargs = 0 },
-    GoDlvNext = { fn = dbg.step_over, nargs = 0 },
-    GoDlvStep = { fn = dbg.step_into, nargs = 0 },
-    GoDlvOut = { fn = dbg.step_out, nargs = 0 },
-    GoDlvPause = { fn = dbg.pause, nargs = 0 },
-    GoDlvRunToCursor = { fn = dbg.run_to_cursor, nargs = 0 },
-    GoDlvBreakpoint = { fn = dbg.toggle_breakpoint, nargs = 0 },
-    GoDlvCondBreakpoint = {
-      fn = function(i)
-        dbg.conditional_breakpoint(i.args ~= "" and i.args or nil)
-      end,
-      nargs = "?",
-    },
-    GoDlvLogpoint = { fn = dbg.logpoint, nargs = 0 },
-    GoDlvHitBreakpoint = { fn = dbg.hit_breakpoint, nargs = 0 },
-    GoDlvClearBPs = { fn = dbg.clear_breakpoints, nargs = 0 },
-    GoDlvInspect = {
-      fn = function(i)
-        dbg.inspect(i.args ~= "" and i.args or nil)
-      end,
-      nargs = "?",
-    },
-    GoDlvSetVar = { fn = dbg.set_variable, nargs = 0 },
-    GoDlvWatch = {
-      fn = function(i)
-        dbg.watch_add(i.args ~= "" and i.args or nil)
-      end,
-      nargs = "?",
-    },
-    GoDlvWatchRemove = { fn = dbg.watch_remove, nargs = 0 },
-    GoDlvUI = { fn = ui.toggle, nargs = 0 },
-  }
-
-  for name, spec in pairs(cmds) do
-    vim.api.nvim_create_user_command(name, spec.fn, { nargs = spec.nargs })
-  end
-
   -- ─── autocmds ───────────────────────────────────────────────────────────────
 
   local aug = vim.api.nvim_create_augroup("GoDebugConfig", { clear = true })

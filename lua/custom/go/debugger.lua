@@ -120,16 +120,23 @@ local function find_main_package()
     return fdir
   end
   local root = project_root(fdir)
-  for _, c in ipairs({ root .. "/main.go", root .. "/cmd/main.go" }) do
+  -- search common main locations
+  local candidates = {
+    root .. "/main.go",
+    root .. "/cmd/main.go",
+  }
+  for _, c in ipairs(candidates) do
     if vim.fn.filereadable(c) == 1 then
       return vim.fn.fnamemodify(c, ":h")
     end
   end
+  -- glob nested cmd layouts
   local ms = vim.fn.glob(root .. "/cmd/*/main.go", false, true)
   if #ms > 0 then
     return vim.fn.fnamemodify(ms[1], ":h")
   end
-  return root
+  -- fallback to current dir or root
+  return fdir or root
 end
 
 local function binary_name(program)
@@ -227,29 +234,43 @@ function Session:request(command, args, callback)
   local seq = self.seq
   self.seq = self.seq + 1
   self.callbacks[seq] = callback
-  self:send({ seq = seq, type = "request", command = command, arguments = args or {} })
+  self:send({ seq = seq, type = "request", command = command, arguments = args or vim.empty_dict() })
   return seq
 end
 
 function Session:consume(data)
   self.buffer = self.buffer .. data
-  while true do
+  while #self.buffer > 0 do
     local hend = self.buffer:find("\r\n\r\n", 1, true)
     if not hend then
       break
     end
-    local len = tonumber(self.buffer:sub(1, hend - 1):match("[Cc]ontent%-[Ll]ength:%s*(%d+)"))
-    if not len then
-      self.buffer = ""
+
+    local header = self.buffer:sub(1, hend - 1)
+    local len_str = header:match("[Cc]ontent%-[Ll]ength:%s*(%d+)")
+    if not len_str then
+      -- invalid header format, try to recover by skipping to next likely start
+      local next_start = self.buffer:find("Content-Length", 2, true)
+      if next_start then
+        self.buffer = self.buffer:sub(next_start)
+      else
+        self.buffer = ""
+      end
       break
     end
-    local bs = hend + 4
-    local be = bs + len - 1
-    if #self.buffer < be then
+
+    local len = tonumber(len_str)
+    local body_start = hend + 4
+    local body_end = body_start + len - 1
+
+    if #self.buffer < body_end then
+      -- incomplete message body, wait for more data
       break
     end
-    local body = self.buffer:sub(bs, be)
-    self.buffer = self.buffer:sub(be + 1)
+
+    local body = self.buffer:sub(body_start, body_end)
+    self.buffer = self.buffer:sub(body_end + 1)
+
     local ok, msg = pcall(vim.json.decode, body)
     if ok then
       self:dispatch(msg)
@@ -434,6 +455,11 @@ function Session:refresh_stopped(event)
     refresh_bp_signs()
     render_breakpoints()
   end
+
+  self:request("threads", vim.empty_dict(), function(tresp)
+    local threads = (tresp.body and tresp.body.threads) or {}
+    ui.render_goroutines(threads, tid)
+  end)
 
   self:request("stackTrace", { threadId = tid, startFrame = 0, levels = 20 }, function(resp)
     local frames = (resp.body and resp.body.stackFrames) or {}
@@ -1179,6 +1205,7 @@ function M.stop()
   ui.clear_execution_line()
   ui.render_stack({})
   ui.render_variables({}, {})
+  require("custom.go.debugger_controls").close()
   virt.clear()
 end
 
@@ -1202,6 +1229,7 @@ function M.setup()
   end)
 
   load_breakpoints()
+  watches.load()
 
   vim.api.nvim_create_autocmd({ "BufReadPost", "BufWinEnter" }, {
     group = vim.api.nvim_create_augroup("GoDebugBPSigns", { clear = true }),
