@@ -16,7 +16,7 @@ local M = {}
 ---@class CodeActionConfig
 M.config = {
   ---Milliseconds to wait for all LSP clients before giving up.
-  timeout_ms = 1500,
+  timeout_ms = 3000,
 
   ---Skip the picker and apply immediately when only one action exists.
   auto_apply_single = false,
@@ -34,17 +34,23 @@ M.config = {
 
   preview = {
     ---Preview width as a fraction of &columns.
-    width_pct = 0.36,
+    width_pct = 0.52,
+    ---Preview height as a fraction of &lines.
+    height_pct = 0.70,
     ---Minimum preview width in columns.
-    min_width = 38,
+    min_width = 56,
     ---Maximum preview width in columns.
-    max_width = 72,
+    max_width = 120,
+    ---Minimum preview height in rows.
+    min_height = 12,
     ---Window transparency (0 = opaque).
     winblend = 0,
     ---When true, start in diff mode when a workspace edit is available.
     show_diff = false,
     ---When true, show a live buffer-diff panel (tiny-code-action Buffer Picker style).
     buf_preview = true,
+    ---When true, open the preview window by default.
+    auto_open = false,
   },
 
   ---@type { use_icons: boolean }
@@ -56,6 +62,7 @@ M.config = {
     apply = "<CR>",
     close = { "<Esc>", "q" },
     preview = { "K", "p" },
+    focus_preview = "<C-w>p",
     diff_mode = "d",
     nav_down = { "j", "<Down>", "<C-n>", "<Tab>" },
     nav_up = { "k", "<Up>", "<C-p>", "<S-Tab>" },
@@ -66,47 +73,6 @@ M.config = {
     filter = "/",
   },
 }
-
--- ── Visual-range helpers ──────────────────────────────────────────────────────
-
----@return lsp.Range|nil
-local function get_visual_range()
-  local s = vim.fn.getpos("'<")
-  local e = vim.fn.getpos("'>")
-  if s[2] == 0 or e[2] == 0 then
-    return nil
-  end
-
-  local sl, sc = s[2] - 1, math.max(s[3] - 1, 0)
-  local el, ec = e[2] - 1, math.max(e[3] - 1, 0)
-
-  if sl > el or (sl == el and sc > ec) then
-    sl, el, sc, ec = el, sl, ec, sc
-  end
-
-  return {
-    ["start"] = { line = sl, character = sc },
-    ["end"] = { line = el, character = ec },
-  }
-end
-
----@return integer[]|nil, integer[]|nil
-local function get_visual_marks()
-  local s = vim.fn.getpos("'<")
-  local e = vim.fn.getpos("'>")
-  if s[2] == 0 or e[2] == 0 then
-    return nil, nil
-  end
-
-  local sp = { s[2], math.max(s[3] - 1, 0) }
-  local ep = { e[2], math.max(e[3] - 1, 0) }
-
-  if sp[1] > ep[1] or (sp[1] == ep[1] and sp[2] > ep[2]) then
-    sp, ep = ep, sp
-  end
-
-  return sp, ep
-end
 
 -- ── Public API ────────────────────────────────────────────────────────────────
 
@@ -128,29 +94,36 @@ function M.open(opts)
     use_visual = mode:find("[vV\22]") ~= nil
   end
 
+  local visual_marks = nil
   if use_visual then
+    local v_pos = vim.fn.getpos("v")
+    local cur_pos = vim.api.nvim_win_get_cursor(0)
+    local sp = { v_pos[2], v_pos[3] }
+    local ep = { cur_pos[1], cur_pos[2] + 1 }
+    if sp[1] > ep[1] or (sp[1] == ep[1] and sp[2] > ep[2]) then
+      sp, ep = ep, sp
+    end
+    visual_marks = { sp, ep }
     local esc = vim.api.nvim_replace_termcodes("<Esc>", true, false, true)
     vim.api.nvim_feedkeys(esc, "nx", false)
   end
 
-  local range = use_visual and get_visual_range() or nil
-  local vstart, vend = nil, nil
-  if use_visual then
-    vstart, vend = get_visual_marks()
-  end
-  local visual_marks = (vstart and vend) and { vstart, vend } or nil
-
   local lsp_mod = require("custom.code_action.lsp")
   local window = require("custom.code_action.window")
 
-  lsp_mod.request(source_buf, source_win, range, visual_marks, M.config.timeout_ms, function(items)
+  local open_preview = opts.open_preview
+  if open_preview == nil then
+    open_preview = M.config.preview.auto_open == true
+  end
+
+  lsp_mod.request(source_buf, source_win, nil, visual_marks, M.config.timeout_ms, function(items)
     if M.config.auto_apply_single and #items == 1 then
       lsp_mod.apply(items[1])
       return
     end
 
     window.open(items, source_win, source_buf, source_cursor, {
-      open_preview = opts.open_preview == true,
+      open_preview = open_preview,
       config = M.config,
     })
   end)

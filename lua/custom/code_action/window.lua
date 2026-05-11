@@ -529,19 +529,64 @@ local function place_picker(width, height, source_win, source_cursor)
   return row, col
 end
 
-local function place_preview(picker_row, picker_col, picker_width, picker_height, preview_width)
-  local right_col = picker_col + picker_width + 3
-  if right_col + preview_width + 2 <= vim.o.columns then
-    return picker_row, right_col
+local function preview_size(cfg_preview, picker_height)
+  local width = clamp(
+    math.floor(vim.o.columns * (cfg_preview.width_pct or 0.52)),
+    cfg_preview.min_width or 56,
+    math.min(cfg_preview.max_width or 120, math.max(20, vim.o.columns - 4))
+  )
+  local height = clamp(
+    math.floor(vim.o.lines * (cfg_preview.height_pct or 0.70)),
+    cfg_preview.min_height or 12,
+    math.max(picker_height, vim.o.lines - 6)
+  )
+
+  return width, height
+end
+
+local function place_preview(picker_row, picker_col, picker_width, picker_height, preview_width, preview_height)
+  local border_size = 2
+  local win_w, win_h = vim.o.columns, vim.o.lines
+
+  local function is_valid(r, c)
+    return r >= 0 and c >= 0 and r + preview_height + border_size <= win_h and c + preview_width + border_size <= win_w
   end
 
-  local below_row = picker_row + picker_height + 2
-  if below_row + picker_height + 2 <= vim.o.lines then
-    return below_row, picker_col
+  local function overlaps(r, c)
+    local p_r1, p_c1 = picker_row, picker_col
+    local p_r2, p_c2 = picker_row + picker_height + border_size, picker_col + picker_width + border_size
+    local r1, c1 = r, c
+    local r2, c2 = r + preview_height + border_size, c + preview_width + border_size
+    return not (c2 <= p_c1 or c1 >= p_c2 or r2 <= p_r1 or r1 >= p_r2)
   end
 
-  return clamp(picker_row, 0, math.max(vim.o.lines - picker_height - 2, 0)),
-    clamp(picker_col - preview_width - 3, 0, math.max(vim.o.columns - preview_width - 2, 0))
+  -- Priority list of positions to try
+  local strategies = {
+    { picker_row, picker_col + picker_width + border_size }, -- 1. Right (Sticky)
+    { picker_row, picker_col - preview_width - border_size }, -- 2. Left
+    { picker_row + picker_height + border_size, picker_col }, -- 3. Below
+    { picker_row - preview_height - border_size, picker_col }, -- 4. Above
+    { 0, picker_col + picker_width + border_size }, -- 5. Far top-right
+    { win_h - preview_height - border_size, picker_col + picker_width + border_size }, -- 6. Far bottom-right
+  }
+
+  -- Step 1: Find first valid position that DOES NOT overlap
+  for _, s in ipairs(strategies) do
+    if is_valid(s[1], s[2]) and not overlaps(s[1], s[2]) then
+      return s[1], s[2]
+    end
+  end
+
+  -- Step 2: If overlap is unavoidable, find any valid position
+  for _, s in ipairs(strategies) do
+    if is_valid(s[1], s[2]) then
+      return s[1], s[2]
+    end
+  end
+
+  -- Final Fallback: Clamp and accept overlap
+  return clamp(picker_row, 0, math.max(win_h - preview_height - border_size, 0)),
+    clamp(picker_col + picker_width + border_size, 0, math.max(win_w - preview_width - border_size, 0))
 end
 
 local function set_statusline(win, text)
@@ -595,6 +640,7 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
   local preview_render_key = nil
   local preview_request = 0
   local preview_timer = nil
+  local preview_focused = false
   local closed = false
 
   local filter_win = nil
@@ -604,11 +650,7 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
 
   local picker_width = estimate_width(all_items, cfg_picker)
   local picker_height = clamp(#all_rows, 6, math.max(6, math.floor(vim.o.lines * (cfg_picker.max_height_pct or 0.45))))
-  local preview_width = clamp(
-    math.floor(vim.o.columns * (cfg_preview.width_pct or 0.36)),
-    cfg_preview.min_width or 38,
-    cfg_preview.max_width or 72
-  )
+  local preview_width, preview_height = preview_size(cfg_preview, picker_height)
   local picker_row, picker_col = place_picker(picker_width, picker_height, source_win, source_cursor)
 
   -- ── Picker buffer + window ────────────────────────────────────────────────
@@ -675,6 +717,7 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
 
   local function close_preview()
     preview.open = false
+    preview_focused = false
     preview_request = preview_request + 1
     preview_render_key = nil
     if preview_timer then
@@ -692,6 +735,14 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
     end
     preview.win = nil
     preview.buf = nil
+
+    -- Restore picker position if it was shifted
+    if vim.api.nvim_win_is_valid(picker_win) then
+      local cur_cfg = vim.api.nvim_win_get_config(picker_win)
+      if cur_cfg.col ~= picker_col then
+        pcall(vim.api.nvim_win_set_config, picker_win, { col = picker_col })
+      end
+    end
   end
 
   local function close()
@@ -835,7 +886,7 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
     local item = row.item
     local pos = row_item_pos[index] or 0
     local ftag = filter_query ~= "" and ("  [/%s %d/%d]"):format(filter_query, filtered_count, all_item_count) or ""
-    local mtag = preview.open and (" [%s]"):format(preview_mode) or ""
+    local mtag = preview.open and (" [%s%s]"):format(preview_mode, preview_focused and ":focus" or "") or ""
     set_statusline(
       picker_win,
       ("%s  %d/%d%s%s"):format(item.client and item.client.name or "LSP", pos, filtered_count, ftag, mtag)
@@ -862,6 +913,8 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
   --   • Summary mode shows structured metadata.
   --   • The preview buffer is reused across item changes.
 
+  local setup_preview_keymaps
+
   local function ensure_preview()
     if preview.open and preview.win and vim.api.nvim_win_is_valid(preview.win) then
       return
@@ -873,23 +926,49 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
     vim.bo[preview.buf].swapfile = false
     vim.bo[preview.buf].modifiable = false
 
-    local row, col = place_preview(picker_row, picker_col, picker_width, picker_height, preview_width)
+    preview_width, preview_height = preview_size(cfg_preview, picker_height)
+
+    -- Sticky logic: if it doesn't fit on the right, shift the PICKER left!
+    local target_p_col = picker_col
+    local border_size = 2
+    local total_w = picker_width + border_size + preview_width + border_size
+    if target_p_col + total_w > vim.o.columns and total_w <= vim.o.columns then
+      target_p_col = math.max(0, vim.o.columns - total_w)
+      if target_p_col ~= picker_col then
+        pcall(vim.api.nvim_win_set_config, picker_win, { col = target_p_col })
+      end
+    end
+
+    local row, col = place_preview(picker_row, target_p_col, picker_width, picker_height, preview_width, preview_height)
+    
+    -- If we are still overlapping even after placement logic, 
+    -- we MUST ensure the preview is on top so it's not blocked.
+    local zindex = 59
+    local p_r2, p_c2 = picker_row + picker_height + border_size, target_p_col + picker_width + border_size
+    if not (col + preview_width + border_size <= target_p_col or col >= p_c2 or row + preview_height + border_size <= picker_row or row >= p_r2) then
+      zindex = 61 -- Higher than picker (60)
+    end
+
     preview.win = require("custom.ui.window").open_raw(preview.buf, false, {
       relative = "editor",
       row = row,
       col = col,
       width = preview_width,
-      height = picker_height,
+      height = preview_height,
       style = "minimal",
       border = "rounded",
       title = " Preview ",
       title_pos = "left",
-      footer = " K toggle  d diff/summary ",
+      footer = " <C-w>p focus  d diff/summary  q close ",
       footer_pos = "center",
-      zindex = 59,
+      zindex = zindex,
       noautocmd = true,
     })
     configure_float(preview.win, { wrap = true, winblend = cfg_preview.winblend or 0, signcolumn = "yes:1" })
+    vim.wo[preview.win].cursorline = false
+    if setup_preview_keymaps then
+      setup_preview_keymaps()
+    end
     preview.open = true
   end
 
@@ -1087,6 +1166,45 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
     end
   end
 
+  local function focus_picker()
+    preview_focused = false
+    if preview.win and vim.api.nvim_win_is_valid(preview.win) then
+      vim.wo[preview.win].cursorline = false
+      pcall(vim.api.nvim_win_set_config, preview.win, { zindex = 59 })
+    end
+    if vim.api.nvim_win_is_valid(picker_win) then
+      vim.wo[picker_win].cursorline = true
+      pcall(vim.api.nvim_win_set_config, picker_win, { zindex = 60 })
+      vim.api.nvim_set_current_win(picker_win)
+    end
+    update_picker_status()
+  end
+
+  local function focus_preview()
+    ensure_preview()
+    update_preview(true)
+    if not (preview.win and vim.api.nvim_win_is_valid(preview.win)) then
+      return
+    end
+    preview_focused = true
+    if vim.api.nvim_win_is_valid(picker_win) then
+      vim.wo[picker_win].cursorline = false
+      pcall(vim.api.nvim_win_set_config, picker_win, { zindex = 59 })
+    end
+    vim.wo[preview.win].cursorline = true
+    pcall(vim.api.nvim_win_set_config, preview.win, { zindex = 61 })
+    vim.api.nvim_set_current_win(preview.win)
+    update_picker_status()
+  end
+
+  local function toggle_preview_focus()
+    if preview_focused then
+      focus_picker()
+    else
+      focus_preview()
+    end
+  end
+
   local function toggle_preview_mode()
     preview_mode = preview_mode == "summary" and "diff" or "summary"
     if preview.open then
@@ -1233,9 +1351,26 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
     return (v ~= nil) and v or default
   end
 
+  setup_preview_keymaps = function()
+    if not preview.buf or not vim.api.nvim_buf_is_valid(preview.buf) then
+      return
+    end
+
+    local popts = { buffer = preview.buf, silent = true, nowait = true }
+    vim.keymap.set("n", km_val("focus_preview", "<C-w>p"), focus_picker, popts)
+    vim.keymap.set("n", "<Esc>", focus_picker, popts)
+    vim.keymap.set("n", "q", function()
+      close_preview()
+      focus_picker()
+    end, popts)
+    vim.keymap.set("n", km_val("diff_mode", "d"), toggle_preview_mode, popts)
+    vim.keymap.set("n", km_val("apply", "<CR>"), execute_selected, popts)
+  end
+
   map_all(km_val("apply", "<CR>"), execute_selected)
   map_all(km_val("close", { "<Esc>", "q" }), close)
   map_all(km_val("preview", { "K", "p" }), toggle_preview)
+  map_all(km_val("focus_preview", "<C-w>p"), toggle_preview_focus)
   map_all(km_val("diff_mode", "d"), toggle_preview_mode)
   map_all(km_val("nav_down", { "j", "<Down>", "<C-n>", "<Tab>" }), function()
     nav(1)
@@ -1335,18 +1470,14 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
         return
       end
       if preview.open and preview.win and vim.api.nvim_win_is_valid(preview.win) then
-        local new_pw = clamp(
-          math.floor(vim.o.columns * (cfg_preview.width_pct or 0.36)),
-          cfg_preview.min_width or 38,
-          cfg_preview.max_width or 72
-        )
-        local pr, pc = place_preview(picker_row, picker_col, picker_width, picker_height, new_pw)
+        local new_pw, new_ph = preview_size(cfg_preview, picker_height)
+        local pr, pc = place_preview(picker_row, picker_col, picker_width, picker_height, new_pw, new_ph)
         vim.api.nvim_win_set_config(preview.win, {
           relative = "editor",
           row = pr,
           col = pc,
           width = new_pw,
-          height = picker_height,
+          height = new_ph,
         })
       end
     end,
