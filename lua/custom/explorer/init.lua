@@ -18,15 +18,48 @@ local fn = vim.fn
 local M = {}
 local did_setup = false
 
-local ROOT_MARKERS = { ".git", "package.json", "go.mod", "Cargo.toml", "Makefile", "tsconfig.json", "requirements.txt" }
+local ROOT_MARKERS = {
+  ".git",
+  ".hg",
+  ".svn",
+  "package.json",
+  "go.mod",
+  "Cargo.toml",
+  "pyproject.toml",
+  "requirements.txt",
+  "composer.json",
+  "Makefile",
+  "tsconfig.json",
+  "jsconfig.json",
+  "Gemfile",
+  "rebar.config",
+}
 
 local function find_project_root(path)
   path = path or api.nvim_buf_get_name(0)
-  if path == "" then
+  if path == "" or path:match("^explorer://") then
     path = fn.getcwd()
   end
+  path = tree.norm(fn.fnamemodify(path, ":p"))
+
+  -- If it's a file, start from its directory
+  if fn.isdirectory(path) == 0 then
+    path = tree.parent(path)
+  end
+
   local root = vim.fs.root(path, ROOT_MARKERS)
-  return root or fn.fnamemodify(path, ":p:h")
+  if root then
+    -- Safety check: don't default to the home directory if it happens to have a marker
+    local home = tree.norm(fn.expand("~"))
+    if root == home and path ~= home then
+      -- If the only marker found is at HOME, and we are not in HOME,
+      -- just use the immediate directory instead of the entire user folder.
+      return path
+    end
+    return root
+  end
+
+  return path
 end
 
 local function is_regular_edit_window(winid)
@@ -234,12 +267,25 @@ function M.open(opts)
     S.prev_win = cw
   end
 
-  local requested_root = opts.root or S.root or find_project_root()
+  -- Determine if we should force a root re-detection.
+  -- We re-detect if:
+  -- 1. No root is currently set.
+  -- 2. The explorer is currently closed (toggled on).
+  -- 3. The current buffer is outside the existing root.
+  local current_buf_path = tree.norm(fn.fnamemodify(api.nvim_buf_get_name(0), ":p"))
+  local in_root = S.root and (current_buf_path == S.root or vim.startswith(current_buf_path, S.root .. "/"))
+  local needs_redetect = not S.root
+    or not (S.win and api.nvim_win_is_valid(S.win))
+    or (current_buf_path ~= "" and not in_root)
+
+  local requested_root = opts.root or (not needs_redetect and S.root) or find_project_root()
   local new_root = tree.norm(fn.fnamemodify(requested_root, ":p"))
 
   -- Record the old root as a recent entry before switching
   if S.root and S.root ~= new_root then
     store.push_recent(S.root)
+    -- Clear open dirs when switching projects to avoid showing stale state
+    S.open_dirs = {}
   end
 
   S.root = new_root

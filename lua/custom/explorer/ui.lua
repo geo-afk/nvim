@@ -102,8 +102,9 @@ local function prompt_float(opts)
   local default_width = vim.fn.strdisplaywidth(default)
   local footer_width = vim.fn.strdisplaywidth(footer)
   local title_width = vim.fn.strdisplaywidth(title)
+  -- Start with a generous minimum width (60) or derived from content
   local width =
-    clamp(math.max(28, prompt_width + default_width + 6, footer_width + 4, title_width + 6), 28, editor_w - 8)
+    clamp(math.max(60, prompt_width + default_width + 10, footer_width + 6, title_width + 8), 60, editor_w - 8)
 
   local buf = require("custom.ui.buffer").create_raw(false, true)
   set_buf_option(buf, "buftype", "prompt")
@@ -139,6 +140,8 @@ local function prompt_float(opts)
   vim.wo[win].relativenumber = false
   vim.wo[win].signcolumn = "no"
   vim.wo[win].wrap = false
+  -- Prevent premature scrolling by setting sidescrolloff to 0
+  vim.wo[win].sidescrolloff = 0
   pcall(api.nvim_set_option_value, "statuscolumn", "", { win = win })
   pcall(api.nvim_set_option_value, "foldcolumn", "0", { win = win })
   set_win_option(win, "winblend", 8)
@@ -151,6 +154,34 @@ local function prompt_float(opts)
     closed = true
     close_float(win, buf)
   end
+
+  -- Dynamic Resize Strategy: Expand window width as user types to prevent prompt scrolling
+  api.nvim_create_autocmd("TextChangedI", {
+    buffer = buf,
+    callback = function()
+      if not api.nvim_win_is_valid(win) then
+        return
+      end
+      local line = api.nvim_get_current_line()
+      local cur_w = api.nvim_win_get_width(win)
+      local ew, _ = editor_size()
+
+      local text_w = vim.fn.strdisplaywidth(line)
+      local req_w = math.max(60, text_w + 4, footer_width + 6, title_width + 8)
+      req_w = math.min(req_w, ew - 8)
+
+      if req_w > cur_w then
+        local new_col = math.max(0, math.floor((ew - req_w) / 2))
+        local cur_cfg = api.nvim_win_get_config(win)
+        api.nvim_win_set_config(win, {
+          relative = "editor",
+          width = req_w,
+          col = new_col,
+          row = cur_cfg.row,
+        })
+      end
+    end,
+  })
 
   fn.prompt_setcallback(buf, function(text)
     close()
