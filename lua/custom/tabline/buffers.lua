@@ -36,7 +36,7 @@ local function truncate_display(str, max_len)
 end
 
 local function is_listed(b)
-  return vim.fn.buflisted(b) == 1
+  return vim.api.nvim_get_option_value("buflisted", { buf = b })
 end
 
 local function is_valid_listed(b)
