@@ -22,18 +22,27 @@ local PATTERNS = {
   -- URLs
   { pat = "https?://[^%s%]%)>\"']+", kind = "url" },
   { pat = "file://[^%s%]%)>\"']+", kind = "url" },
-  -- file:line or file:line:col (common compiler/linter output)
-  -- e.g. src/main.lua:42:5 or ./lib/foo.py:100
-  { pat = "[%./][^%s:\"'%(%)%[%]]+%.[%a]+:%d+", kind = "file" },
-  { pat = "[%a_][%w%./%-_]*%.[%a][%a%d]+:%d+", kind = "file" },
+
+  -- Delimited or quoted paths (allows spaces, must have a file extension or follow a specific pattern)
+  -- e.g. "C:\path with space\file.go:10" or (src/main.lua:42)
+  { pat = '["\'][^"\']+%.[%a%d]+[:%d]*["\']', kind = "file" },
+  { pat = "%([^%)]+%.[%a%d]+:%d+[:%d]*%)", kind = "file" },
+  { pat = "%[[^%]]+%.[%a%d]+:%d+[:%d]*%]", kind = "file" },
+
+  -- Windows absolute file:line[:col] (allows spaces, supports Go module '@' versions)
+  -- e.g. C:/Users/KoolAid/go/pkg/mod/github.com/.../app.go:699
+  { pat = "[%a]:[/\\][^:\"'%(%)%[%]]+%.[%a%d]+:%d+[:%d]*", kind = "file" },
+
+  -- Generic file:line or file:line:col (no spaces, supports backslashes and '@')
+  { pat = "[%./\\][%w%./\\%-_@]+%.[%a%d]+:%d+[:%d]*", kind = "file" },
+  { pat = "[%a_][%w%./\\%-_@]*%.[%a][%a%d]*:%d+[:%d]*", kind = "file" },
+
   -- Rust-style: --> src/main.rs:12:34
-  { pat = "%->%s+[^%s:\"']+:%d+", kind = "file" },
+  { pat = "%->%s+[^%s:\"']+:%d+[:%d]*", kind = "file" },
   -- Python traceback: File "foo.py", line 42
   { pat = 'File "[^"]+", line %d+', kind = "file_py" },
   -- Go: /abs/path/to/file.go:42 +0x...
   { pat = "/[^%s:%(%)\"']+%.go:%d+", kind = "file" },
-  -- Node / JS: at Object. (/path/to/file.js:10:5)
-  { pat = "%(([^%)]+%.%a+:%d+)%)", kind = "file" },
 }
 
 -- Parsing helpers --------------------------------------------------------------
@@ -42,8 +51,18 @@ local PATTERNS = {
 local function parse_file_loc(s)
   -- Strip leading --> or whitespace
   s = s:match("^%-*>?%s*(.+)") or s
-  -- Strip surrounding parens
+  -- Strip surrounding parens, quotes, or brackets
   s = s:match("^%((.+)%)$") or s
+  s = s:match("^%[(.+)%]$") or s
+  s = s:match("^'(.+)'$") or s
+  s = s:match('^"(.+)"$') or s
+
+  -- Handle Go offsets: "file.go:42 +0x69" -> "file.go:42"
+  -- We only want to trim if the offset follows a space and matches the Go pattern.
+  local go_path, go_offset = s:match("^(.-)%s+(%+0x%x+)$")
+  if go_path and go_offset then
+    s = go_path
+  end
 
   -- path:line:col
   local path, line, col = s:match("^(.+):(%d+):(%d+)$")
@@ -71,10 +90,9 @@ end
 
 --- Resolve a possibly-relative path against Neovim's cwd.
 local function resolve_path(raw_path)
-  if raw_path:sub(1, 1) == "/" then
-    return raw_path
-  end
-  return vim.fn.getcwd() .. "/" .. raw_path
+  -- Use :p expansion to resolve relative paths and normalize absolute paths
+  -- in a cross-platform way. This correctly handles C:\ style Windows paths.
+  return vim.fn.fnamemodify(raw_path, ":p")
 end
 
 -- Extmark highlighting ---------------------------------------------------------
