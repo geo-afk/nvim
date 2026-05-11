@@ -11,21 +11,21 @@
 -- =============================================================================
 
 local M = {}
-local hl = require('custom.statusline.highlights').hl
-local utils = require 'custom.statusline.utils'
+local hl = require("custom.statusline.highlights").hl
+local utils = require("custom.statusline.utils")
 
 -- ---------------------------------------------------------------------------
 -- OS detection — computed exactly once at module load
 -- ---------------------------------------------------------------------------
 local os_icon = (function()
   local uname = (vim.uv or vim.loop).os_uname()
-  local sysname = (uname.sysname or ''):lower()
-  if sysname:find 'darwin' then
-    return ' '
-  elseif sysname:find 'windows' or sysname:find 'mingw' then
-    return '󰍲 '
+  local sysname = (uname.sysname or ""):lower()
+  if sysname:find("darwin") then
+    return "󰀵 "
+  elseif sysname:find("windows") or sysname:find("mingw") then
+    return "󰍲 "
   else
-    return ' '
+    return "󰌽 "
   end
 end)()
 
@@ -40,25 +40,25 @@ end
 
 local function short_cwd(max_len)
   local raw = vim.fn.getcwd()
-  local tier = max_len <= 20 and 'sm' or 'lg'
+  local tier = max_len <= 20 and "sm" or "lg"
 
   if _cwd_cache[raw] and _cwd_cache[raw][tier] then
     return _cwd_cache[raw][tier]
   end
 
   local cwd = raw
-  local home = vim.env.HOME or vim.env.USERPROFILE or ''
-  if home ~= '' then
-    cwd = cwd:gsub('^' .. vim.pesc(home), '~')
+  local home = vim.env.HOME or vim.env.USERPROFILE or ""
+  if home ~= "" then
+    cwd = cwd:gsub("^" .. vim.pesc(home), "~")
   end
 
   if #cwd > max_len then
-    local parts = vim.split(cwd, '/', { plain = true })
+    local parts = vim.split(cwd, "/", { plain = true })
     if #parts >= 2 then
-      cwd = '…/' .. table.concat(parts, '/', math.max(1, #parts - 1))
+      cwd = "…/" .. table.concat(parts, "/", math.max(1, #parts - 1))
     end
     if #cwd > max_len then
-      cwd = '…' .. cwd:sub(-(max_len - 1))
+      cwd = "…" .. cwd:sub(-(max_len - 1))
     end
   end
 
@@ -80,40 +80,40 @@ function M.render(winid)
 
   -- Macro recording (always live — cheap fn call)
   local reg = vim.fn.reg_recording()
-  if reg ~= '' then
-    parts[#parts + 1] = hl 'StatusLineMacro' .. ' @' .. reg .. ' ' .. hl 'StatusLine'
+  if reg ~= "" then
+    parts[#parts + 1] = hl("StatusLineMacro") .. " @" .. reg .. " " .. hl("StatusLine")
   end
 
   -- Paste mode (option read — O(1))
   if vim.o.paste then
-    parts[#parts + 1] = hl 'StatusLinePaste' .. ' PASTE ' .. hl 'StatusLine'
+    parts[#parts + 1] = hl("StatusLinePaste") .. " PASTE " .. hl("StatusLine")
   end
 
   -- Spell
   if vim.wo[winid].spell then
-    local lang = vim.bo[bufnr].spelllang or 'en'
-    parts[#parts + 1] = hl 'StatusLineSpell' .. ' SPELL:' .. lang .. ' ' .. hl 'StatusLine'
+    local lang = vim.bo[bufnr].spelllang or "en"
+    parts[#parts + 1] = hl("StatusLineSpell") .. " SPELL:" .. lang .. " " .. hl("StatusLine")
   end
 
   -- Wrap (only show in full mode — avoid clutter)
   if not compact and vim.wo[winid].wrap then
-    parts[#parts + 1] = hl 'StatusLineWrap' .. '↩ ' .. hl 'StatusLine'
+    parts[#parts + 1] = hl("StatusLineWrap") .. "↩ " .. hl("StatusLine")
   end
 
   if very_compact then
-    return utils.join(parts, ' ')
+    return utils.join(parts, " ")
   end
 
   -- OS icon (module-level constant — zero cost)
-  parts[#parts + 1] = hl 'StatusLineOS' .. os_icon .. hl 'StatusLine'
+  parts[#parts + 1] = hl("StatusLineOS") .. os_icon .. hl("StatusLine")
 
   -- CWD (cached)
   if not compact then
     local max_cwd = math.min(30, math.floor(win_width * 0.15))
-    parts[#parts + 1] = hl 'StatusLineCWD' .. short_cwd(max_cwd) .. hl 'StatusLine'
+    parts[#parts + 1] = hl("StatusLineCWD") .. short_cwd(max_cwd) .. hl("StatusLine")
   end
 
-  return utils.join(parts, ' ')
+  return utils.join(parts, " ")
 end
 
 return M

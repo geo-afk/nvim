@@ -22,8 +22,8 @@
 -- =============================================================================
 
 local M = {}
-local hl = require('custom.statusline.highlights').hl
-local utils = require 'custom.statusline.utils'
+local hl = require("custom.statusline.highlights").hl
+local utils = require("custom.statusline.utils")
 local diag = vim.diagnostic
 local uv = vim.uv or vim.loop
 
@@ -32,7 +32,7 @@ local uv = vim.uv or vim.loop
 M.redraw_fn = function() end
 
 -- ── Constants ────────────────────────────────────────────────────────────────
-local SPINNER_FRAMES = { '⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏' }
+local SPINNER_FRAMES = { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" }
 local SPINNER_INTERVAL = 150 -- ms between frames (~6 fps)
 local WATCHDOG_MS = 30000 -- evict tokens open longer than this
 
@@ -122,13 +122,13 @@ function M.on_progress(ev)
 
   local token = params.token
   local value = params.value
-  local kind = value and value.kind or 'report'
+  local kind = value and value.kind or "report"
 
-  if kind == 'begin' then
+  if kind == "begin" then
     active_tokens[client_id] = active_tokens[client_id] or {}
     active_tokens[client_id][token] = uv.now()
     start_spinner() -- no-op if already running
-  elseif kind == 'end' then
+  elseif kind == "end" then
     if active_tokens[client_id] then
       active_tokens[client_id][token] = nil
       if not next(active_tokens[client_id]) then
@@ -185,23 +185,23 @@ local function get_client_str(bufnr)
   if client_cache[bufnr] then
     return client_cache[bufnr]
   end
-  local clients = vim.lsp.get_clients { bufnr = bufnr }
+  local clients = vim.lsp.get_clients({ bufnr = bufnr })
   if #clients == 0 then
-    client_cache[bufnr] = ''
-    return ''
+    client_cache[bufnr] = ""
+    return ""
   end
   local seen, names = {}, {}
   for _, c in ipairs(clients) do
     if not seen[c.name] then
       seen[c.name] = true
-      if c.name ~= 'null-ls' and c.name ~= 'none-ls' then
+      if c.name ~= "null-ls" and c.name ~= "none-ls" then
         names[#names + 1] = c.name
       elseif #clients == 1 then
         names[#names + 1] = c.name
       end
     end
   end
-  local r = table.concat(names, ', ')
+  local r = table.concat(names, ", ")
   client_cache[bufnr] = r
   return r
 end
@@ -225,17 +225,17 @@ function M.render(winid, bufnr)
   -- Diagnostics (cached per buffer)
   local d = get_diags(bufnr)
   if d.e > 0 then
-    parts[#parts + 1] = hl 'StatusLineDiagError' .. '󰅚 ' .. d.e .. hl 'StatusLine'
+    parts[#parts + 1] = hl("StatusLineDiagError") .. "󰅚 " .. d.e .. hl("StatusLine")
   end
   if d.w > 0 then
-    parts[#parts + 1] = hl 'StatusLineDiagWarn' .. '󰀪 ' .. d.w .. hl 'StatusLine'
+    parts[#parts + 1] = hl("StatusLineDiagWarn") .. "󰀪 " .. d.w .. hl("StatusLine")
   end
   if not compact then
     if d.h > 0 then
-      parts[#parts + 1] = hl 'StatusLineDiagHint' .. '󰌶 ' .. d.h .. hl 'StatusLine'
+      parts[#parts + 1] = hl("StatusLineDiagHint") .. "󰌶 " .. d.h .. hl("StatusLine")
     end
     if d.i > 0 then
-      parts[#parts + 1] = hl 'StatusLineDiagInfo' .. ' ' .. d.i .. hl 'StatusLine'
+      parts[#parts + 1] = hl("StatusLineDiagInfo") .. "󰋼 " .. d.i .. hl("StatusLine")
     end
   end
 
@@ -244,28 +244,28 @@ function M.render(winid, bufnr)
     -- Also advance frame here so keypress activity adds bonus smoothness
     -- on top of the timer's base animation.
     spinner_idx = (spinner_idx % #SPINNER_FRAMES) + 1
-    parts[#parts + 1] = hl 'StatusLineLSPLoad' .. ' ' .. SPINNER_FRAMES[spinner_idx] .. ' ' .. hl 'StatusLine'
+    parts[#parts + 1] = hl("StatusLineLSPLoad") .. " " .. SPINNER_FRAMES[spinner_idx] .. " " .. hl("StatusLine")
   else
     -- Static idle dot when an LSP is attached but not loading.
     -- get_clients() is cheap and only called in this non-loading branch.
-    local clients = vim.lsp.get_clients { bufnr = bufnr }
+    local clients = vim.lsp.get_clients({ bufnr = bufnr })
     if #clients > 0 then
-      parts[#parts + 1] = hl 'StatusLineLSPActive' .. ' 󰄴 ' .. hl 'StatusLine'
+      parts[#parts + 1] = hl("StatusLineLSPActive") .. " 󰄴 " .. hl("StatusLine")
     end
   end
 
   -- Client names (full width only, cached)
   if not compact then
     local names = get_client_str(bufnr)
-    if names ~= '' then
-      parts[#parts + 1] = hl 'StatusLineLSPName' .. names .. hl 'StatusLine'
+    if names ~= "" then
+      parts[#parts + 1] = hl("StatusLineLSPName") .. names .. hl("StatusLine")
     end
   end
 
   if #parts == 0 then
-    return ''
+    return ""
   end
-  return utils.join(parts, ' ')
+  return utils.join(parts, " ")
 end
 
 return M

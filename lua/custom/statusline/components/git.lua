@@ -9,8 +9,8 @@
 -- =============================================================================
 
 local M = {}
-local hl = require('custom.statusline.highlights').hl
-local utils = require 'custom.statusline.utils'
+local hl = require("custom.statusline.highlights").hl
+local utils = require("custom.statusline.utils")
 
 -- Injected by init.lua after setup (avoids circular require and gives us
 -- the same debounced, surgical redraw path as every other component).
@@ -63,15 +63,19 @@ local function parse_status(raw)
   if not raw then
     return added, modified, removed
   end
-  for line in raw:gmatch '[^\n]+' do
+  for line in raw:gmatch("[^\n]+") do
     local x, y = line:sub(1, 1), line:sub(2, 2)
-    if x == '?' then
+    if x == "?" then
+      -- Untracked files - count as added
       added = added + 1
-    elseif x == 'A' or y == 'A' then
+    elseif x == "A" or y == "A" then
+      -- Added files
       added = added + 1
-    elseif x == 'D' or y == 'D' then
+    elseif x == "D" or y == "D" then
+      -- Deleted files
       removed = removed + 1
-    elseif x ~= ' ' or y ~= ' ' then
+    elseif x == "M" or y == "M" or x == "R" or y == "R" or x == "C" or y == "C" then
+      -- Modified, renamed, or copied files
       modified = modified + 1
     end
   end
@@ -88,14 +92,14 @@ local function refresh(cwd)
   M.cache[cwd] = M.cache[cwd] or {}
   M.cache[cwd].ts = now
 
-  async_cmd({ 'git', 'rev-parse', '--abbrev-ref', 'HEAD' }, cwd, function(branch_raw)
+  async_cmd({ "git", "rev-parse", "--abbrev-ref", "HEAD" }, cwd, function(branch_raw)
     if not branch_raw then
       M.cache[cwd] = { branch = nil, added = 0, modified = 0, removed = 0, ts = now }
       M.redraw_fn() -- surgical, no bang
       return
     end
-    local branch = branch_raw:gsub('%s+$', '')
-    async_cmd({ 'git', 'status', '--porcelain' }, cwd, function(status_raw)
+    local branch = branch_raw:gsub("%s+$", "")
+    async_cmd({ "git", "status", "--porcelain" }, cwd, function(status_raw)
       local a, m, r = parse_status(status_raw)
       M.cache[cwd] = { branch = branch, added = a, modified = m, removed = r, ts = uv.now() }
       M.redraw_fn() -- surgical, no bang
@@ -107,7 +111,7 @@ end
 -- Public
 -- ---------------------------------------------------------------------------
 function M.update(cwd)
-  if cwd and cwd ~= '' then
+  if cwd and cwd ~= "" then
     refresh(cwd)
   end
 end
@@ -121,13 +125,13 @@ function M.render(winid)
 
   if not entry then
     refresh(cwd)
-    return ''
+    return ""
   end
   if not entry.branch then
-    return ''
+    return ""
   end
 
-  local branch_str = hl 'StatusLineGitBranch' .. '  ' .. entry.branch .. ' ' .. hl 'StatusLine'
+  local branch_str = hl("StatusLineGitBranch") .. "  " .. entry.branch .. " " .. hl("StatusLine")
 
   if compact then
     return branch_str
@@ -135,16 +139,16 @@ function M.render(winid)
 
   local parts = { branch_str }
   if entry.added > 0 then
-    parts[#parts + 1] = hl 'StatusLineGitAdd' .. '  ' .. entry.added .. hl 'StatusLine'
+    parts[#parts + 1] = hl("StatusLineGitAdd") .. "  " .. entry.added .. hl("StatusLine")
   end
   if entry.modified > 0 then
-    parts[#parts + 1] = hl 'StatusLineGitMod' .. ' 󰦒 ' .. entry.modified .. hl 'StatusLine'
+    parts[#parts + 1] = hl("StatusLineGitMod") .. " 󰦒 " .. entry.modified .. hl("StatusLine")
   end
   if entry.removed > 0 then
-    parts[#parts + 1] = hl 'StatusLineGitDel' .. '  ' .. entry.removed .. hl 'StatusLine'
+    parts[#parts + 1] = hl("StatusLineGitDel") .. "  " .. entry.removed .. hl("StatusLine")
   end
 
-  return utils.join(parts, ' ')
+  return utils.join(parts, " ")
 end
 
 return M
