@@ -54,6 +54,9 @@ map("n", "<leader>wa", "<cmd>wall ++p<CR>", { desc = "Save all (auto-parents)" }
 -- Paste without replacing clipboard
 map("v", "<leader>P", '"_dP', vim.tbl_extend("force", noremap_s, { desc = "Paste without yanking" }))
 
+-- Restart Neovim (Native 0.12 command)
+map("n", "<leader>nr", "<cmd>wall | restart<CR>", { desc = "Restart Neovim" })
+
 -- ── 2. Terminal Mode ────────────────────────────────────────────────────────
 -- Terminal mode mappings
 map("t", "<Esc><Esc>", [[<C-\><C-n>]], { desc = "Exit terminal mode" })
