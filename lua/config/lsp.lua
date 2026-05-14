@@ -104,9 +104,11 @@ local function setup_attach()
 
       -- Inlay hints toggle
       if client:supports_method("textDocument/inlayHint") then
+        vim.lsp.inlay_hint.enable(true, { bufnr = buf })
         vim.keymap.set("n", "<leader>ch", function()
           local enabled = vim.lsp.inlay_hint.is_enabled({ bufnr = buf })
           vim.lsp.inlay_hint.enable(not enabled, { bufnr = buf })
+          vim.notify("Inlay hints " .. (enabled and "disabled" or "enabled"), vim.log.levels.INFO)
         end, opts("[0.12] Toggle inlay hints"))
       end
 
@@ -116,14 +118,12 @@ local function setup_attach()
         pcall(vim.lsp.document_color.enable, true, buf, { style = "background" })
       end
 
-      -- [0.12-new] Code lens (Keymapped toggle only, not enabled by default)
+      -- [0.12-new] Code lens
       if client:supports_method("textDocument/codeLens") then
+        vim.lsp.codelens.enable(true, { bufnr = buf })
         vim.keymap.set("n", "<leader>ci", function()
           local enabled = vim.lsp.codelens.is_enabled({ bufnr = buf })
           vim.lsp.codelens.enable(not enabled, { bufnr = buf })
-          if not enabled then
-            vim.lsp.codelens.enable(true, { bufnr = buf })
-          end
           vim.notify("CodeLens " .. (not enabled and "enabled" or "disabled"), vim.log.levels.INFO)
         end, opts("Toggle CodeLens"))
       end
