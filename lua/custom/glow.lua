@@ -10,11 +10,7 @@
 --   • Open the TUI in the current directory
 --   • Configurable style, width, and window dimensions
 --   • Auto-refresh on save (optional)
---   • All keymaps scoped to markdown filetypes only (except URL preview)
--- =============================================================================
--- INSTALLATION (choose one):
---   lazy.nvim:  { dir = "~/.config/nvim/lua", name = "glow" }
---   OR simply:  require("glow").setup() in your init.lua after copying here
+--   • All keymaps scoped to markdown filetypes only
 -- =============================================================================
 
 local M = {}
@@ -366,64 +362,56 @@ function M.setup(user_config)
   -- ── Keymaps ───────────────────────────────────────────────────────────────
   local km = M.config.keymaps
 
-  -- File preview & URL preview: global
-  if km.preview_file then
-    vim.keymap.set("n", km.preview_file, M.preview_file, {
-      desc = "Glow: preview markdown file",
-      silent = true,
-    })
-  end
-
-  if km.preview_url then
-    vim.keymap.set("n", km.preview_url, M.preview_url, {
-      desc = "Glow: preview URL",
-      silent = true,
-    })
-  end
-
-  if km.open_tui_cwd then
-    vim.keymap.set("n", km.open_tui_cwd, M.open_tui_cwd, {
-      desc = "Glow: browse CWD in TUI",
-      silent = true,
-    })
-  end
-
-  if km.toggle_auto then
-    vim.keymap.set("n", km.toggle_auto, M.toggle_auto_preview, {
-      desc = "Glow: toggle auto-preview",
-      silent = true,
-    })
-  end
-
   -- Markdown-only keymaps set via FileType autocmd
   vim.api.nvim_create_autocmd("FileType", {
     pattern = { "markdown" },
     group = vim.api.nvim_create_augroup("GlowFiletype", { clear = true }),
     callback = function(ev)
       local buf = ev.buf
+      local ok, wk = pcall(require, "which-key")
 
-      if km.preview_file then
-        vim.keymap.set("n", km.preview_file, M.preview_file, {
-          desc = "Glow: preview markdown file",
-          silent = true,
-          buffer = buf,
+      if ok then
+        wk.add({
+          {
+            "<leader>i",
+            group = "Preview / Media",
+            icon = { icon = "󰋩 ", hl = "MiniIconsCyan" },
+            buffer = buf,
+          },
+          { km.preview_file, M.preview_file, desc = "Glow: preview file", buffer = buf },
+          {
+            km.preview_visual,
+            "<Esc><cmd>GlowVisual<CR>",
+            desc = "Glow: preview selection",
+            mode = "v",
+            buffer = buf,
+          },
+          { km.preview_url, M.preview_url, desc = "Glow: preview URL", buffer = buf },
+          { km.open_tui, M.open_tui, desc = "Glow: open TUI", buffer = buf },
+          { km.open_tui_cwd, M.open_tui_cwd, desc = "Glow: browse CWD in TUI", buffer = buf },
+          { km.toggle_auto, M.toggle_auto_preview, desc = "Glow: toggle auto-preview", buffer = buf },
         })
-      end
-
-      if km.preview_visual then
-        vim.keymap.set("v", km.preview_visual, "<Esc><cmd>GlowVisual<CR>", {
-          desc = "Glow: preview visual selection",
-          silent = true,
-          buffer = buf,
-        })
-      end
-
-      if km.open_tui then
-        vim.keymap.set("n", km.open_tui, M.open_tui, {
-          desc = "Glow: open TUI",
-          silent = true,
-          buffer = buf,
-        })
+      else
+        -- Fallback if which-key is not installed
+        local bopts = { buffer = buf, silent = true }
+        if km.preview_file then
+          vim.keymap.set("n", km.preview_file, M.preview_file, vim.tbl_extend("force", bopts, { desc = "Glow: preview file" }))
+        end
+        if km.preview_visual then
+          vim.keymap.set("v", km.preview_visual, "<Esc><cmd>GlowVisual<CR>", vim.tbl_extend("force", bopts, { desc = "Glow: preview selection" }))
+        end
+        if km.preview_url then
+          vim.keymap.set("n", km.preview_url, M.preview_url, vim.tbl_extend("force", bopts, { desc = "Glow: preview URL" }))
+        end
+        if km.open_tui then
+          vim.keymap.set("n", km.open_tui, M.open_tui, vim.tbl_extend("force", bopts, { desc = "Glow: open TUI" }))
+        end
+        if km.open_tui_cwd then
+          vim.keymap.set("n", km.open_tui_cwd, M.open_tui_cwd, vim.tbl_extend("force", bopts, { desc = "Glow: browse CWD in TUI" }))
+        end
+        if km.toggle_auto then
+          vim.keymap.set("n", km.toggle_auto, M.toggle_auto_preview, vim.tbl_extend("force", bopts, { desc = "Glow: toggle auto-preview" }))
+        end
       end
     end,
   })

@@ -257,7 +257,7 @@ function M._send_lines(lines)
   end
   local ok, chan = pcall(vim.api.nvim_get_option_value, "channel", { buf = t.buf })
   if ok and chan and chan > 0 then
-    vim.fn.chansend(chan, table.concat(lines, "\n") .. "\n")
+    pcall(vim.fn.chansend, chan, table.concat(lines, "\n") .. "\n")
   end
 end
 

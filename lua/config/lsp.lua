@@ -61,32 +61,46 @@ local function setup_attach()
       require("config.lsp.setup.ts").ts_setup(client)
 
       -- Navigation (grn/gra/grr/gri/K are Neovim defaults; extras below)
-      vim.keymap.set("n", "gd", vim.lsp.buf.definition, opts("LSP: Definition"))
-      vim.keymap.set("n", "gD", vim.lsp.buf.declaration, opts("LSP: Declaration"))
-      vim.keymap.set("n", "gs", vim.lsp.buf.signature_help, opts("LSP: Signature help"))
-      vim.keymap.set("n", "<leader>cr", rename.rename, opts("LSP: Rename all instances"))
+      if client:supports_method("textDocument/definition") then
+        vim.keymap.set("n", "gd", vim.lsp.buf.definition, opts("LSP: Definition"))
+        vim.keymap.set("n", "<S-j>", function()
+          require("utils.peek").peek_definition()
+        end, opts("Peek Definition"))
+      end
 
-      vim.keymap.set("n", "<S-j>", function()
-        require("utils.peek").peek_definition()
-      end, { desc = "Peek Definition" })
+      if client:supports_method("textDocument/declaration") then
+        vim.keymap.set("n", "gD", vim.lsp.buf.declaration, opts("LSP: Declaration"))
+      end
 
-      vim.keymap.set("n", "gi", function()
-        require("utils.peek").peek_implementation()
-      end, { desc = "Peek Implementation" })
+      if client:supports_method("textDocument/signatureHelp") then
+        vim.keymap.set("n", "gs", vim.lsp.buf.signature_help, opts("LSP: Signature help"))
+      end
+
+      if client:supports_method("textDocument/rename") then
+        vim.keymap.set("n", "<leader>cr", rename.rename, opts("LSP: Rename all instances"))
+      end
+
+      if client:supports_method("textDocument/implementation") then
+        vim.keymap.set("n", "gi", function()
+          require("utils.peek").peek_implementation()
+        end, opts("Peek Implementation"))
+      end
 
       -- Diagnostics
       vim.keymap.set("n", "gm", function()
         require("utils.peek").peek_diagnostics()
-      end, { desc = "Peek Diagnostics" })
+      end, opts("Peek Diagnostics"))
 
-      vim.keymap.set({ "n", "x" }, "<leader>ca", function()
-        local ok, err = pcall(code_action.open, {
-          bufnr = buf,
-        })
-        if not ok then
-          vim.notify("Code action menu failed: " .. tostring(err), vim.log.levels.ERROR, { title = "Code Actions" })
-        end
-      end, { desc = "Code Action" })
+      if client:supports_method("textDocument/codeAction") then
+        vim.keymap.set({ "n", "x" }, "<leader>ca", function()
+          local ok, err = pcall(code_action.open, {
+            bufnr = buf,
+          })
+          if not ok then
+            vim.notify("Code action menu failed: " .. tostring(err), vim.log.levels.ERROR, { title = "Code Actions" })
+          end
+        end, opts("Code Action"))
+      end
 
       -- Inlay hints toggle
       if client:supports_method("textDocument/inlayHint") then
@@ -127,8 +141,24 @@ local function setup_attach()
       -- Corrected linked editing range toggle
       if client:supports_method("textDocument/linkedEditingRange") then
         vim.keymap.set("n", "<leader>ce", function()
-          local enabled = vim.lsp.linked_editing_range.is_enabled({ bufnr = buf })
+          local enabled = false
+          if vim.lsp.linked_editing_range.is_enabled then
+            enabled = vim.lsp.linked_editing_range.is_enabled({ bufnr = buf })
+          elseif vim.b[buf].lsp_linked_editing_enabled ~= nil then
+            enabled = vim.b[buf].lsp_linked_editing_enabled
+          else
+            -- Fallback: check if any client for this buffer has it enabled
+            local clients = vim.lsp.get_clients({ bufnr = buf, method = "textDocument/linkedEditingRange" })
+            for _, c in ipairs(clients) do
+              if c._enabled_capabilities and c._enabled_capabilities.linked_editing_range then
+                enabled = true
+                break
+              end
+            end
+          end
+
           vim.lsp.linked_editing_range.enable(not enabled, { bufnr = buf })
+          vim.b[buf].lsp_linked_editing_enabled = not enabled
           vim.notify("Linked Editing " .. (not enabled and "enabled" or "disabled"), vim.log.levels.INFO)
         end, opts("[0.12] Toggle linked editing ranges"))
       end

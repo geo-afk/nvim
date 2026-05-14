@@ -8,6 +8,12 @@ if not ok then
   return
 end
 
+local function supports(method)
+  return function()
+    return #vim.lsp.get_clients({ bufnr = 0, method = method }) > 0
+  end
+end
+
 wk.setup({
   preset = "helix",
   delay = 0,
@@ -18,9 +24,8 @@ wk.setup({
     { "<leader>c", group = "Code / LSP", icon = { icon = "󰘦 ", hl = "MiniIconsGreen" } },
     { "<leader>d", group = "Diagnostics", icon = { icon = "󱖫 ", hl = "MiniIconsRed" } },
     { "<leader>e", group = "Explorer", icon = { icon = "󰙅 ", hl = "MiniIconsBrown" } },
-    { "<leader>f", group = "Format", icon = { icon = "󰉿 ", hl = "MiniIconsAzure" } },
+    -- { "<leader>f", group = "Format", icon = { icon = "󰉿 ", hl = "MiniIconsAzure" } },
     { "<leader>g", group = "Git", icon = { icon = "󰊢 ", hl = "MiniIconsOrange" } },
-    { "<leader>i", group = "Preview / Media", icon = { icon = "󰋩 ", hl = "MiniIconsCyan" } },
     { "<leader>n", group = "Neovim", icon = { icon = " ", hl = "MiniIconsBlue" } },
     { "<leader>p", group = "Packages / Plugins", icon = { icon = "󰏖 ", hl = "MiniIconsGreen" } },
     { "<leader>r", group = "Run / Server", icon = { icon = "󱂬 ", hl = "MiniIconsOrange" } },
@@ -31,23 +36,40 @@ wk.setup({
     { "<leader>x", group = "Trouble / Lists", icon = { icon = "󱨧 ", hl = "MiniIconsRed" } },
 
     -- ── Individual Mapping Overrides (optional) ──────────────────────────────
-    { "<leader>ca", icon = { icon = "󱐋 ", hl = "MiniIconsYellow" } },
+    {
+      "<leader>ca",
+      icon = { icon = "󱐋 ", hl = "MiniIconsYellow" },
+      cond = supports("textDocument/codeAction"),
+    },
     {
       "<leader>ce",
       icon = { icon = "󰛔 ", hl = "MiniIconsGreen" },
+      cond = supports("textDocument/linkedEditingRange"),
+    },
+    {
+      "<leader>ch",
+      icon = { icon = "󰌶 ", hl = "MiniIconsBlue" },
+      cond = supports("textDocument/inlayHint"),
+    },
+    {
+      "<leader>ci",
+      icon = { icon = "󰦬 ", hl = "MiniIconsGreen" },
+      cond = supports("textDocument/codeLens"),
+    },
+    {
+      "<leader>ck",
+      icon = { icon = "󰌌 ", hl = "MiniIconsBlue" },
       cond = function()
-        -- Check if current buffer has linked editing support
-        return vim.b.lsp_linked_editing_available == true
+        return #vim.lsp.get_clients({ bufnr = 0 }) > 0
       end,
     },
-    { "<leader>ch", icon = { icon = "󰌶 ", hl = "MiniIconsBlue" } },
-    { "<leader>ci", icon = { icon = "󰦬 ", hl = "MiniIconsGreen" } },
-    { "<leader>ck", icon = { icon = "󰌌 ", hl = "MiniIconsBlue" } },
-    { "<leader>cr", icon = { icon = "󰑕 ", hl = "MiniIconsGreen" } },
-    { "<leader>fi", icon = { icon = "󰋼 ", hl = "MiniIconsBlue" } },
+    {
+      "<leader>cr",
+      icon = { icon = "󰑕 ", hl = "MiniIconsGreen" },
+      cond = supports("textDocument/rename"),
+    },
+    -- { "<leader>fi", icon = { icon = "󰋼 ", hl = "MiniIconsBlue" } },
     { "<leader>gg", icon = { icon = "󰊢 ", hl = "MiniIconsGreen" } },
-    { "<leader>ii", icon = { icon = "󰈟 ", hl = "MiniIconsCyan" } },
-    { "<leader>ip", icon = { icon = "󱗞 ", hl = "MiniIconsYellow" } },
     { "<leader>nd", icon = { icon = "󰙏 ", hl = "MiniIconsBlue" } },
     { "<leader>nr", icon = { icon = "󰜉 ", hl = "MiniIconsBlue" } },
     { "<leader>pm", icon = { icon = "󰏖 ", hl = "MiniIconsGreen" } },

@@ -70,7 +70,7 @@ local function spawn_in_win(t, win)
       if utils.term_alive(t.buf) then
         local ok, chan = pcall(vim.api.nvim_get_option_value, "channel", { buf = t.buf })
         if ok and chan and chan > 0 then
-          vim.fn.chansend(chan, profile.startup_command .. "\n")
+          pcall(vim.fn.chansend, chan, profile.startup_command .. "\n")
         end
       end
     end, 120)

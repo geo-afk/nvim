@@ -5,13 +5,8 @@
 local M = {}
 
 function M.setup(opts)
-  opts = vim.tbl_deep_extend("force", { prefix = "<leader>d" }, opts or {})
+  opts = vim.tbl_deep_extend("force", { prefix = "G" }, opts or {})
   local p = opts.prefix
-
-  local function map(mode, suffix, cmd, desc, extra)
-    vim.keymap.set(mode, p .. suffix, cmd,
-      vim.tbl_extend("force", { silent = true, desc = "[go-debug] " .. desc }, extra or {}))
-  end
 
   -- ── session-scoped arrow keys ──────────────────────────────────────────────
   local session_keys = {}
@@ -38,73 +33,93 @@ function M.setup(opts)
     session_keys = {}
   end
 
-  -- ── launch ────────────────────────────────────────────────────────────────
+  -- ── Keymap Registration ────────────────────────────────────────────────────
 
-  map("n", "d", function() install_session_keys(); vim.cmd("GoDlvDebug") end,      "debug main package")
-  map("n", "t", function() install_session_keys(); vim.cmd("GoDlvTest") end,       "debug test package")
-  map("n", "b", function() install_session_keys(); vim.cmd("GoDlvAttachSpawn") end,"build + debug binary")
-  map("n", "a", function()
-    install_session_keys()
-    vim.ui.input({ prompt = "PID: " }, function(v)
-      if v and v ~= "" then vim.cmd("GoDlvAttach " .. v) end
-    end)
-  end, "attach to pid")
-  map("n", "C", function()
-    install_session_keys()
-    vim.ui.input({ prompt = "Connect (host:port): " }, function(v)
-      if v and v ~= "" then vim.cmd("GoDlvConnect " .. v) end
-    end)
-  end, "connect to headless dlv")
-  map("n", "r", function() install_session_keys(); vim.cmd("GoDlvRestart") end,    "restart session")
-  map("n", "q", function() remove_session_keys(); vim.cmd("GoDlvStop") end,        "stop session")
+  local function register_keymaps(buf)
+    local function map(mode, suffix, cmd, desc, extra)
+      vim.keymap.set(mode, p .. suffix, cmd,
+        vim.tbl_extend("force", { buffer = buf, silent = true, desc = "[go-debug] " .. desc }, extra or {}))
+    end
 
-  -- ── execution ─────────────────────────────────────────────────────────────
+    -- ── launch ────────────────────────────────────────────────────────────────
 
-  map("n", "c", ":GoDlvContinue<CR>",    "continue")
-  map("n", "n", ":GoDlvNext<CR>",        "step over")
-  map("n", "s", ":GoDlvStepIn<CR>",      "step into")
-  map("n", "o", ":GoDlvStepOut<CR>",     "step out")
-  map("n", "z", ":GoDlvPause<CR>",       "pause")
-  map("n", "g", ":GoDlvRunToCursor<CR>", "run to cursor")
+    map("n", "d", function() install_session_keys(); vim.cmd("GoDlvDebug") end,      "debug main package")
+    map("n", "t", function() install_session_keys(); vim.cmd("GoDlvTest") end,       "debug test package")
+    map("n", "b", function() install_session_keys(); vim.cmd("GoDlvAttachSpawn") end,"build + debug binary")
+    map("n", "a", function()
+      install_session_keys()
+      vim.ui.input({ prompt = "PID: " }, function(v)
+        if v and v ~= "" then vim.cmd("GoDlvAttach " .. v) end
+      end)
+    end, "attach to pid")
+    map("n", "C", function()
+      install_session_keys()
+      vim.ui.input({ prompt = "Connect (host:port): " }, function(v)
+        if v and v ~= "" then vim.cmd("GoDlvConnect " .. v) end
+      end)
+    end, "connect to headless dlv")
+    map("n", "r", function() install_session_keys(); vim.cmd("GoDlvRestart") end,    "restart session")
+    map("n", "q", function() remove_session_keys(); vim.cmd("GoDlvStop") end,        "stop session")
 
-  -- ── breakpoints ───────────────────────────────────────────────────────────
+    -- ── execution ─────────────────────────────────────────────────────────────
 
-  map("n", "p", ":GoDlvBreakpoint<CR>",      "toggle breakpoint")
-  map("n", "P", ":GoDlvCondBreakpoint<CR>",  "conditional breakpoint")
-  map("n", "L", ":GoDlvLogpoint<CR>",        "logpoint")
-  map("n", "H", ":GoDlvHitBreakpoint<CR>",   "hit-count breakpoint")
-  map("n", "x", ":GoDlvRemoveBreakpoint<CR>","remove breakpoint")
-  map("n", "X", ":GoDlvClearBreakpoints<CR>","clear all breakpoints")
+    map("n", "c", ":GoDlvContinue<CR>",    "continue")
+    map("n", "n", ":GoDlvNext<CR>",        "step over")
+    map("n", "s", ":GoDlvStepIn<CR>",      "step into")
+    map("n", "o", ":GoDlvStepOut<CR>",     "step out")
+    map("n", "z", ":GoDlvPause<CR>",       "pause")
+    map("n", "g", ":GoDlvRunToCursor<CR>", "run to cursor")
 
-  -- ── inspection ────────────────────────────────────────────────────────────
+    -- ── breakpoints ───────────────────────────────────────────────────────────
 
-  map("n", "k", ":GoDlvHover<CR>", "hover eval")
-  map("v", "k", function()
-    local lines = vim.fn.getregion(vim.fn.getpos("v"), vim.fn.getpos("."), { type = "v" })
-    local expr  = vim.trim(table.concat(lines, " "))
-    vim.cmd("GoDlvHover " .. vim.fn.escape(expr, " "))
-  end, "hover eval selection")
-  map("n", "e", ":GoDlvInspect<CR>",  "inspect expression")
-  map("n", "E", ":GoDlvSetVar<CR>",   "set variable")
+    map("n", "p", ":GoDlvBreakpoint<CR>",      "toggle breakpoint")
+    map("n", "P", ":GoDlvCondBreakpoint<CR>",  "conditional breakpoint")
+    map("n", "L", ":GoDlvLogpoint<CR>",        "logpoint")
+    map("n", "H", ":GoDlvHitBreakpoint<CR>",   "hit-count breakpoint")
+    map("n", "x", ":GoDlvRemoveBreakpoint<CR>","remove breakpoint")
+    map("n", "X", ":GoDlvClearBreakpoints<CR>","clear all breakpoints")
 
-  -- ── watches ───────────────────────────────────────────────────────────────
+    -- ── inspection ────────────────────────────────────────────────────────────
 
-  map("n", "w", ":GoDlvWatchAdd<CR>",    "add watch")
-  map("v", "w", function()
-    local lines = vim.fn.getregion(vim.fn.getpos("v"), vim.fn.getpos("."), { type = "v" })
-    local expr  = vim.trim(table.concat(lines, " "))
-    vim.cmd("GoDlvWatchAdd " .. vim.fn.escape(expr, " "))
-  end, "watch selection")
-  map("n", "W", ":GoDlvWatchRemove<CR>", "remove watch")
+    map("n", "k", ":GoDlvHover<CR>", "hover eval")
+    map("v", "k", function()
+      local lines = vim.fn.getregion(vim.fn.getpos("v"), vim.fn.getpos("."), { type = "v" })
+      local expr  = vim.trim(table.concat(lines, " "))
+      vim.cmd("GoDlvHover " .. vim.fn.escape(expr, " "))
+    end, "hover eval selection")
+    map("n", "e", ":GoDlvInspect<CR>",  "inspect expression")
+    map("n", "E", ":GoDlvSetVar<CR>",   "set variable")
 
-  -- ── UI ────────────────────────────────────────────────────────────────────
+    -- ── watches ───────────────────────────────────────────────────────────────
 
-  map("n", "u", ":GoDlvUI<CR>", "toggle debug UI")
-  map("n", "V", ":GoDlvToggleVirt<CR>", "toggle virtual text")
+    map("n", "w", ":GoDlvWatchAdd<CR>",    "add watch")
+    map("v", "w", function()
+      local lines = vim.fn.getregion(vim.fn.getpos("v"), vim.fn.getpos("."), { type = "v" })
+      local expr  = vim.trim(table.concat(lines, " "))
+      vim.cmd("GoDlvWatchAdd " .. vim.fn.escape(expr, " "))
+    end, "watch selection")
+    map("n", "W", ":GoDlvWatchRemove<CR>", "remove watch")
 
-  -- ── autocmds ──────────────────────────────────────────────────────────────
+    -- ── UI ────────────────────────────────────────────────────────────────────
+
+    map("n", "u", ":GoDlvUI<CR>", "toggle debug UI")
+    map("n", "V", ":GoDlvToggleVirt<CR>", "toggle virtual text")
+  end
+
+  -- ── Initialization ─────────────────────────────────────────────────────────
 
   local aug = vim.api.nvim_create_augroup("GoDebugConfig", { clear = true })
+
+  vim.api.nvim_create_autocmd("FileType", {
+    group = aug,
+    pattern = "go",
+    callback = function(ev)
+      -- Only enable if we are in a Go project (detected by go.mod)
+      if vim.fs.root(ev.buf, "go.mod") then
+        register_keymaps(ev.buf)
+      end
+    end,
+  })
 
   vim.api.nvim_create_autocmd("VimLeavePre", {
     group = aug, once = true,

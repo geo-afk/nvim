@@ -130,7 +130,7 @@ function M.create_terminal(cmd, opts)
           -- Feed text into the terminal emulator so it renders correctly.
           local chan = vim.bo[buf].channel
           if chan and chan > 0 then
-            vim.fn.chansend(chan, "\r\n" .. sep .. "\r\n" .. status .. "\r\n")
+            pcall(vim.fn.chansend, chan, "\r\n" .. sep .. "\r\n" .. status .. "\r\n")
           end
         end)
       end,
