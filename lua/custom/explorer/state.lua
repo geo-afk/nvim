@@ -35,6 +35,7 @@ local S = {
   icon_fn = nil,
   build_tok = 0,
   close_fn = nil,
+  width_expanded = false,
 
   -- Path to move the cursor to after the next build completes.
   -- Set by M.reveal(); consumed and cleared by render._reveal_cursor().

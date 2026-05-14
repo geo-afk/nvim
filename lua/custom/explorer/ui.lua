@@ -440,6 +440,7 @@ function M.help()
         { key_label(km.open), "open file or expand/collapse directory" },
         { key_label(km.close_dir), "collapse directory or jump to parent" },
         { key_label(km.go_up), "move explorer root to parent directory" },
+        { key_label(km.toggle_width), "temporarily expand explorer width" },
         { key_label(km.expand_all), "expand one level of directories" },
         { key_label(km.collapse_all), "collapse every open directory" },
       },

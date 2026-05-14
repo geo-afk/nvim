@@ -10,6 +10,13 @@ local api = vim.api
 
 local M = {}
 
+local function target_width(expanded)
+  local c = cfg.get()
+  local width = expanded and (c.expanded_width or c.width) or c.width
+  local max_width = math.max(c.width, vim.o.columns - 20)
+  return math.max(1, math.min(width, max_width))
+end
+
 -- ── Colour helpers ────────────────────────────────────────────────────────
 
 local function unpack_rgb(c)
@@ -323,6 +330,27 @@ function M.update_winbar()
   refresh_winbar_async()
 end
 
+function M.set_expanded(expanded)
+  if not (S.win and api.nvim_win_is_valid(S.win)) then
+    S.width_expanded = false
+    return
+  end
+  S.width_expanded = expanded == true
+  api.nvim_win_set_width(S.win, target_width(S.width_expanded))
+  M.apply_window_options(S.win)
+  require("custom.explorer.search_ui").paint()
+end
+
+function M.toggle_width()
+  M.set_expanded(not S.width_expanded)
+end
+
+function M.reset_width()
+  if S.width_expanded then
+    M.set_expanded(false)
+  end
+end
+
 -- ── Keymaps ───────────────────────────────────────────────────────────────
 
 function M.setup_keymaps(buf)
@@ -353,6 +381,7 @@ function M.setup_keymaps(buf)
   map(km.copy, A.copy)
   map(km.move, A.move)
   map(km.toggle_hidden, A.toggle_hidden)
+  map(km.toggle_width, A.toggle_width)
   map(km.refresh, A.refresh)
   map(km.add_project, A.add_project)
   map(km.copy_path, A.copy_path)

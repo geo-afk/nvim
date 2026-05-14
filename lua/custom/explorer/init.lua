@@ -602,6 +602,19 @@ function M.setup(opts)
     end,
   })
 
+  nvim_utils.autocmd({ "WinLeave", "BufLeave" }, {
+    desc = "explorer: restore width after focus leaves",
+    callback = function(ev)
+      if
+        S.win
+        and api.nvim_win_is_valid(S.win)
+        and (api.nvim_get_current_win() == S.win or (S.buf and ev.buf == S.buf))
+      then
+        win.reset_width()
+      end
+    end,
+  })
+
   nvim_utils.autocmd("FileType", {
     pattern = "explorer",
     desc = "explorer: enforce buffer options",

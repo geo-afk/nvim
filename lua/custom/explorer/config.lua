@@ -18,6 +18,7 @@ M.TREE_STYLES = {
 
 M.defaults = {
   width = 36,
+  expanded_width = 72,
   side = "left",
   show_hidden = false,
   show_git = true,
@@ -94,6 +95,7 @@ M.defaults = {
     copy = "c",
     move = "m",
     toggle_hidden = ".",
+    toggle_width = "zw",
     refresh = "R",
     add_project = "P",
     copy_path = "y",

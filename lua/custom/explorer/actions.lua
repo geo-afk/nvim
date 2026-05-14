@@ -766,6 +766,10 @@ function A.toggle_hidden()
   render.render()
 end
 
+function A.toggle_width()
+  require("custom.explorer.win").toggle_width()
+end
+
 function A.copy_path()
   local item = A.current_item()
   if not item then
