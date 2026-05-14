@@ -224,17 +224,17 @@ function M.render(winid, bufnr, width)
   -- Diagnostics (cached per buffer)
   local d = get_diags(bufnr)
   if d.e > 0 then
-    parts[#parts + 1] = hl("StatusLineDiagError") .. "󰅚 " .. d.e .. hl("StatusLine")
+    parts[#parts + 1] = hl("StatusLineDiagError") .. " 󰅚 " .. d.e .. " " .. hl("StatusLine")
   end
   if d.w > 0 and win_width > 50 then
-    parts[#parts + 1] = hl("StatusLineDiagWarn") .. "󰀪 " .. d.w .. hl("StatusLine")
+    parts[#parts + 1] = hl("StatusLineDiagWarn") .. " 󰀪 " .. d.w .. " " .. hl("StatusLine")
   end
   if win_width > 80 then
     if d.h > 0 then
-      parts[#parts + 1] = hl("StatusLineDiagHint") .. "󰌶 " .. d.h .. hl("StatusLine")
+      parts[#parts + 1] = hl("StatusLineDiagHint") .. " 󰌶 " .. d.h .. " " .. hl("StatusLine")
     end
     if d.i > 0 then
-      parts[#parts + 1] = hl("StatusLineDiagInfo") .. "󰋼 " .. d.i .. hl("StatusLine")
+      parts[#parts + 1] = hl("StatusLineDiagInfo") .. " 󰋼 " .. d.i .. " " .. hl("StatusLine")
     end
   end
 

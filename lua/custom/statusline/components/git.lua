@@ -139,13 +139,13 @@ function M.render(winid, width)
 
   local parts = { branch_str }
   if entry.added > 0 then
-    parts[#parts + 1] = hl("StatusLineGitAdd") .. "  " .. entry.added .. hl("StatusLine")
+    parts[#parts + 1] = hl("StatusLineGitAdd") .. "  " .. entry.added .. " " .. hl("StatusLine")
   end
   if entry.modified > 0 then
-    parts[#parts + 1] = hl("StatusLineGitMod") .. " 󰦒 " .. entry.modified .. hl("StatusLine")
+    parts[#parts + 1] = hl("StatusLineGitMod") .. " 󰦒 " .. entry.modified .. " " .. hl("StatusLine")
   end
   if entry.removed > 0 then
-    parts[#parts + 1] = hl("StatusLineGitDel") .. "  " .. entry.removed .. hl("StatusLine")
+    parts[#parts + 1] = hl("StatusLineGitDel") .. "  " .. entry.removed .. " " .. hl("StatusLine")
   end
 
   return utils.join(parts, " ")

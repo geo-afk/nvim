@@ -244,10 +244,10 @@ function M.render(winid)
     local center_width = utils.statusline_width(center)
     local outer_width = utils.statusline_width(left) + utils.statusline_width(right)
     if center_width > 0 and (outer_width + center_width + 8) < win_width then
-      return base_hl .. left .. "%=" .. center .. "%=" .. right
+      return base_hl .. left .. " %=" .. center .. "%= " .. right
     end
   end
-  return base_hl .. left .. "%=" .. right
+  return base_hl .. left .. " %=" .. right
 end
 
 return M
