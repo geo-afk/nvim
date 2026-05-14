@@ -4,6 +4,10 @@
       "rev": "a62e1083a3cfe8b6b206e7d3d33a51091df25357",
       "src": "https://github.com/L3MON4D3/LuaSnip"
     },
+    "astrotheme": {
+      "rev": "95c046b763266a4873bdf0cbf6a1824c929dec3a",
+      "src": "https://github.com/AstroNvim/astrotheme"
+    },
     "blink.cmp": {
       "rev": "b4b7cbb52bab6c716b317433fa9348a070cccee5",
       "src": "https://github.com/saghen/blink.cmp"
