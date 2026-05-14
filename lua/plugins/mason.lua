@@ -23,7 +23,8 @@ local lsp_to_mason = {
   cssls = "css-lsp",
   sqls = "sqls",
   tailwindcss = "tailwindcss-language-server",
-  typos_lsp = "typos-lsp",
+  -- typos_lsp = "typos-lsp",
+  codebook = "codebook",
   -- pyright               = "pyright",
   marksman = "marksman",
   -- taplo                 = "taplo",
@@ -37,9 +38,9 @@ local mason_tools = {
   "gofumpt",
   "goimports",
   "golines",
-  "gotests",
+  -- "gotests",
   "staticcheck",
-  "iferr",
+  -- "iferr",
   "gomodifytags",
   -- JS/TS
   "biome",
@@ -165,4 +166,3 @@ if mti_ok then
     start_delay = 2000,
   })
 end
-

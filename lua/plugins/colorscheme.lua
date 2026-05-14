@@ -3,9 +3,11 @@
 -- =============================================================================
 vim.pack.add({ { src = "https://github.com/folke/tokyonight.nvim" } })
 vim.pack.add({ { src = "https://github.com/geo-afk/theme.nvim" } })
+vim.pack.add({ { src = "https://github.com/AstroNvim/astrotheme" } })
 
-local c_ok, c_theme = pcall(require, "theme")
+-- local c_ok, c_theme = pcall(require, "theme")
 local ok, tokyonight = pcall(require, "tokyonight")
+local a_ok, astro = pcall(require, "astrotheme")
 
 if ok then
   tokyonight.setup({
@@ -25,14 +27,11 @@ if ok then
   })
 end
 
-if c_ok then
-  c_theme.setup()
+-- if c_ok then
+--   c_theme.setup()
+-- end
+
+if a_ok then
+  astro.setup()
+  vim.cmd("colorscheme astrodark")
 end
-
--- if not pcall(vim.cmd, "colorscheme cd-theme") then
---   vim.cmd("colorscheme catppuccin")
--- end
-
--- if not pcall(vim.cmd, "colorscheme tokyonight-night") then
---   vim.cmd("colorscheme habamax")
--- end

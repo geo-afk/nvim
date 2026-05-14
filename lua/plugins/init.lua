@@ -67,6 +67,9 @@ Loader.later(function()
   -- Git
   require("plugins.gitsigns")
 
+  -- Debugging
+  require("plugins.go_debugger").setup()
+
   -- Eye candy
   require("plugins.smear")
   require("plugins.color-highlight")
