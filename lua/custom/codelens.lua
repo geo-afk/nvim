@@ -22,12 +22,18 @@ local state = {
       references = "󰄪 ",
       implementations = "󰆼 ",
       test = "󰙨 ",
+      benchmark = "󰓅 ",
+      generate = "󰚗 ",
+      tidy = "󰗊 ",
+      upgrade = "󰚰 ",
       default = "󰌶 ",
     },
     highlights = {
       lens = "LspCodeLens",
       icon = "LspCodeLensIcon",
       separator = "LspCodeLensSeparator",
+      text = "LspCodeLensText",
+      sign = "LspCodeLensSign",
     },
     keymaps = {
       run = "<leader>cc",
@@ -67,6 +73,8 @@ end
 local function get_icon(title)
   local t = title:lower()
   if t:find("run") or t:find("debug") then
+    if t:find("test") then return state.config.icons.test end
+    if t:find("benchmark") then return state.config.icons.benchmark end
     return state.config.icons.run
   elseif t:find("reference") then
     return state.config.icons.references
@@ -74,6 +82,14 @@ local function get_icon(title)
     return state.config.icons.implementations
   elseif t:find("test") then
     return state.config.icons.test
+  elseif t:find("benchmark") then
+    return state.config.icons.benchmark
+  elseif t:find("generate") then
+    return state.config.icons.generate
+  elseif t:find("tidy") then
+    return state.config.icons.tidy
+  elseif t:find("upgrade") then
+    return state.config.icons.upgrade
   end
   return state.config.icons.default
 end
@@ -159,8 +175,9 @@ function M.refresh(bufnr)
     return
   end
 
-  -- In Neovim 0.10+, vim.lsp.codelens.refresh() is deprecated in favor of enable(true).
-  -- This triggers a request and ensures automatic lifecycle is active.
+  -- In Neovim 0.10+, vim.lsp.codelens.enable(true) is the standard way.
+  -- To force a refresh (similar to go.nvim), we disable and re-enable.
+  vim.lsp.codelens.enable(false, { bufnr = bufnr })
   vim.lsp.codelens.enable(true, { bufnr = bufnr })
 end
 
@@ -189,7 +206,7 @@ local function setup_autocmds()
 
   state.augroup = vim.api.nvim_create_augroup("CustomCodeLens", { clear = true })
 
-  vim.api.nvim_create_autocmd({ "LspAttach", "BufEnter", "InsertLeave", "BufWritePost" }, {
+  vim.api.nvim_create_autocmd({ "LspAttach", "BufEnter", "InsertLeave", "BufWritePre", "BufWritePost" }, {
     group = state.augroup,
     callback = function(args)
       if buf_enabled(args.buf) then
@@ -244,7 +261,8 @@ function M.run_action()
     return
   end
 
-  local cursor_line = vim.api.nvim_win_get_cursor(0)[1] - 1
+  local cursor_pos = vim.api.nvim_win_get_cursor(0)
+  local cursor_line = cursor_pos[1] - 1
   local lenses = vim.lsp.codelens.get({ bufnr = bufnr })
 
   if not lenses or #lenses == 0 then
@@ -252,33 +270,43 @@ function M.run_action()
     return
   end
 
-  -- Find exact match first
+  -- 1. Find all lenses on the current line
+  local line_lenses = {}
   for _, entry in ipairs(lenses) do
-    local lens = entry.lens
-    if lens and lens.range and lens.range.start.line == cursor_line then
-      vim.lsp.codelens.run({ client_id = entry.client_id })
+    if entry.lens.range.start.line == cursor_line then
+      table.insert(line_lenses, entry)
+    end
+  end
+
+  local target = nil
+  if #line_lenses > 0 then
+    -- Already on the right line, snap to the first lens's character
+    target = line_lenses[1]
+  else
+    -- 2. Find nearest if none on current line (handles clicking virt_lines above/below)
+    local min_dist = math.huge
+    for _, entry in ipairs(lenses) do
+      local dist = math.abs(entry.lens.range.start.line - cursor_line)
+      if dist < min_dist then
+        min_dist = dist
+        target = entry
+      end
+    end
+    -- Only snap if it's reasonably close (e.g., within 2 lines)
+    if not target or math.abs(target.lens.range.start.line - cursor_line) > 2 then
+      vim.notify("No CodeLens nearby", vim.log.levels.INFO, { title = "CodeLens" })
       return
     end
   end
 
-  -- Find nearest
-  local nearest = nil
-  local min_dist = math.huge
-  for _, entry in ipairs(lenses) do
-    local lens = entry.lens
-    if lens and lens.range then
-      local dist = math.abs(lens.range.start.line - cursor_line)
-      if dist < min_dist then
-        min_dist = dist
-        nearest = entry
-      end
-    end
-  end
-
-  if nearest then
-    local lens = nearest.lens
-    vim.api.nvim_win_set_cursor(0, { lens.range.start.line + 1, lens.range.start.character })
-    vim.lsp.codelens.run({ client_id = nearest.client_id })
+  if target then
+    -- Move cursor to the exact start of the lens for reliable execution
+    vim.api.nvim_win_set_cursor(0, { target.lens.range.start.line + 1, target.lens.range.start.character })
+    
+    -- Small defer to let the cursor move register before LSP request
+    vim.schedule(function()
+      vim.lsp.codelens.run()
+    end)
   end
 end
 
@@ -340,9 +368,12 @@ function M.setup(user_config)
   state.config = vim.tbl_deep_extend("force", state.config, user_config or {})
   
   -- Ensure highlights exist
-  vim.api.nvim_set_hl(0, "LspCodeLens", { link = "Comment", default = true })
-  vim.api.nvim_set_hl(0, "LspCodeLensIcon", { link = "Special", default = true })
-  vim.api.nvim_set_hl(0, "LspCodeLensSeparator", { link = "Comment", default = true })
+  local hl = state.config.highlights
+  vim.api.nvim_set_hl(0, hl.lens, { link = "Comment", default = true })
+  vim.api.nvim_set_hl(0, hl.icon, { link = "Special", default = true })
+  vim.api.nvim_set_hl(0, hl.separator, { link = "Comment", default = true })
+  vim.api.nvim_set_hl(0, hl.text, { link = "Comment", default = true })
+  vim.api.nvim_set_hl(0, hl.sign, { link = "Comment", default = true })
 
   setup_autocmds()
 
