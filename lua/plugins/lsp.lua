@@ -9,17 +9,6 @@ vim.pack.add({
   { src = "https://github.com/neovim/nvim-lspconfig" },
 })
 
--- config/lsp.lua is required by init.lua after plugins/.
--- We enable inlay hints globally here once the LSP subsystem is ready.
-vim.api.nvim_create_autocmd("LspAttach", {
-  group    = vim.api.nvim_create_augroup("plugins_lsp_inlay", { clear = true }),
-  once     = true,
-  callback = function()
-    -- [0.11+] Global inlay hints – toggle per-buffer with <leader>ch
-    pcall(vim.lsp.inlay_hint.enable, true)
-  end,
-})
-
 local map = vim.keymap.set
 local diagnostic_jump_float = function(diagnostic, bufnr)
   if diagnostic then
