@@ -157,7 +157,13 @@ end
 
 local function separators(active, win_width)
   local base = active and "StatusLine" or "StatusLineNC"
-  if win_width < 70 then
+  if win_width < 50 then
+    return {
+      left = hl(base) .. " ",
+      center = hl(base) .. " ",
+      right = hl(base) .. " ",
+    }
+  elseif win_width < 85 then
     return {
       left = hl("StatusLineSep") .. "·" .. hl(base),
       center = hl("StatusLineFill") .. " " .. hl(base),
@@ -174,7 +180,7 @@ end
 -- ---------------------------------------------------------------------------
 -- Gather — partial-update hot path
 -- ---------------------------------------------------------------------------
-local function gather(side, winid, bufnr, active, separator)
+local function gather(side, winid, bufnr, active, separator, win_width)
   local parts = {}
 
   for _, sec in ipairs(sections) do
@@ -182,12 +188,12 @@ local function gather(side, winid, bufnr, active, separator)
       local rendered
       if sec.always_fresh then
         -- Always-fresh: call every time (cheap, < 1 µs)
-        local ok, s = pcall(sec.fn, winid, bufnr, active)
+        local ok, s = pcall(sec.fn, winid, bufnr, active, win_width)
         rendered = (ok and s) or ""
         sec.cache = rendered
       elseif sec.dirty then
         -- Dirty: rebuild the cached string
-        local ok, s = pcall(sec.fn, winid, bufnr, active)
+        local ok, s = pcall(sec.fn, winid, bufnr, active, win_width)
         rendered = (ok and s) or ""
         sec.cache = rendered
         sec.dirty = false
@@ -230,9 +236,9 @@ function M.render(winid)
   local base_hl = active and hl("StatusLine") or hl("StatusLineNC")
   local win_width = vim.api.nvim_win_get_width(winid)
   local sep = separators(active, win_width)
-  local left = gather("left", winid, bufnr, active, sep.left)
-  local center = gather("center", winid, bufnr, active, sep.center)
-  local right = gather("right", winid, bufnr, active, sep.right)
+  local left = gather("left", winid, bufnr, active, sep.left, win_width)
+  local center = gather("center", winid, bufnr, active, sep.center, win_width)
+  local right = gather("right", winid, bufnr, active, sep.right, win_width)
 
   if center ~= "" then
     local center_width = utils.statusline_width(center)

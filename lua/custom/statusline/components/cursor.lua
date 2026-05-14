@@ -119,10 +119,8 @@ end
 -- Public
 -- ---------------------------------------------------------------------------
 
-function M.render(winid)
-  local win_width = vim.api.nvim_win_get_width(winid)
-  local compact = win_width < 80
-  local very_compact = win_width < 55
+function M.render(winid, width)
+  local win_width = width or vim.api.nvim_win_get_width(winid)
 
   -- Cursor info from the window (not necessarily current window in inactive)
   local cursor = vim.api.nvim_win_get_cursor(winid)
@@ -134,13 +132,13 @@ function M.render(winid)
 
   local pos_str = hl("StatusLineCursor") .. string.format(" %d:%d ", line, col) .. hl("StatusLine")
 
-  if very_compact then
+  if win_width < 50 then
     return pos_str
   end
 
   local progress_str = hl("StatusLineProgress") .. pct_label(pct) .. hl("StatusLine")
 
-  if compact then
+  if win_width < 80 then
     return utils.join({ pos_str, progress_str }, " ")
   end
 

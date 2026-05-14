@@ -212,9 +212,8 @@ end
 
 -- ── Render ────────────────────────────────────────────────────────────────────
 
-function M.render(winid, bufnr)
-  local win_width = vim.api.nvim_win_get_width(winid)
-  local compact = win_width < 80
+function M.render(winid, bufnr, width)
+  local win_width = width or vim.api.nvim_win_get_width(winid)
 
   -- Periodic watchdog: sweep stale tokens on every render (very cheap path).
   sweep_stale(uv.now())
@@ -227,10 +226,10 @@ function M.render(winid, bufnr)
   if d.e > 0 then
     parts[#parts + 1] = hl("StatusLineDiagError") .. "󰅚 " .. d.e .. hl("StatusLine")
   end
-  if d.w > 0 then
+  if d.w > 0 and win_width > 50 then
     parts[#parts + 1] = hl("StatusLineDiagWarn") .. "󰀪 " .. d.w .. hl("StatusLine")
   end
-  if not compact then
+  if win_width > 80 then
     if d.h > 0 then
       parts[#parts + 1] = hl("StatusLineDiagHint") .. "󰌶 " .. d.h .. hl("StatusLine")
     end
@@ -254,8 +253,8 @@ function M.render(winid, bufnr)
     end
   end
 
-  -- Client names (full width only, cached)
-  if not compact then
+  -- Client names (cached)
+  if win_width > 100 then
     local names = get_client_str(bufnr)
     if names ~= "" then
       parts[#parts + 1] = hl("StatusLineLSPName") .. names .. hl("StatusLine")

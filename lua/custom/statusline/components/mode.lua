@@ -69,9 +69,11 @@ end
 --- Render the mode pill:  <icon> LABEL
 --- Returns the rendered string and the active mode highlight name
 --- so downstream components can also use the colour.
-function M.render()
+function M.render(winid, width)
+  local win_width = width or (winid and vim.api.nvim_win_get_width(winid)) or 100
   local info = get_mode_info()
-  local pill = hl(info.hl) .. info.icon .. info.label .. hl 'StatusLine'
+  local label = win_width > 50 and info.label or ""
+  local pill = hl(info.hl) .. info.icon .. label .. hl 'StatusLine'
   return pill, info.hl
 end
 

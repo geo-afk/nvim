@@ -70,10 +70,8 @@ end
 -- ---------------------------------------------------------------------------
 -- Render
 -- ---------------------------------------------------------------------------
-function M.render(winid)
-  local win_width = vim.api.nvim_win_get_width(winid)
-  local compact = win_width < 80
-  local very_compact = win_width < 55
+function M.render(winid, width)
+  local win_width = width or vim.api.nvim_win_get_width(winid)
   local bufnr = vim.api.nvim_win_get_buf(winid)
 
   local parts = {}
@@ -95,12 +93,12 @@ function M.render(winid)
     parts[#parts + 1] = hl("StatusLineSpell") .. " SPELL:" .. lang .. " " .. hl("StatusLine")
   end
 
-  -- Wrap (only show in full mode — avoid clutter)
-  if not compact and vim.wo[winid].wrap then
+  -- Wrap
+  if win_width > 90 and vim.wo[winid].wrap then
     parts[#parts + 1] = hl("StatusLineWrap") .. "↩ " .. hl("StatusLine")
   end
 
-  if very_compact then
+  if win_width < 60 then
     return utils.join(parts, " ")
   end
 
@@ -108,8 +106,8 @@ function M.render(winid)
   parts[#parts + 1] = hl("StatusLineOS") .. os_icon .. hl("StatusLine")
 
   -- CWD (cached)
-  if not compact then
-    local max_cwd = math.min(30, math.floor(win_width * 0.15))
+  if win_width > 80 then
+    local max_cwd = math.min(30, math.floor(win_width * 0.2))
     parts[#parts + 1] = hl("StatusLineCWD") .. short_cwd(max_cwd) .. hl("StatusLine")
   end
 

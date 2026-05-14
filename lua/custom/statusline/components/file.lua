@@ -25,30 +25,35 @@ local utils = require("custom.statusline.utils")
 -- ---------------------------------------------------------------------------
 -- Cache:  [cache_key] = rendered_string
 -- Cache key = bufnr .. ":" .. win_width_bucket
--- We bucket window widths into 3 tiers (very_compact / compact / full) so the
+-- We bucket window widths into 5 tiers (xs / sm / md / lg / xl) so the
 -- same buffer in windows of slightly different widths doesn't bust the cache,
 -- but does rebuild when the display tier changes.
 -- ---------------------------------------------------------------------------
 local _cache = {}
 
 local function width_bucket(w)
-  if w < 55 then
+  if w < 50 then
     return "xs"
-  elseif w < 80 then
+  elseif w < 75 then
     return "sm"
-  else
+  elseif w < 100 then
+    return "md"
+  elseif w < 125 then
     return "lg"
+  else
+    return "xl"
   end
 end
 
-local function cache_key(bufnr, winid)
-  return bufnr .. ":" .. width_bucket(vim.api.nvim_win_get_width(winid))
+local function cache_key(bufnr, win_width)
+  return bufnr .. ":" .. width_bucket(win_width)
 end
 
 function M.invalidate(bufnr)
   -- Remove all width-tier entries for this buffer.
+  local prefix = tostring(bufnr) .. ":"
   for k in pairs(_cache) do
-    if k:sub(1, #tostring(bufnr) + 1) == tostring(bufnr) .. ":" then
+    if k:sub(1, #prefix) == prefix then
       _cache[k] = nil
     end
   end
@@ -68,8 +73,8 @@ local ft_icons = {
   typescript = "󰛦 ",
   rust = "󱘗 ",
   go = "󰟓 ",
-  c = " ",
-  cpp = " ",
+  c = " ",
+  cpp = " ",
   java = "󰬷 ",
   html = "󰌝 ",
   css = "󰌜 ",
@@ -78,33 +83,33 @@ local ft_icons = {
   yaml = "󰘦 ",
   toml = "󰘦 ",
   markdown = "󰍔 ",
-  vim = " ",
-  sh = " ",
-  bash = " ",
-  zsh = " ",
-  fish = " ",
+  vim = " ",
+  sh = "󱆃 ",
+  bash = "󱆃 ",
+  zsh = "󱆃 ",
+  fish = "󱆃 ",
   dockerfile = "󰡨 ",
-  makefile = " ",
+  makefile = " ",
   sql = "󰆼 ",
-  tex = " ",
+  tex = "󰙩 ",
   help = "󰞋 ",
-  nix = " ",
-  svelte = " ",
+  nix = " ",
+  svelte = " ",
   vue = "󰡄 ",
   tsx = "󰛦 ",
   jsx = "󰌞 ",
-  graphql = " ",
+  graphql = "󰡄 ",
   php = "󰌟 ",
-  ruby = " ",
-  elixir = " ",
+  ruby = " ",
+  elixir = " ",
   haskell = "󰲒 ",
-  scala = " ",
+  scala = " ",
   kotlin = "󱈙 ",
   swift = "󰛥 ",
   r = "󰟔 ",
   cs = "󰌛 ",
-  zig = " ",
-  dart = " ",
+  zig = " ",
+  dart = " ",
   git = "󰊢 ",
   gitconfig = "󰊢 ",
 }
@@ -198,10 +203,8 @@ end
 -- ---------------------------------------------------------------------------
 -- Build the rendered string (called once per cache miss)
 -- ---------------------------------------------------------------------------
-local function build(winid, bufnr, active)
-  local win_width = vim.api.nvim_win_get_width(winid)
-  local very_compact = win_width < 55
-  local compact = win_width < 80
+local function build(winid, bufnr, active, win_width)
+  local tier = width_bucket(win_width)
 
   local ft = vim.bo[bufnr].filetype or ""
   local icon = ft_icons[ft:lower()] or DEFAULT_ICON
@@ -209,9 +212,11 @@ local function build(winid, bufnr, active)
 
   local icon_str = hl("StatusLineFileIcon") .. icon .. hl("StatusLine")
 
-  -- Path budget: cap at 35 chars in full mode so parent/.../filename always
-  -- activates for deep paths.  Compact tiers get tighter budgets.
-  local path_max = very_compact and 18 or compact and 28 or 35
+  -- Path budget: dynamic based on window width
+  local path_max = math.max(12, math.floor(win_width * 0.25))
+  if tier == "xs" then
+    path_max = 15
+  end
   local path_str = hl("StatusLineFilePath") .. smart_path(name, path_max) .. hl("StatusLine")
 
   local mod_str = vim.bo[bufnr].modified and (hl("StatusLineModified") .. "●" .. hl("StatusLine")) or ""
@@ -219,32 +224,47 @@ local function build(winid, bufnr, active)
       and (hl("StatusLineReadonly") .. "󰌾" .. hl("StatusLine"))
     or ""
 
-  local bufnr_str = hl("StatusLineBufNr") .. "[" .. bufnr .. "]" .. hl("StatusLine")
+  local parts = {}
 
-  if very_compact then
+  -- Minimal (xs): Icon, Path, Mod, RO
+  if tier == "xs" then
     return utils.join({ icon_str, path_str, mod_str, ro_str }, " ")
   end
 
+  -- Small (sm): Add Bufrnr, Size
+  local bufnr_str = hl("StatusLineBufNr") .. "[" .. bufnr .. "]" .. hl("StatusLine")
   local size_bytes = vim.fn.getfsize(name)
   local size_str = hl("StatusLineFileSize") .. fmt_size(math.max(0, size_bytes)) .. hl("StatusLine")
 
-  if compact then
+  if tier == "sm" then
     return utils.join({ bufnr_str, icon_str, path_str, mod_str, ro_str, size_str }, " ")
   end
 
+  -- Medium (md): Add LineCount
   local lines_str = hl("StatusLineLineCount")
     .. "󰦕 "
     .. vim.api.nvim_buf_line_count(bufnr)
     .. "L"
     .. hl("StatusLine")
 
+  if tier == "md" then
+    return utils.join({ bufnr_str, icon_str, path_str, mod_str, ro_str, size_str, lines_str }, " ")
+  end
+
+  -- Large (lg): Add FT
+  local ft_str = ft ~= "" and (hl("StatusLineChipMuted") .. " " .. ft .. " " .. hl("StatusLine")) or ""
+
+  if tier == "lg" then
+    return utils.join({ bufnr_str, icon_str, path_str, mod_str, ro_str, size_str, lines_str, ft_str }, " ")
+  end
+
+  -- Extra Large (xl): Add Encoding, FF
   local enc = (vim.bo[bufnr].fileencoding ~= "" and vim.bo[bufnr].fileencoding) or vim.o.encoding or "utf-8"
   local ff = vim.bo[bufnr].fileformat
   local ff_label = ff == "unix" and "LF" or ff == "dos" and "CRLF" or "CR"
 
   local enc_str = hl("StatusLineEncoding") .. enc:upper() .. hl("StatusLine")
   local ff_str = hl("StatusLineEncoding") .. ff_label .. hl("StatusLine")
-  local ft_str = ft ~= "" and (hl("StatusLineChipMuted") .. " " .. ft .. " " .. hl("StatusLine")) or ""
 
   return utils.join({
     bufnr_str,
@@ -263,12 +283,13 @@ end
 -- ---------------------------------------------------------------------------
 -- Public render (hot path: one table lookup, or build+cache on miss)
 -- ---------------------------------------------------------------------------
-function M.render(winid, bufnr, active)
-  local key = cache_key(bufnr, winid)
+function M.render(winid, bufnr, active, width)
+  local win_width = width or vim.api.nvim_win_get_width(winid)
+  local key = cache_key(bufnr, win_width)
   if _cache[key] then
     return _cache[key]
   end
-  local s = build(winid, bufnr, active)
+  local s = build(winid, bufnr, active, win_width)
   _cache[key] = s
   return s
 end

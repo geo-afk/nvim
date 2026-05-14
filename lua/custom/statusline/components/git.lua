@@ -116,9 +116,8 @@ function M.update(cwd)
   end
 end
 
-function M.render(winid)
-  local win_width = vim.api.nvim_win_get_width(winid)
-  local compact = win_width < 80
+function M.render(winid, width)
+  local win_width = width or vim.api.nvim_win_get_width(winid)
 
   local cwd = vim.fn.getcwd()
   local entry = M.cache[cwd]
@@ -131,9 +130,10 @@ function M.render(winid)
     return ""
   end
 
-  local branch_str = hl("StatusLineGitBranch") .. "  " .. entry.branch .. " " .. hl("StatusLine")
+  local branch_icon = win_width > 60 and "  " or ""
+  local branch_str = hl("StatusLineGitBranch") .. branch_icon .. entry.branch .. " " .. hl("StatusLine")
 
-  if compact then
+  if win_width < 85 then
     return branch_str
   end
 

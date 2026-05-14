@@ -275,24 +275,24 @@ local function make_render_fn(key)
   local sys_comp = require 'custom.statusline.components.system'
 
   local fns = {
-    mode = function(w, _b, _a)
-      local s, _ = mode_comp.render()
+    mode = function(w, _b, _a, width)
+      local s, _ = mode_comp.render(w, width)
       return s
     end,
-    file = function(w, b, a)
-      return file_comp.render(w, b, a)
+    file = function(w, b, a, width)
+      return file_comp.render(w, b, a, width)
     end,
-    git = function(w, _b, _a)
-      return git_comp.render(w)
+    git = function(w, _b, _a, width)
+      return git_comp.render(w, width)
     end,
-    lsp = function(w, b, _a)
-      return lsp_comp.render(w, b)
+    lsp = function(w, b, _a, width)
+      return lsp_comp.render(w, b, width)
     end,
-    cursor = function(w, _b, _a)
-      return cursor_comp.render(w)
+    cursor = function(w, _b, _a, width)
+      return cursor_comp.render(w, width)
     end,
-    system = function(w, _b, _a)
-      return sys_comp.render(w)
+    system = function(w, _b, _a, width)
+      return sys_comp.render(w, width)
     end,
   }
   return fns[key] or function()
