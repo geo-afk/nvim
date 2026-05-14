@@ -35,6 +35,7 @@ Loader.now(function()
   require("custom.statusline").setup()
   require("custom.tabline").setup()
   require("custom.session").setup()
+  require("custom.codelens").setup()
 end)
 
 -- ── Deferred Loading ─────────────────────────────────────────────────────────
@@ -42,7 +43,6 @@ end)
 Loader.later(function()
   require("config.lsp") -- native LSP server configs
 
-  require("custom.nvimkeys").setup()
   -- custom utilities
   require("custom.explorer").setup()
   require("custom.lazygit").setup()
