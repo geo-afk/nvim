@@ -10,8 +10,7 @@ end
 -- Ensure nested tables exist before mutation
 capabilities.textDocument = capabilities.textDocument or {}
 capabilities.textDocument.completion = capabilities.textDocument.completion or {}
-capabilities.textDocument.completion.completionItem =
-  capabilities.textDocument.completion.completionItem or {}
+capabilities.textDocument.completion.completionItem = capabilities.textDocument.completion.completionItem or {}
 
 -- Safe capability extensions
 capabilities.textDocument.completion.completionItem.snippetSupport = true
@@ -25,6 +24,8 @@ capabilities.textDocument.foldingRange = {
   lineFoldingOnly = true,
 }
 
+---@module "lspconfig"
+---@type vim.lsp.Config
 return {
   cmd = { "tailwindcss-language-server", "--stdio" },
   filetypes = {
@@ -45,6 +46,7 @@ return {
     ".git",
   },
   capabilities = capabilities,
+  ---@type lspconfig.settings.tailwindcss
   settings = {
     tailwindCSS = {
       emmetCompletions = true,

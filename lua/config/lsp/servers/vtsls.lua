@@ -44,6 +44,8 @@ local function get_global_plugin()
   }
 end
 
+---@module "lspconfig"
+---@type vim.lsp.Config
 return {
   cmd = { "vtsls", "--stdio" },
   root_markers = { "angular.json", ".git", "package.json", "tsconfig.json", "jsconfig.json" },
@@ -57,6 +59,7 @@ return {
   },
   init_options = { hostInfo = "neovim" },
 
+  ---@type lspconfig.settings.vtsls
   settings = {
     complete_function_calls = true,
 

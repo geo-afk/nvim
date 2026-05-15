@@ -1,18 +1,45 @@
+---@module "lspconfig"
+---@type vim.lsp.Config
 return {
-  cmd          = { 'vscode-json-language-server', '--stdio' },
-  filetypes    = { 'json', 'jsonc' },
-  root_markers = { 'package.json', '.git' },
+  cmd = { "vscode-json-language-server", "--stdio" },
+  filetypes = { "json", "jsonc" },
+  root_markers = { "package.json", ".git" },
+  ---@type lspconfig.settings.jsonls
   settings = {
     json = {
       schemas = {
-        { fileMatch = { 'package.json' },                                          url = 'https://json.schemastore.org/package.json' },
-        { fileMatch = { 'tsconfig*.json' },                                        url = 'https://json.schemastore.org/tsconfig.json' },
-        { fileMatch = { '.prettierrc', '.prettierrc.json', 'prettier.config.json' }, url = 'https://json.schemastore.org/prettierrc.json' },
-        { fileMatch = { '.eslintrc', '.eslintrc.json' },                           url = 'https://json.schemastore.org/eslintrc.json' },
-        { fileMatch = { '.babelrc', '.babelrc.json', 'babel.config.json' },        url = 'https://json.schemastore.org/babelrc.json' },
-        { fileMatch = { 'lerna.json' },                                            url = 'https://json.schemastore.org/lerna.json' },
-        { fileMatch = { 'now.json', 'vercel.json' },                               url = 'https://json.schemastore.org/now.json' },
-        { fileMatch = { 'ecosystem.json' },                                        url = 'https://json.schemastore.org/pm2-ecosystem.json' },
+        {
+          fileMatch = { "package.json" },
+          url = "https://json.schemastore.org/package.json",
+        },
+        {
+          fileMatch = { "tsconfig*.json" },
+          url = "https://json.schemastore.org/tsconfig.json",
+        },
+        {
+          fileMatch = { ".prettierrc", ".prettierrc.json", "prettier.config.json" },
+          url = "https://json.schemastore.org/prettierrc.json",
+        },
+        {
+          fileMatch = { ".eslintrc", ".eslintrc.json" },
+          url = "https://json.schemastore.org/eslintrc.json",
+        },
+        {
+          fileMatch = { ".babelrc", ".babelrc.json", "babel.config.json" },
+          url = "https://json.schemastore.org/babelrc.json",
+        },
+        {
+          fileMatch = { "lerna.json" },
+          url = "https://json.schemastore.org/lerna.json",
+        },
+        {
+          fileMatch = { "now.json", "vercel.json" },
+          url = "https://json.schemastore.org/now.json",
+        },
+        {
+          fileMatch = { "ecosystem.json" },
+          url = "https://json.schemastore.org/pm2-ecosystem.json",
+        },
       },
     },
   },

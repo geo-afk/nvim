@@ -1,7 +1,11 @@
+---@module "lspconfig"
+---@type vim.lsp.Config
+
 return {
-  cmd          = { 'vscode-html-language-server', '--stdio' },
-  filetypes    = { 'html' },
-  root_markers = { 'package.json', '.git' },
+  cmd = { "vscode-html-language-server", "--stdio" },
+  filetypes = { "html" },
+  root_markers = { "package.json", ".git" },
+  ---@type lspconfig.settings.html
   settings = {
     html = {
       validate = {
@@ -10,7 +14,7 @@ return {
       format = {
         templating = true,
         wrapLineLength = 120,
-        wrapAttributes = 'auto',
+        wrapAttributes = "auto",
       },
       hover = {
         documentation = true,
@@ -21,6 +25,6 @@ return {
   init_options = {
     provideFormatter = true,
     embeddedLanguages = { css = true, javascript = true },
-    configurationSection = { 'html', 'css', 'javascript' },
+    configurationSection = { "html", "css", "javascript" },
   },
 }
