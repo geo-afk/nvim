@@ -12,39 +12,39 @@ local M = {}
 
 -- Derive sibling module path from the current file's dotted name.
 -- e.g. "custom.lsp_keymapper.ui" -> base = "custom.lsp_keymapper"
-local _BASE = (...):match '^(.+)%.[^.]+$' or (...)
+local _BASE = (...):match("^(.+)%.[^.]+$") or (...)
 
-local caps = require(_BASE .. '.capabilities')
-local keymaps = require(_BASE .. '.keymap')
-local nvim_utils = require('utils.nvim')
+local caps = require(_BASE .. ".capabilities")
+local keymaps = require(_BASE .. ".keymap")
+local nvim_utils = require("utils.nvim")
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Constants
 -- ─────────────────────────────────────────────────────────────────────────────
 
-local TITLE = ' LSP Capability Mapper '
-local NS = vim.api.nvim_create_namespace 'lsp_keymapper'
+local TITLE = " LSP Capability Mapper "
+local NS = vim.api.nvim_create_namespace("lsp_keymapper")
 
-local HL_HEADER = 'LspKeyHeader' -- section headers / dividers
-local HL_MAPPED = 'LspKeyMapped' -- known cap that is already bound
-local HL_FREE = 'LspKeyFree' -- known cap that is not yet bound
-local HL_DIM = 'LspKeyDim' -- supplementary text (description, hint)
-local HL_KEY = 'LspKeyKey' -- capability label
-local HL_DISCOVERED = 'LspKeyDiscovered' -- discovered cap WITH an auto-handler
-local HL_NO_HANDLER = 'LspKeyNoHandler' -- discovered cap WITHOUT a handler
+local HL_HEADER = "LspKeyHeader" -- section headers / dividers
+local HL_MAPPED = "LspKeyMapped" -- known cap that is already bound
+local HL_FREE = "LspKeyFree" -- known cap that is not yet bound
+local HL_DIM = "LspKeyDim" -- supplementary text (description, hint)
+local HL_KEY = "LspKeyKey" -- capability label
+local HL_DISCOVERED = "LspKeyDiscovered" -- discovered cap WITH an auto-handler
+local HL_NO_HANDLER = "LspKeyNoHandler" -- discovered cap WITHOUT a handler
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Internal helpers
 -- ─────────────────────────────────────────────────────────────────────────────
 
 local function setup_highlights()
-  vim.api.nvim_set_hl(0, HL_HEADER, { link = 'Title', default = true })
-  vim.api.nvim_set_hl(0, HL_MAPPED, { link = 'DiagnosticOk', default = true })
-  vim.api.nvim_set_hl(0, HL_FREE, { link = 'String', default = true })
-  vim.api.nvim_set_hl(0, HL_DIM, { link = 'Comment', default = true })
-  vim.api.nvim_set_hl(0, HL_KEY, { link = 'Keyword', default = true })
-  vim.api.nvim_set_hl(0, HL_DISCOVERED, { link = 'DiagnosticWarn', default = true })
-  vim.api.nvim_set_hl(0, HL_NO_HANDLER, { link = 'DiagnosticError', default = true })
+  vim.api.nvim_set_hl(0, HL_HEADER, { link = "Title", default = true })
+  vim.api.nvim_set_hl(0, HL_MAPPED, { link = "DiagnosticOk", default = true })
+  vim.api.nvim_set_hl(0, HL_FREE, { link = "String", default = true })
+  vim.api.nvim_set_hl(0, HL_DIM, { link = "Comment", default = true })
+  vim.api.nvim_set_hl(0, HL_KEY, { link = "Keyword", default = true })
+  vim.api.nvim_set_hl(0, HL_DISCOVERED, { link = "DiagnosticWarn", default = true })
+  vim.api.nvim_set_hl(0, HL_NO_HANDLER, { link = "DiagnosticError", default = true })
 end
 
 local function win_geometry(width_pct, height_pct)
@@ -64,7 +64,7 @@ end
 --- @param  s string
 --- @return string
 local function sanitize_line(s)
-  return (tostring(s):gsub('[\n\r]', ' '))
+  return (tostring(s):gsub("[\n\r]", " "))
 end
 
 local function open_float(title, lines)
@@ -77,25 +77,25 @@ local function open_float(title, lines)
     table.insert(safe_lines, sanitize_line(l))
   end
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, safe_lines)
-  vim.api.nvim_set_option_value('buftype', 'nofile', { buf = buf })
-  vim.api.nvim_set_option_value('bufhidden', 'wipe', { buf = buf })
-  vim.api.nvim_set_option_value('modifiable', false, { buf = buf })
-  vim.api.nvim_set_option_value('filetype', 'lsp-keymapper', { buf = buf })
+  vim.api.nvim_set_option_value("buftype", "nofile", { buf = buf })
+  vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
+  vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
+  vim.api.nvim_set_option_value("filetype", "lsp-keymapper", { buf = buf })
 
   local win = require("custom.ui.window").open_raw(buf, true, {
-    relative = 'editor',
+    relative = "editor",
     col = col,
     row = row,
     width = w,
     height = h,
-    style = 'minimal',
-    border = 'rounded',
+    style = "minimal",
+    border = "rounded",
     title = title,
-    title_pos = 'center',
+    title_pos = "center",
   })
 
-  vim.api.nvim_set_option_value('wrap', false, { win = win })
-  vim.api.nvim_set_option_value('cursorline', true, { win = win })
+  vim.api.nvim_set_option_value("wrap", false, { win = win })
+  vim.api.nvim_set_option_value("cursorline", true, { win = win })
 
   return buf, win
 end
@@ -162,7 +162,7 @@ function M.open(client, bufnr, opts)
     table.insert(
       lines,
       string.format(
-        '  Client: %s  |  known: %d  |  discovered: %d' .. '  |  [f] mapped  [d] discovered  [<CR>] map  [q] close',
+        "  Client: %s  |  known: %d  |  discovered: %d" .. "  |  [f] mapped  [d] discovered  [<CR>] map  [q] close",
         client.name,
         #active_keys,
         #discovered
@@ -170,11 +170,11 @@ function M.open(client, bufnr, opts)
     )
     table.insert(entries, { row = 0, is_header = true })
 
-    table.insert(lines, string.rep('-', 80))
+    table.insert(lines, string.rep("-", 80))
     table.insert(entries, { row = 1, is_header = true })
 
     -- Section 1 – known registry capabilities
-    table.insert(lines, '  [1] Known Capabilities')
+    table.insert(lines, "  [1] Known Capabilities")
     table.insert(entries, { row = #lines - 1, is_header = true })
 
     local visible = 0
@@ -183,10 +183,11 @@ function M.open(client, bufnr, opts)
       local mapped = existing[cap_key]
 
       if show_mapped or not mapped then
-        local icon = mapped and '* ' or 'o '
-        local hint = mapped and string.format('  [bound: %s]', mapped.lhs) or string.format('  [suggested: %s]', def.suggested)
+        local icon = mapped and "* " or "o "
+        local hint = mapped and string.format("  [bound: %s]", mapped.lhs)
+          or string.format("  [suggested: %s]", def.suggested)
         local label = def.label
-        local line = string.format('  %s%-30s  %-38s%s', icon, label, def.description, hint)
+        local line = string.format("  %s%-30s  %-38s%s", icon, label, def.description, hint)
         local lbl_end = 4 + #label
 
         table.insert(lines, line)
@@ -204,33 +205,43 @@ function M.open(client, bufnr, opts)
     end
 
     if visible == 0 then
-      table.insert(lines, '    (all known capabilities are already mapped - press f to show)')
+      table.insert(lines, "    (all known capabilities are already mapped - press f to show)")
       table.insert(entries, { row = #lines - 1, is_header = true })
     end
 
     -- Blank separator
-    table.insert(lines, '')
+    table.insert(lines, "")
     table.insert(entries, { row = #lines - 1, is_header = true })
 
     -- Section 2 – dynamically discovered capabilities
     if show_discovered then
       table.insert(
         lines,
-        string.format('  [2] Discovered Capabilities (%d)' .. '  - scanned from server_capabilities at runtime  [d to collapse]', #discovered)
+        string.format(
+          "  [2] Discovered Capabilities (%d)" .. "  - scanned from server_capabilities at runtime  [d to collapse]",
+          #discovered
+        )
       )
       table.insert(entries, { row = #lines - 1, is_header = true })
 
       if #discovered == 0 then
-        table.insert(lines, '    (none - server only advertises standard LSP capabilities)')
+        table.insert(lines, "    (none - server only advertises standard LSP capabilities)")
         table.insert(entries, { row = #lines - 1, is_header = true })
       else
-        table.insert(lines, '    + = auto-handler available   ! = informational only')
+        table.insert(lines, "    + = auto-handler available   ! = informational only")
         table.insert(entries, { row = #lines - 1, is_header = true })
 
         for _, disc in ipairs(discovered) do
-          local icon = disc.fn and '+ ' or '! '
+          local icon = disc.fn and "+ " or "! "
           local label = disc.label
-          local line = string.format('  %s%-30s  %-38s  key: %-35s val: %s', icon, label, disc.description, disc.cap_key, disc.value_summary)
+          local line = string.format(
+            "  %s%-30s  %-38s  key: %-35s val: %s",
+            icon,
+            label,
+            disc.description,
+            disc.cap_key,
+            disc.value_summary
+          )
           local lbl_end = 4 + #label
 
           table.insert(lines, line)
@@ -247,7 +258,7 @@ function M.open(client, bufnr, opts)
         end
       end
     else
-      table.insert(lines, string.format('  [2] Discovered Capabilities (%d)  [press d to expand]', #discovered))
+      table.insert(lines, string.format("  [2] Discovered Capabilities (%d)  [press d to expand]", #discovered))
       table.insert(entries, { row = #lines - 1, is_header = true })
     end
 
@@ -262,13 +273,13 @@ function M.open(client, bufnr, opts)
   -- Shared refresh
   local function refresh()
     lines, entry_meta = build_display()
-    vim.api.nvim_set_option_value('modifiable', true, { buf = fbuf })
+    vim.api.nvim_set_option_value("modifiable", true, { buf = fbuf })
     local safe = {}
     for _, l in ipairs(lines) do
       table.insert(safe, sanitize_line(l))
     end
     vim.api.nvim_buf_set_lines(fbuf, 0, -1, false, safe)
-    vim.api.nvim_set_option_value('modifiable', false, { buf = fbuf })
+    vim.api.nvim_set_option_value("modifiable", false, { buf = fbuf })
     vim.api.nvim_buf_clear_namespace(fbuf, NS, 0, -1)
     apply_highlights(fbuf, entry_meta)
   end
@@ -286,19 +297,19 @@ function M.open(client, bufnr, opts)
   -- ── Key bindings ───────────────────────────────────────────────────────────
   local mo = { buffer = fbuf, nowait = true, silent = true }
 
-  nvim_utils.bind_close_keys(fbuf, fwin, { 'q', '<Esc>' }, mo)
+  nvim_utils.bind_close_keys(fbuf, fwin, { "q", "<Esc>" }, mo)
 
-  nvim_utils.buf_map(fbuf, 'n', 'f', function()
+  nvim_utils.buf_map(fbuf, "n", "f", function()
     show_mapped = not show_mapped
     refresh()
   end, mo)
 
-  nvim_utils.buf_map(fbuf, 'n', 'd', function()
+  nvim_utils.buf_map(fbuf, "n", "d", function()
     show_discovered = not show_discovered
     refresh()
   end, mo)
 
-  nvim_utils.buf_map(fbuf, 'n', '<CR>', function()
+  nvim_utils.buf_map(fbuf, "n", "<CR>", function()
     local entry = current_entry()
     if not entry then
       return
@@ -308,7 +319,7 @@ function M.open(client, bufnr, opts)
     if entry.is_discovered and not entry.has_handler then
       vim.notify(
         string.format(
-          "[lsp-keymapper] '%s' has no automatic handler.\n" .. 'It is an informational capability only (raw key: %s).',
+          "[lsp-keymapper] '%s' has no automatic handler.\n" .. "It is an informational capability only (raw key: %s).",
           entry.def.label,
           entry.cap_key
         ),
@@ -339,9 +350,9 @@ end
 function M.prompt_and_bind(client, bufnr, cap_key, def, opts, on_done)
   local prompt = string.format("[lsp-keymapper] Bind '%s' - enter key (e.g. <leader>gd), blank to skip: ", def.label)
 
-  vim.ui.input({ prompt = prompt, default = def.suggested or '' }, function(input)
-    if not input or input == '' then
-      vim.notify('[lsp-keymapper] Skipped.', vim.log.levels.INFO)
+  vim.ui.input({ prompt = prompt, default = def.suggested or "" }, function(input)
+    if not input or input == "" then
+      vim.notify("[lsp-keymapper] Skipped.", vim.log.levels.INFO)
       if on_done then
         on_done()
       end
@@ -351,7 +362,15 @@ function M.prompt_and_bind(client, bufnr, cap_key, def, opts, on_done)
     for _, mode in ipairs(def.modes) do
       local conflict = keymaps.find_conflict(input, mode, bufnr)
       if conflict then
-        vim.notify(string.format("[lsp-keymapper] Warning: '%s' (%s) already mapped -> %s", input, mode, keymaps.describe(conflict)), vim.log.levels.WARN)
+        vim.notify(
+          string.format(
+            "[lsp-keymapper] Warning: '%s' (%s) already mapped -> %s",
+            input,
+            mode,
+            keymaps.describe(conflict)
+          ),
+          vim.log.levels.WARN
+        )
       end
     end
 
@@ -375,7 +394,7 @@ end
 --- @param cap_keys  string[]
 --- @return table<string, vim.api.keyset.get_keymap>
 function M.get_existing_map(bufnr, cap_keys)
-  local all_maps = keymaps.get_buf_keymaps(bufnr, { 'n', 'v', 'i' })
+  local all_maps = keymaps.get_buf_keymaps(bufnr, { "n", "v", "i" })
   local result = {}
 
   for _, cap_key in ipairs(cap_keys) do

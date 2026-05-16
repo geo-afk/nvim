@@ -23,7 +23,7 @@
 --- }
 
 local M = {}
-local nvim_utils = require('utils.nvim')
+local nvim_utils = require("utils.nvim")
 
 -- ──────────────────────────────────────────────────────────────────────────────
 -- Derive the base module path from the current file so that all sibling
@@ -42,16 +42,16 @@ local _BASE = (...) -- `...` is the full dotted module name of this file
 -- ──────────────────────────────────────────────────────────────────────────────
 
 local function caps_mod()
-  return require(_BASE .. '.capabilities')
+  return require(_BASE .. ".capabilities")
 end
 local function km_mod()
-  return require(_BASE .. '.keymap')
+  return require(_BASE .. ".keymap")
 end
 local function ui_mod()
-  return require(_BASE .. '.ui')
+  return require(_BASE .. ".ui")
 end
 local function store_mod()
-  return require(_BASE .. '.store')
+  return require(_BASE .. ".store")
 end
 
 -- ──────────────────────────────────────────────────────────────────────────────
@@ -62,7 +62,7 @@ local DEFAULT_OPTS = {
   auto_apply = true,
   persist = true,
   auto_open_on_first_attach = false,
-  open_keymap = '<leader>ck',
+  open_keymap = "<leader>ck",
   filter = nil,
 }
 
@@ -76,7 +76,7 @@ local _opts = nil
 --- Apply the user's custom filter to the capabilities registry.
 --- Mutates caps.registry in-place for the duration of the session.
 local function apply_filter(filter_fn)
-  if type(filter_fn) ~= 'function' then
+  if type(filter_fn) ~= "function" then
     return
   end
   local registry = caps_mod().registry
@@ -129,7 +129,7 @@ end
 ---
 --- @param user_opts table|nil  Partial options table merged with defaults.
 function M.setup(user_opts)
-  _opts = vim.tbl_deep_extend('force', DEFAULT_OPTS, user_opts or {})
+  _opts = vim.tbl_deep_extend("force", DEFAULT_OPTS, user_opts or {})
 
   -- Attach the store module onto opts so ui.lua can call _opts._store.save(…)
   _opts._store = store_mod()
@@ -138,54 +138,54 @@ function M.setup(user_opts)
   apply_filter(_opts.filter)
 
   -- Wire LspAttach autocmd
-  nvim_utils.autocmd('LspAttach', {
-    group = 'LspKeymapper',
+  nvim_utils.autocmd("LspAttach", {
+    group = "LspKeymapper",
     callback = on_lsp_attach,
-    desc = 'lsp-keymapper: re-apply saved keymaps and optionally open browser',
+    desc = "lsp-keymapper: re-apply saved keymaps and optionally open browser",
   })
 
   -- Global key to open the browser
   if _opts.open_keymap then
-    vim.keymap.set('n', _opts.open_keymap, function()
+    vim.keymap.set("n", _opts.open_keymap, function()
       M.open()
-    end, { desc = 'LSP keymapper' })
+    end, { desc = "LSP keymapper" })
   end
 
   -- User commands
-  nvim_utils.command('LspKeymapBrowse', function()
+  nvim_utils.command("LspKeymapBrowse", function()
     M.open()
-  end, { desc = 'Open the LSP capability browser for the current buffer' })
+  end, { desc = "Open the LSP capability browser for the current buffer" })
 
-  nvim_utils.command('LspKeymapReset', function(cmd_opts)
-    local name = cmd_opts.args ~= '' and cmd_opts.args or nil
+  nvim_utils.command("LspKeymapReset", function(cmd_opts)
+    local name = cmd_opts.args ~= "" and cmd_opts.args or nil
     M.reset(name)
   end, {
-    nargs = '?',
-    desc = 'Clear saved LSP keymaps. Pass client name to target one client.',
+    nargs = "?",
+    desc = "Clear saved LSP keymaps. Pass client name to target one client.",
     complete = function()
       local all = store_mod().load_all()
       return vim.tbl_keys(all)
     end,
   })
 
-  nvim_utils.command('LspKeymapShow', function()
+  nvim_utils.command("LspKeymapShow", function()
     M.show_saved()
-  end, { desc = 'Print all saved LSP keymaps' })
+  end, { desc = "Print all saved LSP keymaps" })
 end
 
 --- Open the capability browser for the active LSP client on the current buffer.
 --- If multiple clients are attached, a picker is shown to choose one.
 function M.open()
   if not _opts then
-    vim.notify('[lsp-keymapper] Call setup() first.', vim.log.levels.ERROR)
+    vim.notify("[lsp-keymapper] Call setup() first.", vim.log.levels.ERROR)
     return
   end
 
   local bufnr = vim.api.nvim_get_current_buf()
-  local clients = vim.lsp.get_clients { bufnr = bufnr }
+  local clients = vim.lsp.get_clients({ bufnr = bufnr })
 
   if #clients == 0 then
-    vim.notify('[lsp-keymapper] No LSP clients attached to this buffer.', vim.log.levels.WARN)
+    vim.notify("[lsp-keymapper] No LSP clients attached to this buffer.", vim.log.levels.WARN)
     return
   end
 
@@ -199,7 +199,7 @@ function M.open()
     return c.name
   end, clients)
   vim.ui.select(names, {
-    prompt = 'Select LSP client:',
+    prompt = "Select LSP client:",
   }, function(choice)
     if not choice then
       return
@@ -217,22 +217,22 @@ end
 function M.show_saved()
   local all = store_mod().load_all()
   if vim.tbl_isempty(all) then
-    vim.notify('[lsp-keymapper] No saved bindings found.', vim.log.levels.INFO)
+    vim.notify("[lsp-keymapper] No saved bindings found.", vim.log.levels.INFO)
     return
   end
 
   local registry = caps_mod().registry
-  local lines = { '── Saved LSP Keymapper Bindings ──' }
+  local lines = { "── Saved LSP Keymapper Bindings ──" }
 
   for client_name, entries in pairs(all) do
-    table.insert(lines, string.format('\n  Client: %s', client_name))
+    table.insert(lines, string.format("\n  Client: %s", client_name))
     for _, e in ipairs(entries) do
       local label = registry[e.cap_key] and registry[e.cap_key].label or e.cap_key
-      table.insert(lines, string.format('    %-30s  →  %s', label, e.lhs))
+      table.insert(lines, string.format("    %-30s  →  %s", label, e.lhs))
     end
   end
 
-  vim.notify(table.concat(lines, '\n'), vim.log.levels.INFO)
+  vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO)
 end
 
 --- Clear persisted bindings.
@@ -248,7 +248,7 @@ function M.reset(client_name)
     for name in pairs(all) do
       store.clear(name)
     end
-    vim.notify('[lsp-keymapper] Cleared all saved bindings.', vim.log.levels.INFO)
+    vim.notify("[lsp-keymapper] Cleared all saved bindings.", vim.log.levels.INFO)
   end
 end
 

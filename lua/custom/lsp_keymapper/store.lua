@@ -6,7 +6,7 @@
 local M = {}
 
 local function data_path()
-  return vim.fn.stdpath 'data' .. 'custom/lsp_keymapper/bindings.json'
+  return vim.fn.stdpath("data") .. "custom/lsp_keymapper/bindings.json"
 end
 
 --- Load all saved bindings from disk.
@@ -17,9 +17,9 @@ function M.load_all()
   if not ok or not content or #content == 0 then
     return {}
   end
-  local raw = table.concat(content, '\n')
+  local raw = table.concat(content, "\n")
   local decoded = vim.json.decode(raw)
-  return type(decoded) == 'table' and decoded or {}
+  return type(decoded) == "table" and decoded or {}
 end
 
 --- Persist a single binding entry for a client.
@@ -29,7 +29,7 @@ end
 --- @param lhs          string  The key sequence chosen by the user
 function M.save(client_name, cap_key, lhs)
   local path = data_path()
-  vim.fn.mkdir(vim.fn.fnamemodify(path, ':h'), 'p')
+  vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
 
   local all = M.load_all()
   local entries = all[client_name] or {}
