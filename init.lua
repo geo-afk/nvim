@@ -34,8 +34,6 @@ Loader.now(function()
   require("config.ui") -- ui2, float demos, Lua API showcases
   require("custom.statusline").setup()
   require("custom.tabline").setup()
-  require("custom.session").setup()
-  require("custom.codelens").setup()
 end)
 
 -- ── Deferred Loading ─────────────────────────────────────────────────────────
@@ -44,16 +42,36 @@ Loader.later(function()
   require("config.lsp") -- native LSP server configs
 
   -- custom utilities
-  require("custom.explorer").setup()
-  require("custom.lazygit").setup()
   require("custom.cmdline").setup()
-  require("custom.code_action").setup()
-  require("custom.lsp_keymapper").setup()
   require("custom.autoclose").setup()
-  -- require("custom.glow").setup()
   require("custom.pack_manager").setup()
   require("custom.right_menu")
 
-  -- terminal_manager
-  require("custom.terminal_manager")
+  -- LSP-dependent: load on attachment
+  Loader.on_event("LspAttach", function()
+    require("custom.codelens").setup()
+    require("custom.lsp_keymapper").setup()
+    require("custom.code_action").setup()
+  end)
+
+  -- Go-specific: load only on Go files
+  Loader.on_filetype("go", function()
+    require("utils.go").setup()
+    require("custom.golang")
+  end)
+
+  -- Project/Git: load LazyGit on keypress
+  Loader.on_keys({ "<leader>gg" }, function()
+    require("custom.lazygit").setup()
+  end)
+
+  -- Explorer: load on keypress
+  Loader.on_keys({ "<leader>e" }, function()
+    require("custom.explorer").setup()
+  end)
+
+  -- Terminal: load on any global terminal management key
+  Loader.on_keys({ "<leader>z" }, function()
+    require("custom.terminal_manager")
+  end)
 end)
