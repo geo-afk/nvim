@@ -89,8 +89,15 @@ local function detect_format(command, is_error)
     return format
   end
 
-  if lower:match("^set") or lower:match("^map") or lower:match("^command") or lower:match("^verbose")
-      or lower:match("^autocmd") or lower:match("^augroup") or lower:match("^scriptnames") then
+  if
+    lower:match("^set")
+    or lower:match("^map")
+    or lower:match("^command")
+    or lower:match("^verbose")
+    or lower:match("^autocmd")
+    or lower:match("^augroup")
+    or lower:match("^scriptnames")
+  then
     format.title = "Editor Output"
     format.filetype = "vim"
     format.syntax = "vim"
@@ -219,7 +226,11 @@ local function set_window_style(win, format, is_float)
   if not is_float and vim.fn.has("nvim-0.8") == 1 then
     local title = format.title:upper()
     local badge_hl = format.kind == "error" and "NvimCmdlineOutputTitleBadgeError" or "NvimCmdlineOutputTitleBadge"
-    vim.api.nvim_set_option_value("winbar", "%#WinSeparator# " .. "%#" .. badge_hl .. "# " .. title .. " %* ", { win = win })
+    vim.api.nvim_set_option_value(
+      "winbar",
+      "%#WinSeparator# " .. "%#" .. badge_hl .. "# " .. title .. " %* ",
+      { win = win }
+    )
   end
 end
 
@@ -310,7 +321,8 @@ function M.show(spec)
   })
 
   local max_width = type(spec.max_width) == "number" and spec.max_width or math.floor(vim.o.columns * 0.6)
-  local target_row = type(spec.target_row) == "number" and spec.target_row or math.max(0, vim.o.lines - vim.o.cmdheight - 3)
+  local target_row = type(spec.target_row) == "number" and spec.target_row
+    or math.max(0, vim.o.lines - vim.o.cmdheight - 3)
   local border = spec.border or "rounded"
   local format = detect_format(spec.command, spec.is_error == true)
 
