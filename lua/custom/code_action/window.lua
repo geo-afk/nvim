@@ -450,18 +450,17 @@ local function compute_diff(action, client)
   if action.edit.documentChanges then
     for _, change in ipairs(action.edit.documentChanges) do
       if change.kind == "rename" then
-        add_meta(("Rename: %s -> %s"):format(
-          vim.fn.fnamemodify(vim.uri_to_fname(change.oldUri), ":~:."),
-          vim.fn.fnamemodify(vim.uri_to_fname(change.newUri), ":~:.")
-        ), HL.Header)
+        add_meta(
+          ("Rename: %s -> %s"):format(
+            vim.fn.fnamemodify(vim.uri_to_fname(change.oldUri), ":~:."),
+            vim.fn.fnamemodify(vim.uri_to_fname(change.newUri), ":~:.")
+          ),
+          HL.Header
+        )
       elseif change.kind == "delete" then
-        add_meta(("Delete: %s"):format(
-          vim.fn.fnamemodify(vim.uri_to_fname(change.uri), ":~:.")
-        ), HL.DiffDelete)
+        add_meta(("Delete: %s"):format(vim.fn.fnamemodify(vim.uri_to_fname(change.uri), ":~:.")), HL.DiffDelete)
       elseif change.kind == "create" then
-        add_meta(("Create: %s"):format(
-          vim.fn.fnamemodify(vim.uri_to_fname(change.uri), ":~:.")
-        ), HL.DiffAdd)
+        add_meta(("Create: %s"):format(vim.fn.fnamemodify(vim.uri_to_fname(change.uri), ":~:.")), HL.DiffAdd)
       elseif change.textDocument and change.edits then
         diff_uri(change.textDocument.uri, change.edits)
       end
@@ -940,12 +939,19 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
     end
 
     local row, col = place_preview(picker_row, target_p_col, picker_width, picker_height, preview_width, preview_height)
-    
-    -- If we are still overlapping even after placement logic, 
+
+    -- If we are still overlapping even after placement logic,
     -- we MUST ensure the preview is on top so it's not blocked.
     local zindex = 59
     local p_r2, p_c2 = picker_row + picker_height + border_size, target_p_col + picker_width + border_size
-    if not (col + preview_width + border_size <= target_p_col or col >= p_c2 or row + preview_height + border_size <= picker_row or row >= p_r2) then
+    if
+      not (
+        col + preview_width + border_size <= target_p_col
+        or col >= p_c2
+        or row + preview_height + border_size <= picker_row
+        or row >= p_r2
+      )
+    then
       zindex = 61 -- Higher than picker (60)
     end
 
@@ -1008,7 +1014,11 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
     vim.api.nvim_buf_set_lines(pbuf, 0, -1, false, lines)
     vim.bo[pbuf].modifiable = false
     vim.api.nvim_buf_clear_namespace(pbuf, NS, 0, -1)
-    apply_preview_language(pbuf, lang_opts and lang_opts.filetype or "codeactionpreview", lang_opts and lang_opts.lang or nil)
+    apply_preview_language(
+      pbuf,
+      lang_opts and lang_opts.filetype or "codeactionpreview",
+      lang_opts and lang_opts.lang or nil
+    )
 
     -- Diff extmark highlights (add/remove/hunk header lines).
     for _, h in ipairs(hl_list or {}) do

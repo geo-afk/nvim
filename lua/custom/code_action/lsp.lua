@@ -79,18 +79,10 @@ local function diagnostics_for_range(bufnr, range, client_id)
   local end_pos = range["end"] or start_pos
   local point_range = start_pos.line == end_pos.line and start_pos.character == end_pos.character
 
-  -- Get all diagnostics for the relevant lines
-  local raw_diagnostics = {}
-  for lnum = start_pos.line, end_pos.line do
-    local line_diags = vim.diagnostic.get(bufnr, { lnum = lnum })
-    for _, d in ipairs(line_diags) do
-      -- Deduplicate by using a unique key (diagnostic reference)
-      raw_diagnostics[d] = d
-    end
-  end
-
+  local all_diagnostics = vim.diagnostic.get(bufnr)
   local out = {}
-  for _, diagnostic in pairs(raw_diagnostics) do
+
+  for _, diagnostic in ipairs(all_diagnostics) do
     -- Filter by client ID if provided (matching native behavior)
     local match_client = true
     if client_id and diagnostic.namespace then
