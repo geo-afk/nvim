@@ -69,10 +69,7 @@ function M.ts_setup(client)
       },
     }, function(err, result)
       if err then
-        notify(
-          "Move-to-file suggestions failed: " .. tostring(err.message or err),
-          vim.log.levels.ERROR
-        )
+        notify("Move-to-file suggestions failed: " .. tostring(err.message or err), vim.log.levels.ERROR)
         return
       end
 
