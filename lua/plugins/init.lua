@@ -42,15 +42,13 @@ Loader.later(function()
   -- Keybinding helper
   require("plugins.which-key")
 
-  -- Syntax / parsing
+  -- Syntax / parsing (Core essentials)
   require("plugins.treesitter")
   require("plugins.rainbow")
-  require("plugins.ts-autotag")
 
   -- LSP toolchain
   require("plugins.mason")
   require("plugins.lsp")
-  require("plugins.lazydev")
   require("plugins.completion")
   require("plugins.snippets")
 
@@ -58,21 +56,53 @@ Loader.later(function()
   require("plugins.formatting")
   require("plugins.linting")
 
-  -- Diagnostics / navigation
-  require("plugins.trouble")
-  require("plugins.telescope")
-  require("plugins.flash")
+  -- Navigation & UI (Basic)
   require("plugins.tint-diagnostic")
-
-  -- Git
-  require("plugins.gitsigns")
-
-  -- Debugging
-  require("plugins.go_debugger").setup()
-
-  -- Eye candy
   require("plugins.smear")
   require("plugins.color-highlight")
+
+  -- ── Conditional / Lazy Loading ─────────────────────────────────────────────
+
+  -- Language Specific
+  Loader.on_filetype("lua", function()
+    require("plugins.lazydev")
+  end)
+
+  Loader.on_filetype("go", function()
+    require("plugins.go_debugger").setup()
+    require("plugins.gotools")
+  end)
+
+  Loader.on_filetype({
+    "html",
+    "javascript",
+    "typescript",
+    "javascriptreact",
+    "typescriptreact",
+    "vue",
+    "svelte",
+    "xml",
+  }, function()
+    require("plugins.ts-autotag")
+  end)
+
+  -- Git signs: only on real files
+  Loader.on_event({ "BufReadPre", "BufNewFile" }, function()
+    require("plugins.gitsigns")
+  end)
+
+  -- Heavy Navigation: load on keypress
+  Loader.on_keys({ "<leader>s", "<leader><leader>" }, function()
+    require("plugins.telescope")
+  end)
+
+  Loader.on_keys({ "s", "S" }, function()
+    require("plugins.flash")
+  end)
+
+  Loader.on_keys({ "<leader>x" }, function()
+    require("plugins.trouble")
+  end)
 
   -- Activate built-in 0.12 optional plugins
   for _, pkg in ipairs({ "nvim.undotree", "nvim.difftool", "nvim.tohtml" }) do

@@ -36,9 +36,9 @@ map("n", "<leader>dw", function()
 end, { desc = "Workspace diagnostics" })
 
 -- Compatibility shims for muscle-memory commands removed in 0.12
-vim.api.nvim_create_user_command("LspInfo",    "checkhealth vim.lsp", { desc = "[0.12] LSP info" })
-vim.api.nvim_create_user_command("LspRestart", "lsp restart",          { desc = "[0.12] Restart LSP" })
-vim.api.nvim_create_user_command("LspStop",    "lsp stop",             { desc = "[0.12] Stop LSP" })
+vim.api.nvim_create_user_command("LspInfo", "checkhealth vim.lsp", { desc = "[0.12] LSP info" })
+vim.api.nvim_create_user_command("LspRestart", "lsp restart", { desc = "[0.12] Restart LSP" })
+vim.api.nvim_create_user_command("LspStop", "lsp stop", { desc = "[0.12] Stop LSP" })
 vim.api.nvim_create_user_command("LspLog", function()
   vim.cmd("edit " .. vim.fs.joinpath(vim.fn.stdpath("state"), "lsp.log"))
 end, { desc = "[0.12] Open LSP log" })
