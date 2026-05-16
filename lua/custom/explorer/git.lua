@@ -116,10 +116,12 @@ end
 
 function M.setup_hl()
   local accent = hl_fg("Function") or hl_fg("@function") or hl_fg("Special") or 0xcba6f7
-  
+
   -- Function to brighten a color by blending it with the accent or a light color
   local function brighten(c, factor)
-    if not c then return accent end
+    if not c then
+      return accent
+    end
     return c
   end
 

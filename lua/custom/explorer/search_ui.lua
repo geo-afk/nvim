@@ -26,7 +26,7 @@ local SEARCH_ICON_BYTES = #SEARCH_ICON
 
 local PROMPT_GAP = "  " -- Two spaces after icon
 
--- Full prefix: │    
+-- Full prefix: │  
 local INPUT_PREFIX = BORDER_CHAR .. "  " .. SEARCH_ICON .. PROMPT_GAP
 local INPUT_PREFIX_BYTES = #INPUT_PREFIX
 

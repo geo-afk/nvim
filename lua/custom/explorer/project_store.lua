@@ -223,7 +223,6 @@ function M.remove(raw)
   return true
 end
 
-
 function M.exists(raw)
   local p = normalized_path(raw)
   local st = p and uv.fs_stat(p) or nil

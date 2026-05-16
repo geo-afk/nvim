@@ -137,11 +137,12 @@ local function build_item_lines()
 
   for _, item in ipairs(S.items) do
     -- Tree connector prefix
-    local prefix = ""
+    local prefix_tbl = {}
     for _, last in ipairs(item.parents_last) do
-      prefix = prefix .. (last and tc.blank or tc.vert)
+      prefix_tbl[#prefix_tbl + 1] = last and tc.blank or tc.vert
     end
-    prefix = prefix .. (item.is_last and tc.last or tc.branch)
+    prefix_tbl[#prefix_tbl + 1] = item.is_last and tc.last or tc.branch
+    local prefix = table.concat(prefix_tbl)
 
     -- File / directory icon
     local icon_raw, icon_hl

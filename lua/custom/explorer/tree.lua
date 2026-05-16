@@ -103,11 +103,10 @@ local function walk(path, depth, parents_last, tok, result, filter, on_done)
         local filtering = filter and filter ~= ""
 
         if e.type == "directory" then
+          parents_last[depth + 1] = is_last
           if filtering then
             -- Collect children first; only show dir if it yields matches
             local sub = {}
-            local pl = vim.list_extend({}, parents_last)
-            pl[#pl + 1] = is_last
             local dir_entry = {
               path = e.path,
               name = e.name,
@@ -115,9 +114,9 @@ local function walk(path, depth, parents_last, tok, result, filter, on_done)
               is_dir = true,
               is_open = true,
               is_last = is_last,
-              parents_last = parents_last,
+              parents_last = { unpack(parents_last, 1, depth) },
             }
-            walk(e.path, depth + 1, pl, tok, sub, filter, function()
+            walk(e.path, depth + 1, parents_last, tok, sub, filter, function()
               if S.build_tok ~= tok then
                 return
               end
@@ -139,12 +138,10 @@ local function walk(path, depth, parents_last, tok, result, filter, on_done)
               is_dir = true,
               is_open = is_open,
               is_last = is_last,
-              parents_last = parents_last,
+              parents_last = { unpack(parents_last, 1, depth) },
             }
             if is_open then
-              local pl = vim.list_extend({}, parents_last)
-              pl[#pl + 1] = is_last
-              walk(e.path, depth + 1, pl, tok, result, filter, function()
+              walk(e.path, depth + 1, parents_last, tok, result, filter, function()
                 process(i + 1)
               end)
               return
@@ -160,7 +157,7 @@ local function walk(path, depth, parents_last, tok, result, filter, on_done)
               is_dir = false,
               is_open = false,
               is_last = is_last,
-              parents_last = parents_last,
+              parents_last = { unpack(parents_last, 1, depth) },
             }
           end
         end
