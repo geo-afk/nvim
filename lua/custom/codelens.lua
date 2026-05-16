@@ -73,8 +73,12 @@ end
 local function get_icon(title)
   local t = title:lower()
   if t:find("run") or t:find("debug") then
-    if t:find("test") then return state.config.icons.test end
-    if t:find("benchmark") then return state.config.icons.benchmark end
+    if t:find("test") then
+      return state.config.icons.test
+    end
+    if t:find("benchmark") then
+      return state.config.icons.benchmark
+    end
     return state.config.icons.run
   elseif t:find("reference") then
     return state.config.icons.references
@@ -184,7 +188,9 @@ end
 ---Debounced refresh and render.
 function M.schedule_refresh(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
-  if not is_buf_valid(bufnr) then return end
+  if not is_buf_valid(bufnr) then
+    return
+  end
 
   if state.refresh_timers[bufnr] then
     state.refresh_timers[bufnr]:stop()
@@ -192,9 +198,13 @@ function M.schedule_refresh(bufnr)
     state.refresh_timers[bufnr] = vim.uv.new_timer()
   end
 
-  state.refresh_timers[bufnr]:start(500, 0, vim.schedule_wrap(function()
-    M.refresh(bufnr)
-  end))
+  state.refresh_timers[bufnr]:start(
+    500,
+    0,
+    vim.schedule_wrap(function()
+      M.refresh(bufnr)
+    end)
+  )
 end
 
 -- ── Autocmds ────────────────────────────────────────────────────────────────
@@ -302,7 +312,7 @@ function M.run_action()
   if target then
     -- Move cursor to the exact start of the lens for reliable execution
     vim.api.nvim_win_set_cursor(0, { target.lens.range.start.line + 1, target.lens.range.start.character })
-    
+
     -- Small defer to let the cursor move register before LSP request
     vim.schedule(function()
       vim.lsp.codelens.run()
@@ -323,17 +333,13 @@ function M.toggle(bufnr)
     M.clear(bufnr)
   end
 
-  vim.notify(
-    enabled and "CodeLens enabled" or "CodeLens disabled",
-    vim.log.levels.INFO,
-    { title = "CodeLens" }
-  )
+  vim.notify(enabled and "CodeLens enabled" or "CodeLens disabled", vim.log.levels.INFO, { title = "CodeLens" })
 end
 
 function M.show_references()
   local bufnr = vim.api.nvim_get_current_buf()
   local symbol = vim.fn.expand("<cword>")
-  
+
   local params = vim.lsp.util.make_position_params(0, "utf-8")
   params.context = {
     includeDeclaration = state.config.reference_ui.include_declaration == true,
@@ -347,7 +353,7 @@ function M.show_references()
 
     local client = vim.lsp.get_client_by_id(ctx.client_id)
     local items = vim.lsp.util.locations_to_items(result, client and client.offset_encoding or "utf-16")
-    
+
     if state.config.reference_ui.use_telescope then
       local ok, telescope = pcall(require, "telescope.builtin")
       if ok then
@@ -366,7 +372,7 @@ end
 
 function M.setup(user_config)
   state.config = vim.tbl_deep_extend("force", state.config, user_config or {})
-  
+
   -- Ensure highlights exist
   local hl = state.config.highlights
   vim.api.nvim_set_hl(0, hl.lens, { link = "Comment", default = true })
@@ -379,13 +385,17 @@ function M.setup(user_config)
 
   -- User commands
   vim.api.nvim_create_user_command("LspCodeLensRun", M.run_action, { desc = "Run CodeLens action" })
-  vim.api.nvim_create_user_command("LspCodeLensToggle", function() M.toggle() end, { desc = "Toggle CodeLens" })
+  vim.api.nvim_create_user_command("LspCodeLensToggle", function()
+    M.toggle()
+  end, { desc = "Toggle CodeLens" })
   vim.api.nvim_create_user_command("LspReferencesUI", M.show_references, { desc = "Show references UI" })
 
   -- Default keymaps
   local km = state.config.keymaps
   vim.keymap.set("n", km.run, M.run_action, { desc = "LSP: Run CodeLens" })
-  vim.keymap.set("n", km.toggle, function() M.toggle() end, { desc = "LSP: Toggle CodeLens" })
+  vim.keymap.set("n", km.toggle, function()
+    M.toggle()
+  end, { desc = "LSP: Toggle CodeLens" })
   vim.keymap.set("n", km.references, M.show_references, { desc = "LSP: Show References" })
 
   return M
