@@ -167,6 +167,26 @@ local function setup_attach()
       if client:supports_method("textDocument/inlineCompletion") then
         vim.notify("Inline completion: " .. client.name, vim.log.levels.INFO)
       end
+
+      local server_capabilities = client.server_capabilities
+
+      if server_capabilities ~= nil then
+        if server_capabilities.documentHighlightProvider then
+          vim.api.nvim_set_hl(0, "LspReferenceRead", { link = "MatchParen" })
+          vim.api.nvim_set_hl(0, "LspReferenceText", { link = "MatchParen" })
+          vim.api.nvim_set_hl(0, "LspReferenceWrite", { link = "MatchParen" })
+
+          local hl_group = vim.api.nvim_create_augroup("lsp_document_highlight", { clear = true })
+          vim.api.nvim_create_autocmd(
+            { "CursorHold" },
+            { pattern = "<buffer>", callback = vim.lsp.buf.document_highlight, group = hl_group }
+          )
+          vim.api.nvim_create_autocmd(
+            { "CursorMoved" },
+            { pattern = "<buffer>", callback = vim.lsp.buf.clear_references, group = hl_group }
+          )
+        end
+      end
     end,
   })
 end
