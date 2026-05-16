@@ -293,18 +293,13 @@ local function close()
   state.bufs = {}
 end
 
-local function update_statusline()
-  local win = state.wins.frame
-  if not win or not api.nvim_win_is_valid(win) then
-    return
-  end
+function M.get_statusline()
   local mode = state.active_only and "active" or "all"
   local plugin = current_plugin()
   local selected = plugin and plugin.spec.name or "none"
   local action_mode = state.close_on_action and "close" or "stay"
-  local line = table.concat({
-    " ",
-    string.format("%d/%d shown", #state.filtered, #state.plugins),
+  return table.concat({
+    string.format(" %d/%d shown", #state.filtered, #state.plugins),
     string.format("mode:%s", mode),
     "tab:" .. state.tab,
     "actions:" .. action_mode,
@@ -313,7 +308,10 @@ local function update_statusline()
     "%=",
     " 1 details  2 update  3 check  p toggle-close  u update  U all  O offline  L lockfile  e config  o repo  / filter  q close ",
   }, "  ")
-  set_win_opt(win, "statusline", line)
+end
+
+local function update_statusline()
+  vim.cmd("redrawstatus")
 end
 
 local function render_list()
@@ -421,7 +419,13 @@ local function render_details_tab(plugin, lines, hls)
   append_kv(lines, hls, "Source", plugin.spec.src, "PackManagerPath")
   append_kv(lines, hls, "Repo", plugin._pm.repo or "n/a", "PackManagerPath")
   append_kv(lines, hls, "Path", plugin.path, "PackManagerPath")
-  append_kv(lines, hls, "On Disk", bool_text(plugin._pm.on_disk), plugin._pm.on_disk and "PackManagerOk" or "PackManagerDanger")
+  append_kv(
+    lines,
+    hls,
+    "On Disk",
+    bool_text(plugin._pm.on_disk),
+    plugin._pm.on_disk and "PackManagerOk" or "PackManagerDanger"
+  )
   append_kv(lines, hls, "Branches", tostring(plugin._pm.branches_count))
   append_kv(lines, hls, "Tags", tostring(plugin._pm.tags_count))
   append_kv(lines, hls, "Build", plugin._pm.build or "none")
@@ -432,7 +436,12 @@ local function render_details_tab(plugin, lines, hls)
     add_line(lines, hls, " No matching vim.pack.add() declaration was found in lua/plugins.", "PackManagerMuted")
   else
     for _, config in ipairs(plugin._pm.config) do
-      add_line(lines, hls, string.format(" %s:%d", fn.fnamemodify(config.source_file, ":~"), config.source_line), "PackManagerPath")
+      add_line(
+        lines,
+        hls,
+        string.format(" %s:%d", fn.fnamemodify(config.source_file, ":~"), config.source_line),
+        "PackManagerPath"
+      )
     end
   end
 
@@ -465,9 +474,24 @@ local function render_update_tab(plugin, lines, hls)
 
   lines[#lines + 1] = ""
   add_line(lines, hls, " Workflow Notes", "PackManagerSection")
-  add_line(lines, hls, " Review tabs and lockfiles are inspired by lazy.nvim and mini.deps snapshot-style flows.", "PackManagerMuted")
-  add_line(lines, hls, " vim.pack's native review buffer remains the source of truth for confirming changes.", "PackManagerMuted")
-  add_line(lines, hls, " For plugin source/version switches, update lua/plugins first, then use offline or lockfile sync.", "PackManagerMuted")
+  add_line(
+    lines,
+    hls,
+    " Review tabs and lockfiles are inspired by lazy.nvim and mini.deps snapshot-style flows.",
+    "PackManagerMuted"
+  )
+  add_line(
+    lines,
+    hls,
+    " vim.pack's native review buffer remains the source of truth for confirming changes.",
+    "PackManagerMuted"
+  )
+  add_line(
+    lines,
+    hls,
+    " For plugin source/version switches, update lua/plugins first, then use offline or lockfile sync.",
+    "PackManagerMuted"
+  )
 end
 
 local function render_check_tab(plugin, lines, hls)
@@ -478,9 +502,27 @@ local function render_check_tab(plugin, lines, hls)
   lines[#lines + 1] = ""
   append_kv(lines, hls, "Git", bool_text(git_ok), git_ok and "PackManagerOk" or "PackManagerDanger")
   append_kv(lines, hls, "Lockfile", bool_text(lock_ok), lock_ok and "PackManagerOk" or "PackManagerDanger")
-  append_kv(lines, hls, "Path Exists", bool_text(plugin._pm.on_disk), plugin._pm.on_disk and "PackManagerOk" or "PackManagerDanger")
-  append_kv(lines, hls, "Has Config", bool_text(plugin._pm.config_count > 0), plugin._pm.config_count > 0 and "PackManagerOk" or "PackManagerWarn")
-  append_kv(lines, hls, "Lock Drift", bool_text(plugin._pm.lock_mismatch), plugin._pm.lock_mismatch and "PackManagerWarn" or "PackManagerOk")
+  append_kv(
+    lines,
+    hls,
+    "Path Exists",
+    bool_text(plugin._pm.on_disk),
+    plugin._pm.on_disk and "PackManagerOk" or "PackManagerDanger"
+  )
+  append_kv(
+    lines,
+    hls,
+    "Has Config",
+    bool_text(plugin._pm.config_count > 0),
+    plugin._pm.config_count > 0 and "PackManagerOk" or "PackManagerWarn"
+  )
+  append_kv(
+    lines,
+    hls,
+    "Lock Drift",
+    bool_text(plugin._pm.lock_mismatch),
+    plugin._pm.lock_mismatch and "PackManagerWarn" or "PackManagerOk"
+  )
   append_kv(lines, hls, "Active", bool_text(plugin.active), plugin.active and "PackManagerOk" or "PackManagerMuted")
 
   lines[#lines + 1] = ""
@@ -787,21 +829,87 @@ local function attach_keymaps()
   local maps = {
     { "q", close_all, "Close" },
     { "<Esc>", close_all, "Close" },
-    { "j", function() move_selection(1) end, "Next plugin" },
-    { "k", function() move_selection(-1) end, "Previous plugin" },
-    { "<Down>", function() move_selection(1) end, "Next plugin" },
-    { "<Up>", function() move_selection(-1) end, "Previous plugin" },
+    {
+      "j",
+      function()
+        move_selection(1)
+      end,
+      "Next plugin",
+    },
+    {
+      "k",
+      function()
+        move_selection(-1)
+      end,
+      "Previous plugin",
+    },
+    {
+      "<Down>",
+      function()
+        move_selection(1)
+      end,
+      "Next plugin",
+    },
+    {
+      "<Up>",
+      function()
+        move_selection(-1)
+      end,
+      "Previous plugin",
+    },
     { "r", refresh, "Refresh" },
     { "/", set_query, "Filter" },
     { "a", toggle_active_only, "Active only" },
-    { "1", function() set_tab("details") end, "Details tab" },
-    { "2", function() set_tab("update") end, "Update tab" },
-    { "3", function() set_tab("check") end, "Check tab" },
+    {
+      "1",
+      function()
+        set_tab("details")
+      end,
+      "Details tab",
+    },
+    {
+      "2",
+      function()
+        set_tab("update")
+      end,
+      "Update tab",
+    },
+    {
+      "3",
+      function()
+        set_tab("check")
+      end,
+      "Check tab",
+    },
     { "p", toggle_close_on_action, "Toggle close on action" },
-    { "u", function() update_selected() end, "Update selected" },
-    { "U", function() update_all() end, "Update all" },
-    { "O", function() update_selected({ offline = true }) end, "Offline review" },
-    { "L", function() update_selected({ offline = true, target = "lockfile" }) end, "Lockfile sync" },
+    {
+      "u",
+      function()
+        update_selected()
+      end,
+      "Update selected",
+    },
+    {
+      "U",
+      function()
+        update_all()
+      end,
+      "Update all",
+    },
+    {
+      "O",
+      function()
+        update_selected({ offline = true })
+      end,
+      "Offline review",
+    },
+    {
+      "L",
+      function()
+        update_selected({ offline = true, target = "lockfile" })
+      end,
+      "Lockfile sync",
+    },
     { "e", open_config, "Open config" },
     { "o", open_repo, "Open repo" },
     { "x", delete_selected, "Delete inactive plugin" },
@@ -872,6 +980,7 @@ function M.open()
     border = "rounded",
     title = TITLE,
     title_pos = "center",
+    statusline = " %-12{v:lua.require('custom.pack_manager').get_statusline()} ",
   })
   local list_win = require("custom.ui.window").open_raw(list_buf, true, {
     relative = "win",
