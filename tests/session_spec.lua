@@ -9,7 +9,9 @@ end
 
 local function assert_eq(actual, expected, message)
   if not vim.deep_equal(actual, expected) then
-    error((message or "values differ") .. "\nexpected: " .. vim.inspect(expected) .. "\nactual: " .. vim.inspect(actual))
+    error(
+      (message or "values differ") .. "\nexpected: " .. vim.inspect(expected) .. "\nactual: " .. vim.inspect(actual)
+    )
   end
 end
 
@@ -97,11 +99,11 @@ local function run()
 
   reset_layout()
   assert_ok(session.restore({ silent = true }), "session restore should succeed")
-  
+
   -- Verify windows/tabs are restored
   assert_eq(#vim.api.nvim_list_tabpages(), 2, "restore should recreate tabpages")
   assert_eq(#vim.api.nvim_list_wins(), 3, "restore should recreate windows")
-  
+
   -- Verify custom order restoration
   local expected_order = { file_a, file_b, file_c }
   local actual_order = {}

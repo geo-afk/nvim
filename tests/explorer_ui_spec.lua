@@ -6,7 +6,9 @@ end
 
 local function assert_eq(actual, expected, message)
   if actual ~= expected then
-    error((message or "values differ") .. "\nexpected: " .. vim.inspect(expected) .. "\nactual: " .. vim.inspect(actual))
+    error(
+      (message or "values differ") .. "\nexpected: " .. vim.inspect(expected) .. "\nactual: " .. vim.inspect(actual)
+    )
   end
 end
 
