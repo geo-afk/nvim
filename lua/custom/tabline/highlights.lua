@@ -8,13 +8,13 @@ local M = {}
 ---@type table<string, table>  group_name -> nvim_set_hl opts
 local groups = {
   -- Inactive close button
-  TabLineClose       = { link = "TabLine"    , default = true },
+  TabLineClose = { link = "TabLine", default = true },
   -- Active close button
-  TabLineCloseSel    = { link = "TabLineSel" , default = true },
+  TabLineCloseSel = { link = "TabLineSel", default = true },
   -- Truncation arrows  < ... >
-  TabLineTrunc       = { link = "TabLineFill", default = true },
+  TabLineTrunc = { link = "TabLineFill", default = true },
   -- Separator between tabs
-  TabLineSep         = { link = "TabLineFill", default = true },
+  TabLineSep = { link = "TabLineFill", default = true },
 }
 
 --- (Re)apply every highlight group.

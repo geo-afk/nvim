@@ -29,9 +29,13 @@ local function normalize_path(path)
 end
 
 local function truncate_display(str, max_len)
-  if not max_len or max_len <= 0 then return str end
+  if not max_len or max_len <= 0 then
+    return str
+  end
   local chars = vim.fn.strchars(str)
-  if chars <= max_len then return str end
+  if chars <= max_len then
+    return str
+  end
   return vim.fn.strcharpart(str, 0, max_len - 1) .. "…"
 end
 
@@ -48,23 +52,23 @@ end
 --- Synchronise state.order with the live buffer list.
 ---@return integer[]
 function M.sync()
-  local all      = vim.api.nvim_list_bufs()
+  local all = vim.api.nvim_list_bufs()
   local live_set = {}
   local live_list = {}
   for _, b in ipairs(all) do
     if is_valid_listed(b) then
-      live_set[b]               = true
+      live_set[b] = true
       live_list[#live_list + 1] = b
     end
   end
 
   -- Keep existing order but prune dead buffers
   local new_order = {}
-  local in_order  = {}
+  local in_order = {}
   for _, b in ipairs(state.order) do
     if live_set[b] then
       new_order[#new_order + 1] = b
-      in_order[b]               = true
+      in_order[b] = true
     end
   end
 
@@ -90,7 +94,9 @@ end
 ---@return integer|nil
 function M.get_index(bufnr)
   for i, b in ipairs(state.order) do
-    if b == bufnr then return i end
+    if b == bufnr then
+      return i
+    end
   end
   return nil
 end
@@ -144,7 +150,7 @@ end
 ---@param bufnr integer
 function M.move_left(bufnr)
   local bufs = M.sync()
-  local idx  = M.get_index(bufnr)
+  local idx = M.get_index(bufnr)
   if idx and idx > 1 then
     bufs[idx], bufs[idx - 1] = bufs[idx - 1], bufs[idx]
   end
@@ -154,7 +160,7 @@ end
 ---@param bufnr integer
 function M.move_right(bufnr)
   local bufs = M.sync()
-  local idx  = M.get_index(bufnr)
+  local idx = M.get_index(bufnr)
   if idx and idx < #bufs then
     bufs[idx], bufs[idx + 1] = bufs[idx + 1], bufs[idx]
   end
@@ -169,12 +175,15 @@ end
 ---@return integer|nil
 local function pick_focus_target(bufnr, bufs, focus)
   local idx = M.get_index(bufnr)
-  if not idx or #bufs <= 1 then return nil end
+  if not idx or #bufs <= 1 then
+    return nil
+  end
 
   if focus == "right" then
-    if idx < #bufs then return bufs[idx + 1] end
+    if idx < #bufs then
+      return bufs[idx + 1]
+    end
     return bufs[idx - 1]
-
   elseif focus == "previous" then
     local alt = vim.fn.bufnr("#")
     if alt ~= -1 and alt ~= bufnr and is_valid_listed(alt) then
@@ -184,8 +193,10 @@ local function pick_focus_target(bufnr, bufs, focus)
   end
 
   -- Default / "left"
-  if idx > 1 then return bufs[idx - 1] end
-  return bufs[2]  -- was first; go to what becomes the new first
+  if idx > 1 then
+    return bufs[idx - 1]
+  end
+  return bufs[2] -- was first; go to what becomes the new first
 end
 
 --- Safely delete a buffer via the Neovim API.
@@ -195,12 +206,13 @@ end
 --- nvim_buf_delete with force=true is the correct, error-surfacing API call.
 ---@param bufnr integer
 local function delete_buf(bufnr)
-  if not vim.api.nvim_buf_is_valid(bufnr) then return end
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    return
+  end
   local ok, err = pcall(vim.api.nvim_buf_delete, bufnr, { force = true })
   if not ok then
     -- Surface the error as a non-fatal notification rather than swallowing it.
-    vim.notify("tabline: could not delete buffer " .. bufnr .. ": " .. tostring(err),
-               vim.log.levels.WARN)
+    vim.notify("tabline: could not delete buffer " .. bufnr .. ": " .. tostring(err), vim.log.levels.WARN)
   end
 end
 
@@ -211,10 +223,14 @@ end
 ---@param bufnr  integer
 ---@param focus  string  "left"|"right"|"previous"
 function M.close(bufnr, focus)
-  if not vim.api.nvim_buf_is_valid(bufnr) then return end
+  if not vim.api.nvim_buf_is_valid(bufnr) then
+    return
+  end
 
   local bufs = M.sync()
-  if #bufs == 0 then return end
+  if #bufs == 0 then
+    return
+  end
 
   -- If this is the last listed buffer, open a blank buffer first
   if #bufs == 1 then
@@ -225,8 +241,7 @@ function M.close(bufnr, focus)
     end
 
     for _, win in ipairs(vim.api.nvim_list_wins()) do
-      if vim.api.nvim_win_is_valid(win)
-         and vim.api.nvim_win_get_buf(win) == bufnr then
+      if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == bufnr then
         pcall(vim.api.nvim_win_set_buf, win, replacement)
       end
     end
@@ -241,8 +256,7 @@ function M.close(bufnr, focus)
     -- FIX #6: Redirect every window that shows `bufnr`, not just the
     -- current one.  nvim_list_wins() returns all windows in all tabs.
     for _, win in ipairs(vim.api.nvim_list_wins()) do
-      if vim.api.nvim_win_is_valid(win)
-         and vim.api.nvim_win_get_buf(win) == bufnr then
+      if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == bufnr then
         -- pcall because the window could close during iteration
         pcall(vim.api.nvim_win_set_buf, win, target)
       end
@@ -258,7 +272,7 @@ end
 ---@param b integer
 ---@return string raw_label, boolean is_special
 local function raw_label(b)
-  local bt   = vim.bo[b].buftype
+  local bt = vim.bo[b].buftype
   local name = vim.api.nvim_buf_get_name(b)
 
   if bt == "terminal" then
@@ -267,10 +281,8 @@ local function raw_label(b)
       return term_title:match("^%d+: (.+)$") or term_title, true
     end
     return "terminal", true
-
   elseif name == "" then
     return "[No Name]", true
-
   else
     return normalize_path(name), false
   end
@@ -286,9 +298,11 @@ end
 ---@param max_len integer   0 = no limit
 ---@return table<integer, string>
 function M.get_display_names(bufs, max_len)
-  if #bufs == 0 then return {} end
+  if #bufs == 0 then
+    return {}
+  end
 
-  local raw     = {}
+  local raw = {}
   local special = {}
   for _, b in ipairs(bufs) do
     raw[b], special[b] = raw_label(b)
@@ -299,8 +313,10 @@ function M.get_display_names(bufs, max_len)
   for _, b in ipairs(bufs) do
     if not special[b] then
       local tail = vim.fn.fnamemodify(raw[b], ":t")
-      if tail == "" then tail = raw[b] end
-      tail_to_bufs[tail]                    = tail_to_bufs[tail] or {}
+      if tail == "" then
+        tail = raw[b]
+      end
+      tail_to_bufs[tail] = tail_to_bufs[tail] or {}
       tail_to_bufs[tail][#tail_to_bufs[tail] + 1] = b
     end
   end
@@ -309,14 +325,16 @@ function M.get_display_names(bufs, max_len)
 
   -- Special buffers get their raw label directly
   for _, b in ipairs(bufs) do
-    if special[b] then names[b] = raw[b] end
+    if special[b] then
+      names[b] = raw[b]
+    end
   end
 
   -- For each group of same-tailed buffers, extend path until unique
   for _, conflict_bufs in pairs(tail_to_bufs) do
     if #conflict_bufs == 1 then
-      local b    = conflict_bufs[1]
-      names[b]   = vim.fn.fnamemodify(raw[b], ":t")
+      local b = conflict_bufs[1]
+      names[b] = vim.fn.fnamemodify(raw[b], ":t")
     else
       -- Build a list-of-path-parts for each buffer in the conflict group
       local displays = {}
@@ -328,28 +346,35 @@ function M.get_display_names(bufs, max_len)
         displays[b] = { parts = parts, depth = 1 }
       end
 
-      for _ = 1, 8 do  -- max 8 path components deep
+      for _ = 1, 8 do -- max 8 path components deep
         -- Compute current display string for each buffer
         local cur = {}
         for _, b in ipairs(conflict_bufs) do
-          local d     = displays[b]
-          local n     = #d.parts
+          local d = displays[b]
+          local n = #d.parts
           local depth = math.min(d.depth, n)
-          local seg   = {}
-          for k = n - depth + 1, n do seg[#seg + 1] = d.parts[k] end
+          local seg = {}
+          for k = n - depth + 1, n do
+            seg[#seg + 1] = d.parts[k]
+          end
           cur[b] = table.concat(seg, "/")
         end
 
         -- Check uniqueness
-        local seen       = {}
+        local seen = {}
         local all_unique = true
         for _, b in ipairs(conflict_bufs) do
-          if seen[cur[b]] then all_unique = false; break end
+          if seen[cur[b]] then
+            all_unique = false
+            break
+          end
           seen[cur[b]] = true
         end
 
         if all_unique then
-          for _, b in ipairs(conflict_bufs) do names[b] = cur[b] end
+          for _, b in ipairs(conflict_bufs) do
+            names[b] = cur[b]
+          end
           break
         end
 
@@ -358,11 +383,15 @@ function M.get_display_names(bufs, max_len)
         for s, _ in pairs(seen) do
           local cnt = 0
           for _, b in ipairs(conflict_bufs) do
-            if cur[b] == s then cnt = cnt + 1 end
+            if cur[b] == s then
+              cnt = cnt + 1
+            end
           end
           if cnt > 1 then
             for _, b in ipairs(conflict_bufs) do
-              if cur[b] == s then still[b] = true end
+              if cur[b] == s then
+                still[b] = true
+              end
             end
           end
         end
@@ -371,14 +400,19 @@ function M.get_display_names(bufs, max_len)
         for _, b in ipairs(conflict_bufs) do
           if still[b] then
             local d = displays[b]
-            if d.depth < #d.parts then d.depth = d.depth + 1; extended = true end
+            if d.depth < #d.parts then
+              d.depth = d.depth + 1
+              extended = true
+            end
           end
         end
 
         if not extended then
           -- Ran out of path components; assign whatever we have
           for _, b in ipairs(conflict_bufs) do
-            if not names[b] then names[b] = cur[b] end
+            if not names[b] then
+              names[b] = cur[b]
+            end
           end
           break
         end
@@ -386,14 +420,18 @@ function M.get_display_names(bufs, max_len)
 
       -- Safety fallback
       for _, b in ipairs(conflict_bufs) do
-        if not names[b] then names[b] = vim.fn.fnamemodify(raw[b], ":t") end
+        if not names[b] then
+          names[b] = vim.fn.fnamemodify(raw[b], ":t")
+        end
       end
     end
   end
 
   -- Final fallback: every buf must have a name
   for _, b in ipairs(bufs) do
-    if not names[b] then names[b] = raw[b] end
+    if not names[b] then
+      names[b] = raw[b]
+    end
   end
 
   -- Truncate long names
