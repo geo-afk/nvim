@@ -85,16 +85,19 @@ end
 
 function M.configure_float(win, opts)
   opts = opts or {}
-  M.apply_options(win, vim.tbl_extend("force", {
-    number = false,
-    relativenumber = false,
-    signcolumn = opts.signcolumn or "no",
-    wrap = opts.wrap or false,
-    cursorline = opts.cursorline or false,
-    scrolloff = 0,
-    foldcolumn = "0",
-    statuscolumn = "",
-  }, opts.options or {}))
+  M.apply_options(
+    win,
+    vim.tbl_extend("force", {
+      number = false,
+      relativenumber = false,
+      signcolumn = opts.signcolumn or "no",
+      wrap = opts.wrap or false,
+      cursorline = opts.cursorline or false,
+      scrolloff = 0,
+      foldcolumn = "0",
+      statuscolumn = "",
+    }, opts.options or {})
+  )
   if opts.winhighlight or opts.winhl then
     M.apply_options(win, { winhighlight = opts.winhighlight or opts.winhl })
   end

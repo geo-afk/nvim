@@ -54,7 +54,15 @@ function M.apply(buf, ns, items, clear)
     if item.virt_text then
       M.virtual_text(buf, ns, item.row or item.lnum or 0, item.col or 0, item.virt_text, item)
     else
-      M.highlight(buf, ns, item.group or item.hl_group, item.row or item.lnum or 0, item.col_start or item.col or 0, item.col_end or item.end_col, item)
+      M.highlight(
+        buf,
+        ns,
+        item.group or item.hl_group,
+        item.row or item.lnum or 0,
+        item.col_start or item.col or 0,
+        item.col_end or item.end_col,
+        item
+      )
     end
   end
 end
