@@ -1,1 +1,1 @@
-require('custom.right_menu.popupmenu').setup()
+require("custom.right_menu.popupmenu").setup()

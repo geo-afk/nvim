@@ -4,24 +4,24 @@ local Menu = {}
 --- Constructor
 function Menu:new(get_items, format, actions, opts)
   local default_opts = {
-    title = 'Menu',
-    border = 'rounded',
-    legend = { include = true, style = 'horizontal' },
+    title = "Menu",
+    border = "rounded",
+    legend = { include = true, style = "horizontal" },
     resize = { horizontal = false, vertical = false },
-    position = 'center',
+    position = "center",
     win_opts = {
-      style = 'minimal',
+      style = "minimal",
       noautocmd = true,
     },
     highlight = {
-      border = 'FloatBorder',
-      normal = 'NormalFloat',
-      key = 'Constant',
-      desc = 'Comment',
+      border = "FloatBorder",
+      normal = "NormalFloat",
+      key = "Constant",
+      desc = "Comment",
     },
   }
 
-  opts = vim.tbl_deep_extend('force', default_opts, opts or {})
+  opts = vim.tbl_deep_extend("force", default_opts, opts or {})
 
   local menu = {
     actions = actions,
@@ -38,14 +38,14 @@ function Menu:new(get_items, format, actions, opts)
   end, menu.get_items())
 
   menu.buf = Menu.create_buffer()
-  menu.namespace = vim.api.nvim_create_namespace 'menu'
+  menu.namespace = vim.api.nvim_create_namespace("menu")
 
   -- Build legend
   menu.legend = {}
   menu.legend_size = 0
   if opts.legend.include then
     for key, action in pairs(actions) do
-      local text = ('[%s] %s'):format(key, action.desc)
+      local text = ("[%s] %s"):format(key, action.desc)
       table.insert(menu.legend, text)
       menu.legend_size = math.max(menu.legend_size, #text)
     end
@@ -57,10 +57,10 @@ end
 
 function Menu.create_buffer()
   local buf = require("custom.ui.buffer").create_raw(false, true)
-  vim.bo[buf].bufhidden = 'wipe'
+  vim.bo[buf].bufhidden = "wipe"
   vim.bo[buf].swapfile = false
   vim.bo[buf].modifiable = false
-  vim.keymap.set('n', 'q', '<cmd>close!<CR>', { buffer = buf, silent = true })
+  vim.keymap.set("n", "q", "<cmd>close!<CR>", { buffer = buf, silent = true })
   return buf
 end
 
@@ -69,12 +69,12 @@ function Menu:render_buffer()
 
   local lines = {}
   for _, item in ipairs(self.string_items) do
-    table.insert(lines, '  ' .. item)
+    table.insert(lines, "  " .. item)
   end
-  table.insert(lines, '')
+  table.insert(lines, "")
   if not vim.tbl_isempty(self.legend) then
-    table.insert(lines, '──────────  Actions ─────────────')
-    table.insert(lines, table.concat(self.legend, '    '))
+    table.insert(lines, "──────────  Actions ─────────────")
+    table.insert(lines, table.concat(self.legend, "    "))
   end
 
   vim.api.nvim_buf_set_lines(self.buf, 0, -1, false, lines)
@@ -89,20 +89,20 @@ function Menu:create_window()
   width = width + 8
   local height = #self.string_items + (self.opts.legend.include and 3 or 1)
 
-  local row, col, relative = 0, 0, 'editor'
+  local row, col, relative = 0, 0, "editor"
   local pos = self.opts.position
 
-  if pos == 'center' then
-    relative = 'editor'
+  if pos == "center" then
+    relative = "editor"
     row = math.ceil((vim.o.lines - height) / 2)
     col = math.ceil((vim.o.columns - width) / 2)
-  elseif pos == 'cursor' then
-    relative = 'win'
+  elseif pos == "cursor" then
+    relative = "win"
     local cursor_pos = vim.api.nvim_win_get_cursor(0)
     row = cursor_pos[1]
     col = cursor_pos[2]
-  elseif pos == 'mouse' then
-    relative = 'editor'
+  elseif pos == "mouse" then
+    relative = "editor"
     local mp = vim.fn.getmousepos()
     row = math.max(0, mp.screenrow - 1)
     col = math.max(0, mp.screencol)
@@ -113,9 +113,9 @@ function Menu:create_window()
     if row + height > vim.o.lines then
       row = vim.o.lines - height
     end
-  elseif type(pos) == 'table' then
+  elseif type(pos) == "table" then
     -- If explicit coordinates given, use buffer-relative positioning if possible
-    relative = 'win'
+    relative = "win"
     row = pos.row or 0
     col = pos.col or 0
   end
@@ -124,7 +124,7 @@ function Menu:create_window()
   row = row or 0
   col = col or 0
 
-  local win_opts = vim.tbl_deep_extend('force', {
+  local win_opts = vim.tbl_deep_extend("force", {
     relative = relative,
     width = width,
     height = height,
@@ -132,16 +132,17 @@ function Menu:create_window()
     col = col,
     border = self.opts.border,
     title = self.opts.title,
-    title_pos = 'center',
+    title_pos = "center",
     style = self.opts.win_opts.style,
   }, self.opts.win_opts)
 
   self.win = require("custom.ui.window").open_raw(self.buf, true, win_opts)
-  vim.wo[self.win].winhighlight = string.format('Normal:%s,FloatBorder:%s', self.opts.highlight.normal, self.opts.highlight.border)
+  vim.wo[self.win].winhighlight =
+    string.format("Normal:%s,FloatBorder:%s", self.opts.highlight.normal, self.opts.highlight.border)
   vim.wo[self.win].cursorline = true
 
   -- Auto-close on leave
-  vim.api.nvim_create_autocmd('WinLeave', {
+  vim.api.nvim_create_autocmd("WinLeave", {
     buffer = self.buf,
     once = true,
     callback = function()
@@ -154,7 +155,7 @@ end
 
 function Menu:set_keymaps()
   for key, action in pairs(self.actions) do
-    vim.keymap.set('n', key, function()
+    vim.keymap.set("n", key, function()
       local cursor = vim.api.nvim_win_get_cursor(0)
       local line = cursor[1]
 
@@ -195,7 +196,7 @@ end
 
 function Menu:__call()
   if vim.tbl_isempty(self.string_items) then
-    vim.notify('No items to display in the menu', vim.log.levels.WARN)
+    vim.notify("No items to display in the menu", vim.log.levels.WARN)
     return
   end
   self:set_keymaps()
