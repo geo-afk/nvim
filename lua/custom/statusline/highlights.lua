@@ -26,60 +26,60 @@ local M = {}
 -- ---------------------------------------------------------------------------
 local FALLBACK = {
   -- Backgrounds
-  bg = '#1e1e2e',
-  bg_dim = '#181825',
-  bg_alt = '#313244',
-  bg_chip = '#26293a',
+  bg = "#1e1e2e",
+  bg_dim = "#181825",
+  bg_alt = "#313244",
+  bg_chip = "#26293a",
 
   -- Mode colours (fallback when colorscheme Function/String/Keyword are unset)
-  normal = '#89b4fa', -- blue
-  insert = '#a6e3a1', -- green
-  visual = '#cba6f7', -- purple
-  replace = '#f38ba8', -- red
-  command = '#f9e2af', -- yellow
-  terminal = '#94e2d5', -- teal
-  select = '#fab387', -- orange
+  normal = "#89b4fa", -- blue
+  insert = "#a6e3a1", -- green
+  visual = "#cba6f7", -- purple
+  replace = "#f38ba8", -- red
+  command = "#f9e2af", -- yellow
+  terminal = "#94e2d5", -- teal
+  select = "#fab387", -- orange
 
   -- Foreground tiers
-  fg = '#cdd6f4',
-  fg_dim = '#6c7086',
-  fg_muted = '#45475a',
-  fg_on_accent = '#1e1e2e', -- text on bright pill background
+  fg = "#cdd6f4",
+  fg_dim = "#6c7086",
+  fg_muted = "#45475a",
+  fg_on_accent = "#1e1e2e", -- text on bright pill background
 
   -- Accent (accent on top of statusline bg)
-  accent = '#89b4fa',
-  separator = '#45475a',
-  fill = '#313244',
+  accent = "#89b4fa",
+  separator = "#45475a",
+  fill = "#313244",
 
   -- Semantic colors
-  git_add = '#a6e3a1',
-  git_mod = '#f9e2af',
-  git_del = '#f38ba8',
-  git_branch = '#cba6f7',
+  git_add = "#a6e3a1",
+  git_mod = "#f9e2af",
+  git_del = "#f38ba8",
+  git_branch = "#cba6f7",
 
-  diag_error = '#f38ba8',
-  diag_warn = '#f9e2af',
-  diag_hint = '#94e2d5',
-  diag_info = '#89dceb',
+  diag_error = "#f38ba8",
+  diag_warn = "#f9e2af",
+  diag_hint = "#94e2d5",
+  diag_info = "#89dceb",
 
-  lsp_active = '#a6e3a1',
-  lsp_loading = '#f9e2af',
+  lsp_active = "#a6e3a1",
+  lsp_loading = "#f9e2af",
 
-  modified = '#f38ba8',
-  readonly = '#f9e2af',
-  filesize = '#94e2d5',
-  encoding = '#89dceb',
-  line_count = '#cba6f7',
-  bufnr = '#6c7086',
-  progress = '#89b4fa',
-  macro = '#fab387',
-  paste = '#94e2d5',
-  spell_color = '#cba6f7',
-  wrap_color = '#89dceb',
-  os_icon = '#cdd6f4',
-  cwd_color = '#6c7086',
-  ruler_fill = '#89b4fa',
-  ruler_empty = '#45475a',
+  modified = "#f38ba8",
+  readonly = "#f9e2af",
+  filesize = "#94e2d5",
+  encoding = "#89dceb",
+  line_count = "#cba6f7",
+  bufnr = "#6c7086",
+  progress = "#89b4fa",
+  macro = "#fab387",
+  paste = "#94e2d5",
+  spell_color = "#cba6f7",
+  wrap_color = "#89dceb",
+  os_icon = "#cdd6f4",
+  cwd_color = "#6c7086",
+  ruler_fill = "#89b4fa",
+  ruler_empty = "#45475a",
 }
 
 -- ---------------------------------------------------------------------------
@@ -97,7 +97,7 @@ local function hl_color(group, attr)
   if not val or val == 0 then
     return nil
   end
-  return string.format('#%06x', val)
+  return string.format("#%06x", val)
 end
 
 --- Try groups in order; return the first non-nil color found.
@@ -120,12 +120,12 @@ local function build_palette()
   -- prefer whatever the colorscheme sets for StatusLine; if it's unset we
   -- use Normal bg slightly darkened (we can't darken in pure Lua here so
   -- we just use Normal bg as a reasonable default).
-  local normal_bg = hl_color('Normal', 'bg') or FALLBACK.bg
-  local normal_fg = hl_color('Normal', 'fg') or FALLBACK.fg
-  local sl_bg = hl_color('StatusLine', 'bg') or normal_bg
-  local sl_nc_bg = hl_color('StatusLineNC', 'bg') or FALLBACK.bg_dim
-  local comment = hl_color('Comment', 'fg') or FALLBACK.fg_dim
-  local nontext = hl_color('NonText', 'fg') or FALLBACK.fg_muted
+  local normal_bg = hl_color("Normal", "bg") or FALLBACK.bg
+  local normal_fg = hl_color("Normal", "fg") or FALLBACK.fg
+  local sl_bg = hl_color("StatusLine", "bg") or normal_bg
+  local sl_nc_bg = hl_color("StatusLineNC", "bg") or FALLBACK.bg_dim
+  local comment = hl_color("Comment", "fg") or FALLBACK.fg_dim
+  local nontext = hl_color("NonText", "fg") or FALLBACK.fg_muted
 
   -- ── Mode colours ──────────────────────────────────────────────────────────
   -- We map each mode to a semantically appropriate syntax group:
@@ -136,40 +136,46 @@ local function build_palette()
   --   Command → WarningMsg / DiagnosticWarn (yellow)
   --   Terminal→ Special / Character (teal/cyan)
   --   Select  → Constant / Number (orange)
-  local c_normal = first_color({ '@function', 'Function', '@lsp.type.function' }, 'fg') or FALLBACK.normal
-  local c_insert = first_color({ 'String', '@string', '@string.special' }, 'fg') or FALLBACK.insert
-  local c_visual = first_color({ 'Keyword', '@keyword', 'Statement' }, 'fg') or FALLBACK.visual
-  local c_replace = first_color({ 'DiagnosticError', 'ErrorMsg', 'Error' }, 'fg') or FALLBACK.replace
-  local c_command = first_color({ 'DiagnosticWarn', 'WarningMsg', 'Todo' }, 'fg') or FALLBACK.command
-  local c_terminal = first_color({ 'Special', '@character.special', 'SpecialChar' }, 'fg') or FALLBACK.terminal
-  local c_select = first_color({ 'Constant', '@constant', 'Number' }, 'fg') or FALLBACK.select
+  local c_normal = first_color({ "@function", "Function", "@lsp.type.function" }, "fg") or FALLBACK.normal
+  local c_insert = first_color({ "String", "@string", "@string.special" }, "fg") or FALLBACK.insert
+  local c_visual = first_color({ "Keyword", "@keyword", "Statement" }, "fg") or FALLBACK.visual
+  local c_replace = first_color({ "DiagnosticError", "ErrorMsg", "Error" }, "fg") or FALLBACK.replace
+  local c_command = first_color({ "DiagnosticWarn", "WarningMsg", "Todo" }, "fg") or FALLBACK.command
+  local c_terminal = first_color({ "Special", "@character.special", "SpecialChar" }, "fg") or FALLBACK.terminal
+  local c_select = first_color({ "Constant", "@constant", "Number" }, "fg") or FALLBACK.select
 
   -- ── Diagnostics ───────────────────────────────────────────────────────────
-  local d_err = first_color({ 'DiagnosticError', 'DiagnosticSignError', 'ErrorMsg' }, 'fg') or FALLBACK.diag_error
-  local d_warn = first_color({ 'DiagnosticWarn', 'DiagnosticSignWarn', 'WarningMsg' }, 'fg') or FALLBACK.diag_warn
-  local d_hint = first_color({ 'DiagnosticHint', 'DiagnosticSignHint' }, 'fg') or FALLBACK.diag_hint
-  local d_info = first_color({ 'DiagnosticInfo', 'DiagnosticSignInfo' }, 'fg') or FALLBACK.diag_info
+  local d_err = first_color({ "DiagnosticError", "DiagnosticSignError", "ErrorMsg" }, "fg") or FALLBACK.diag_error
+  local d_warn = first_color({ "DiagnosticWarn", "DiagnosticSignWarn", "WarningMsg" }, "fg") or FALLBACK.diag_warn
+  local d_hint = first_color({ "DiagnosticHint", "DiagnosticSignHint" }, "fg") or FALLBACK.diag_hint
+  local d_info = first_color({ "DiagnosticInfo", "DiagnosticSignInfo" }, "fg") or FALLBACK.diag_info
 
   -- ── Git diff ──────────────────────────────────────────────────────────────
   -- Priority: GitSigns (fg) > diff syntax (fg) > DiffAdd (bg, since many
   -- colorschemes only set a background tint on DiffAdd, not a fg).
-  local g_add = first_color({ 'GitSignsAdd', 'diffAdded', 'Added' }, 'fg') or hl_color('DiffAdd', 'bg') or FALLBACK.git_add
-  local g_mod = first_color({ 'GitSignsChange', 'diffChanged', 'Changed' }, 'fg') or hl_color('DiffChange', 'bg') or FALLBACK.git_mod
-  local g_del = first_color({ 'GitSignsDelete', 'diffRemoved', 'Removed' }, 'fg') or hl_color('DiffDelete', 'bg') or FALLBACK.git_del
-  local g_branch = first_color({ '@keyword', 'Keyword', 'PreProc', 'Special' }, 'fg') or FALLBACK.git_branch
+  local g_add = first_color({ "GitSignsAdd", "diffAdded", "Added" }, "fg")
+    or hl_color("DiffAdd", "bg")
+    or FALLBACK.git_add
+  local g_mod = first_color({ "GitSignsChange", "diffChanged", "Changed" }, "fg")
+    or hl_color("DiffChange", "bg")
+    or FALLBACK.git_mod
+  local g_del = first_color({ "GitSignsDelete", "diffRemoved", "Removed" }, "fg")
+    or hl_color("DiffDelete", "bg")
+    or FALLBACK.git_del
+  local g_branch = first_color({ "@keyword", "Keyword", "PreProc", "Special" }, "fg") or FALLBACK.git_branch
 
   -- ── Accent / separator ────────────────────────────────────────────────────
-  local accent = first_color({ '@function', 'Function', 'Identifier' }, 'fg') or FALLBACK.accent
+  local accent = first_color({ "@function", "Function", "Identifier" }, "fg") or FALLBACK.accent
   local separator = comment or FALLBACK.separator
 
   -- ── Cursor / position ─────────────────────────────────────────────────────
-  local cursor_bg = hl_color('CursorLine', 'bg') or FALLBACK.bg_alt
-  local pmenu_bg = hl_color('Pmenu', 'bg') or FALLBACK.bg_chip
+  local cursor_bg = hl_color("CursorLine", "bg") or FALLBACK.bg_alt
+  local pmenu_bg = hl_color("Pmenu", "bg") or FALLBACK.bg_chip
 
   -- ── Specials ──────────────────────────────────────────────────────────────
-  local macro_bg = first_color({ 'Constant', '@constant', 'Number' }, 'fg') or FALLBACK.macro
-  local paste_bg = first_color({ 'Special', '@string.special' }, 'fg') or FALLBACK.paste
-  local spell_bg = first_color({ 'SpellBad', 'SpellLocal' }, 'fg') or FALLBACK.spell_color
+  local macro_bg = first_color({ "Constant", "@constant", "Number" }, "fg") or FALLBACK.macro
+  local paste_bg = first_color({ "Special", "@string.special" }, "fg") or FALLBACK.paste
+  local spell_bg = first_color({ "SpellBad", "SpellLocal" }, "fg") or FALLBACK.spell_color
 
   return {
     bg = sl_bg,
@@ -199,7 +205,7 @@ local function build_palette()
     git_del = g_del,
     git_branch = g_branch,
 
-    lsp_active = first_color({ 'DiagnosticOk', 'DiagnosticHint' }, 'fg') or FALLBACK.lsp_active,
+    lsp_active = first_color({ "DiagnosticOk", "DiagnosticHint" }, "fg") or FALLBACK.lsp_active,
     lsp_loading = d_warn,
 
     accent = accent,
@@ -210,7 +216,7 @@ local function build_palette()
     readonly = d_warn,
     filesize = FALLBACK.filesize,
     encoding = FALLBACK.encoding,
-    line_count = first_color({ '@keyword', 'Keyword' }, 'fg') or FALLBACK.line_count,
+    line_count = first_color({ "@keyword", "Keyword" }, "fg") or FALLBACK.line_count,
     bufnr = comment,
     progress = c_normal,
     ruler_fill = c_normal,
@@ -327,7 +333,7 @@ end
 
 --- Return the %#GroupName# statusline escape string.
 function M.hl(name)
-  return '%#' .. name .. '#'
+  return "%#" .. name .. "#"
 end
 
 return M
