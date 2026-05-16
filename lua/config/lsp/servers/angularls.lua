@@ -4,10 +4,7 @@ local ok_utils, utils = pcall(require, "utils")
 
 -- fallback if module is missing
 if not ok then
-  vim.notify(
-    "[angularls] utils.angular_location not found. Falling back to default command.",
-    vim.log.levels.WARN
-  )
+  vim.notify("[angularls] utils.angular_location not found. Falling back to default command.", vim.log.levels.WARN)
 
   angular_paths = {
     cmd = { "ngserver", "--stdio" }, -- fallback Angular language server command
