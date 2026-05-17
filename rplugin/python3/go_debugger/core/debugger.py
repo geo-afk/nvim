@@ -13,21 +13,13 @@ from typing import Optional
 
 import pynvim
 
-from .state import DebuggerState, Breakpoint, VarNode
+from .state import DebuggerState, Breakpoint
 from .session import DAPSession
-from ..ui.sidebar import (
-    build_goroutine_items,
-    build_variable_items,
-    build_stack_items,
-    build_bp_items,
-    build_watch_items,
-    sb_width,
-    render_sidebar,
-)
-from ..ui.output import render_output, MAX_OUTPUT, _set_winbar
+from ..ui.sidebar import render_sidebar
+from ..ui.output import render_output, MAX_ITEMS, _set_winbar
 from ..ui.layout import open_ui
 from ..ui.virt import apply_virt, clear_virt
-from ..ui.hover import show_hover
+from ..ui.hover import show_hover, show_inspector
 from ..ui.highlights import SIGN_BP, SIGN_BP_COND, SIGN_BP_LOG, SIGN_PC
 from ..dap.parser import OutputParser
 
@@ -43,8 +35,9 @@ class Debugger:
         self._thread: Optional[threading.Thread] = None
         self._session: Optional[DAPSession] = None
         self._dlv_proc: Optional[subprocess.Popen] = None
+        self._plugin_ref = None  # set by plugin after construction
 
-    # ── asyncio thread ─────────────────────────────────────────────────────────
+    # ── asyncio thread ────────────────────────────────────────────────────────
 
     def _ensure_loop(self) -> asyncio.AbstractEventLoop:
         if self._loop is None or not self._loop.is_running():
@@ -54,19 +47,11 @@ class Debugger:
         return self._loop
 
     def _run(self, coro):
-        loop = self._ensure_loop()
-        return asyncio.run_coroutine_threadsafe(coro, loop)
+        return asyncio.run_coroutine_threadsafe(coro, self._ensure_loop())
 
-    # ── render scheduling ──────────────────────────────────────────────────────
+    # ── render scheduling ─────────────────────────────────────────────────────
 
     def _schedule_render(self, key: str) -> None:
-        """Coalesced, thread-safe render scheduling.
-
-        Multiple calls with the same *key* before the scheduled callback
-        fires are deduplicated – only one render is dispatched per event-loop
-        tick.  Safe to call from both the asyncio thread and the Neovim main
-        thread.
-        """
         if self.state.ui.pending.get(key):
             return
         self.state.ui.pending[key] = True
@@ -83,19 +68,17 @@ class Debugger:
         self.state.ui.pending["sidebar"] = False
         render_sidebar(self.nvim, self.state)
 
-    # ── notify ─────────────────────────────────────────────────────────────────
+    # ── notify ────────────────────────────────────────────────────────────────
 
     def _notify(self, msg: str, level: int = 2) -> None:
         self.nvim.async_call(self.nvim.api.notify, f"[go-debug] {msg}", level, {})
 
-    # ── output ─────────────────────────────────────────────────────────────────
+    # ── output ────────────────────────────────────────────────────────────────
 
     def append_output(self, raw: str) -> None:
-        """Append raw text to the output panel (main-thread call)."""
         self._append_output_internal(raw)
 
     def _append_output_threadsafe(self, raw: str) -> None:
-        """Append output from the asyncio thread."""
         self._append_output_internal(raw)
 
     def _append_output_internal(self, raw: str) -> None:
@@ -107,28 +90,22 @@ class Debugger:
             ui.output_items.append(item)
             if item.kind not in ("detail", "protocol"):
                 ui.last_status = item.text
-        while len(ui.output_items) > MAX_OUTPUT:
+        while len(ui.output_items) > MAX_ITEMS:
             ui.output_items.pop(0)
         self._schedule_render("output")
 
-    # ── path helpers ───────────────────────────────────────────────────────────
+    # ── path helpers ──────────────────────────────────────────────────────────
 
     def _focus_main_win(self) -> int:
-        """Ensure an editor window is focused (avoiding panels).
-        Returns the window ID of the focused window.
-        """
         ui = self.state.ui
         cur = self.nvim.api.get_current_win()
-        panels = (ui.sidebar_win, ui.output_win, ui.controls_win, ui.help_win)
+        panels = {ui.sidebar_win, ui.output_win, ui.toolbar_win, ui.help_win}
         if cur not in panels:
             return cur
-
         for win in self.nvim.api.list_wins():
             if win not in panels and self.nvim.api.win_is_valid(win):
                 self.nvim.api.set_current_win(win)
                 return win
-
-        # Fallback: jump to next window
         self.nvim.command("wincmd w")
         return self.nvim.api.get_current_win()
 
@@ -164,10 +141,8 @@ class Debugger:
             f = str(self.nvim.funcs.expand("%:p"))
         except Exception:
             f = ""
-
         fdir = str(Path(f).parent) if f and f.endswith(".go") else os.getcwd()
         root = self._project_root(fdir)
-
         if f and f.endswith(".go"):
             try:
                 buf = self.nvim.api.get_current_buf()
@@ -178,11 +153,9 @@ class Debugger:
                         return fdir
             except Exception:
                 pass
-
         for candidate in [f"{root}/main.go", f"{root}/cmd/main.go"]:
             if Path(candidate).exists():
                 return str(Path(candidate).parent).replace("\\", "/")
-
         try:
             cmd_dir = Path(root) / "cmd"
             if cmd_dir.is_dir():
@@ -191,7 +164,6 @@ class Debugger:
                         return str(child).replace("\\", "/")
         except Exception:
             pass
-
         return fdir.replace("\\", "/")
 
     def _current_file_line(self) -> tuple[str | None, int | None]:
@@ -205,7 +177,7 @@ class Debugger:
         except Exception:
             return None, None
 
-    # ── breakpoints ────────────────────────────────────────────────────────────
+    # ── breakpoints ───────────────────────────────────────────────────────────
 
     def _bp_key(self, file: str, line: int) -> str:
         return f"{self._norm(file)}:{line}"
@@ -223,17 +195,10 @@ class Debugger:
 
     def _bp_changed(self) -> None:
         self._refresh_bp_signs()
-        self._update_sidebar_bps()
+        self._schedule_render("sidebar")
         self._save_breakpoints()
         if self._session and self._session.initialized:
             self._run(self._sync_breakpoints_async())
-
-    def _update_sidebar_bps(self) -> None:
-        bps = self._sorted_bps()
-        items, count = build_bp_items(bps)
-        self.state.ui.sections["breakpoints"].items = items
-        self.state.ui.sections["breakpoints"].count = count or None
-        self._schedule_render("sidebar")
 
     def _refresh_bp_signs(self) -> None:
         ui = self.state.ui
@@ -247,7 +212,6 @@ class Debugger:
                     except Exception:
                         pass
         ui.bp_sign_ids = {}
-
         for bp in self._sorted_bps():
             bufnr = self._buf_for_file(bp.file)
             sign = (
@@ -305,7 +269,7 @@ class Debugger:
                     )
                     self.state.breakpoints[bp.bp_key()] = bp
             self._refresh_bp_signs()
-            self._update_sidebar_bps()
+            self._schedule_render("sidebar")
             if items:
                 self.append_output(f"● loaded {len(items)} breakpoints")
         except (FileNotFoundError, json.JSONDecodeError):
@@ -374,7 +338,7 @@ class Debugger:
         self.state.breakpoints = {}
         self._bp_changed()
 
-    # ── DAP sync ───────────────────────────────────────────────────────────────
+    # ── DAP sync ──────────────────────────────────────────────────────────────
 
     async def _sync_breakpoints_async(self) -> None:
         session = self._session
@@ -433,7 +397,7 @@ class Debugger:
             )
             await asyncio.wait_for(ev.wait(), timeout=5.0)
 
-    # ── DAP initialize sequence ────────────────────────────────────────────────
+    # ── DAP initialize sequence ───────────────────────────────────────────────
 
     async def _on_initialized(self) -> None:
         session = self._session
@@ -441,7 +405,6 @@ class Debugger:
             return
         session.initialized = True
         self._append_output_threadsafe("● dlv initialized")
-
         ev = asyncio.Event()
         session.request(
             "setExceptionBreakpoints",
@@ -452,27 +415,21 @@ class Debugger:
             await asyncio.wait_for(ev.wait(), 5.0)
         except asyncio.TimeoutError:
             pass
-
         await self._sync_breakpoints_async()
-
         ev2 = asyncio.Event()
         session.request("configurationDone", {}, lambda r: ev2.set())
         try:
             await asyncio.wait_for(ev2.wait(), 5.0)
-            session.configured = True
-            self._append_output_threadsafe("● configuration done")
         except asyncio.TimeoutError:
             pass
-
-    # ── DAP event handling ─────────────────────────────────────────────────────
+        session.configured = True
 
     def _on_dap_event(self, event: str, body: dict) -> None:
-        """Dispatched from the asyncio thread."""
         if event == "initialized":
             self._run(self._on_initialized())
         elif event == "stopped":
-            reason = body.get("reason", "stopped")
-            self._append_output_threadsafe(f"⏸  {reason}")
+            reason = body.get("reason", "")
+            self._append_output_threadsafe(f"⏸ {reason}")
             self._run(self._refresh_stopped(body))
         elif event == "continued":
             self._append_output_threadsafe("▶ running")
@@ -498,13 +455,14 @@ class Debugger:
     def _clear_stopped_ui(self) -> None:
         clear_virt(self.nvim)
         self._clear_execution_line()
-        self.state.ui.sections["stack"].items = []
-        self.state.ui.sections["stack"].count = None
-        self.state.ui.sections["variables"].items = []
-        self.state.ui.sections["variables"].count = None
+        ui = self.state.ui
+        ui.scopes = []
+        ui.frames = []
+        ui.goroutines = []
+        ui.active_frame = 0
         self._schedule_render("sidebar")
 
-    # ── refresh on stop ────────────────────────────────────────────────────────
+    # ── refresh on stop ───────────────────────────────────────────────────────
 
     async def _refresh_stopped(self, event_body: dict) -> None:
         session = self._session
@@ -531,11 +489,11 @@ class Debugger:
         except asyncio.TimeoutError:
             pass
         threads = (threads_resp[0].get("body") or {}).get("threads") or []
-        g_items, gc = build_goroutine_items(threads, tid)
 
         def _set_goroutines():
-            self.state.ui.sections["goroutines"].items = g_items
-            self.state.ui.sections["goroutines"].count = gc or None
+            self.state.ui.goroutines = threads
+            self.state.ui.active_goroutine = tid
+            self._schedule_render("sidebar")
 
         self.nvim.async_call(_set_goroutines)
 
@@ -552,13 +510,12 @@ class Debugger:
         except asyncio.TimeoutError:
             pass
         frames = (stack_resp[0].get("body") or {}).get("stackFrames") or []
-        s_items, sc = build_stack_items(frames)
 
-        def _set_stack():
-            self.state.ui.sections["stack"].items = s_items
-            self.state.ui.sections["stack"].count = sc or None
+        def _set_frames():
+            self.state.ui.frames = frames
+            self.state.ui.active_frame = 0
 
-        self.nvim.async_call(_set_stack)
+        self.nvim.async_call(_set_frames)
 
         top = frames[0] if frames else None
         session.current_fid = top["id"] if top else None
@@ -597,8 +554,8 @@ class Debugger:
 
         session.last_scope_ref = scopes[0].get("variablesReference") if scopes else None
         vars_by_scope: dict = {}
-
         var_evts = []
+
         for scope in scopes:
             ref = scope.get("variablesReference", 0)
             ev_v = asyncio.Event()
@@ -618,27 +575,23 @@ class Debugger:
         except asyncio.TimeoutError:
             pass
 
-        await self._refresh_expanded_variables(session)
+        await self._refresh_expanded_variables(session, vars_by_scope)
 
         def _set_vars():
-            items, count = build_variable_items(
-                scopes,
-                vars_by_scope,
-                self.state.ui.var_nodes,
-                sb_width(self.nvim),
-            )
-            self.state.ui.sections["variables"].items = items
-            self.state.ui.sections["variables"].count = count or None
+            # Attach fetched variables back onto each scope dict for the renderer
+            for scope in scopes:
+                ref = scope.get("variablesReference", 0)
+                scope["variables"] = vars_by_scope.get(ref, [])
+            self.state.ui.scopes = scopes
             self._schedule_render("sidebar")
             if top and (top.get("source") or {}).get("path"):
                 all_vars = [v for vlist in vars_by_scope.values() for v in vlist]
                 apply_virt(self.nvim, top["source"]["path"], all_vars)
 
         self.nvim.async_call(_set_vars)
-
         await self._eval_watches_async()
 
-    # ── watches ────────────────────────────────────────────────────────────────
+    # ── watches ───────────────────────────────────────────────────────────────
 
     async def _eval_watches_async(self) -> None:
         session = self._session
@@ -667,48 +620,56 @@ class Debugger:
             except asyncio.TimeoutError:
                 pass
 
-        def _set():
-            items, count = build_watch_items(self.state.watches, sb_width(self.nvim))
-            self.state.ui.sections["watches"].items = items
-            self.state.ui.sections["watches"].count = count or None
-            self._schedule_render("sidebar")
+        self.nvim.async_call(self._schedule_render, "sidebar")
 
-        self.nvim.async_call(_set)
+    async def _refresh_expanded_variables(
+        self, session: DAPSession, vars_by_scope: dict
+    ) -> None:
+        """Re-fetch children for any variables the user has expanded."""
+        # Collect all variable names that are expanded and visible in current scopes
+        exp = self.state.ui.var_expanded
+        refs_needed: dict[str, int] = {}  # key → variablesReference
 
-    async def _refresh_expanded_variables(self, session: DAPSession) -> None:
-        refs = [
-            ref
-            for ref, node in self.state.ui.var_nodes.items()
-            if ref > 0 and node.expanded
-        ]
-        if not refs:
+        for scope in vars_by_scope.values():
+            for v in scope:
+                name = str(v.get("name") or "")
+                vref = int(v.get("variablesReference") or 0)
+                if vref > 0:
+                    # Check any depth key starting with the name
+                    for k, expanded in exp.items():
+                        if expanded and k.endswith(f":{name}"):
+                            refs_needed[k] = vref
+
+        if not refs_needed:
             return
 
-        pending: dict[int, list] = {}
-        evts = []
-        for ref in refs:
+        evts: list[asyncio.Event] = []
+        fetched: dict[str, list] = {}
+
+        for key, ref in refs_needed.items():
             ev = asyncio.Event()
             evts.append(ev)
 
-            def _cb(resp, vref=ref, e=ev):
-                if resp.get("success"):
-                    pending[vref] = (resp.get("body") or {}).get("variables") or []
+            def _cb(resp, k=key, e=ev):
+                fetched[k] = (resp.get("body") or {}).get("variables") or []
                 e.set()
 
             session.request("variables", {"variablesReference": ref, "count": 200}, _cb)
 
         try:
             await asyncio.wait_for(
-                asyncio.gather(*(e.wait() for e in evts)),
-                timeout=3.0,
+                asyncio.gather(*(e.wait() for e in evts)), timeout=3.0
             )
         except asyncio.TimeoutError:
             pass
 
-        for ref, children in pending.items():
-            node = self.state.ui.var_nodes.get(ref)
-            if node:
-                node.children = children
+        # Attach children back to the appropriate variable in vars_by_scope
+        for scope in vars_by_scope.values():
+            for v in scope:
+                name = str(v.get("name") or "")
+                for key, children in fetched.items():
+                    if key.endswith(f":{name}"):
+                        v["_children"] = children
 
     def watch_add(self, expr: str | None = None) -> None:
         if expr is None:
@@ -724,9 +685,6 @@ class Debugger:
             return
         self.state.watches.append({"expr": expr, "value": "…", "error": False})
         self._save_watches()
-        items, count = build_watch_items(self.state.watches, sb_width(self.nvim))
-        self.state.ui.sections["watches"].items = items
-        self.state.ui.sections["watches"].count = count or None
         self._schedule_render("sidebar")
 
     def watch_remove(self) -> None:
@@ -738,9 +696,6 @@ class Debugger:
         if 1 <= idx <= len(self.state.watches):
             self.state.watches.pop(idx - 1)
             self._save_watches()
-            items, count = build_watch_items(self.state.watches, sb_width(self.nvim))
-            self.state.ui.sections["watches"].items = items
-            self.state.ui.sections["watches"].count = count or None
             self._schedule_render("sidebar")
 
     def _save_watches(self) -> None:
@@ -762,7 +717,7 @@ class Debugger:
         except (FileNotFoundError, json.JSONDecodeError):
             pass
 
-    # ── execution line ─────────────────────────────────────────────────────────
+    # ── execution line ────────────────────────────────────────────────────────
 
     def _buf_for_file(self, file: str) -> int:
         norm = self._norm(file)
@@ -790,7 +745,7 @@ class Debugger:
         ui.current_line = None
 
     def _show_execution_line(self, file: str, line: int, reason: str) -> None:
-        from ..ui.highlights import ICON as _ICON  # local import avoids circular
+        from ..ui.highlights import ICON as _ICON
 
         self._clear_execution_line()
         ui = self.state.ui
@@ -843,31 +798,26 @@ class Debugger:
             pass
         _set_winbar(self.nvim, self.state)
 
-        # Navigate editor to the stopped line.
         try:
             target = self.nvim.funcs.bufwinid(b)
             origin = self.nvim.api.get_current_win()
-            panels = (ui.sidebar_win, ui.output_win, ui.controls_win, ui.help_win)
+            panels = {ui.sidebar_win, ui.output_win, ui.toolbar_win, ui.help_win}
             in_panel = origin in panels
 
             if target == -1:
                 target = self._focus_main_win()
                 self.nvim.command(f"edit {self.nvim.funcs.fnameescape(file)}")
-                # If we were in a panel, jump back to keep focus "sticky"
                 if in_panel and reason != "frame":
                     self.nvim.api.set_current_win(origin)
-            
+
             if self.nvim.api.win_is_valid(target):
                 self.nvim.api.win_set_cursor(target, [safe, 0])
-                # Only move focus to the target window if:
-                # 1. It was an explicit navigation (reason == "frame")
-                # 2. Or we were already in a main window context
                 if reason == "frame" or not in_panel:
                     self.nvim.api.set_current_win(target)
         except Exception:
             pass
 
-    # ── session lifecycle ──────────────────────────────────────────────────────
+    # ── session lifecycle ─────────────────────────────────────────────────────
 
     def _close_session(self) -> None:
         if self._session:
@@ -1029,8 +979,6 @@ class Debugger:
         self.state.last_config = {"config": config, "dap_cwd": dap_cwd or ""}
         self._run(self._spawn_dlv_and_connect(config, dap_cwd or self._project_root()))
 
-    _plugin_ref = None  # set by plugin after construction
-
     # ── public launch commands ─────────────────────────────────────────────────
 
     def debug(self) -> None:
@@ -1160,13 +1108,13 @@ class Debugger:
         self._session = None
         self._clear_execution_line()
         clear_virt(self.nvim)
-        self.state.ui.sections["stack"].items = []
-        self.state.ui.sections["stack"].count = None
-        self.state.ui.sections["variables"].items = []
-        self.state.ui.sections["variables"].count = None
+        ui = self.state.ui
+        ui.scopes = []
+        ui.frames = []
+        ui.goroutines = []
         self._schedule_render("sidebar")
 
-    # ── execution control ──────────────────────────────────────────────────────
+    # ── execution control ─────────────────────────────────────────────────────
 
     def _need_session(self) -> Optional[DAPSession]:
         if not self._session or self._session.closed:
@@ -1216,7 +1164,7 @@ class Debugger:
             self._refresh_bp_signs()
         self.continue_exec()
 
-    # ── inspection ─────────────────────────────────────────────────────────────
+    # ── inspection ────────────────────────────────────────────────────────────
 
     def hover_eval(self, expr: str | None = None) -> None:
         s = self._session
@@ -1256,13 +1204,11 @@ class Debugger:
             if ev.is_set():
                 _after()
             elif attempts < 20:
-                # Use a safe timer: nvim.async_call schedules on the main thread
-                # after a short delay; simulated with call_soon chaining.
                 self.nvim.async_call(
                     lambda a=attempts: _poll(a + 1) if not ev.is_set() else _after()
                 )
 
-        _poll()
+        self.nvim.async_call(_poll)
 
     def inspect(self, expr: str | None = None) -> None:
         if expr is None:
@@ -1323,78 +1269,77 @@ class Debugger:
             _cb,
         )
 
-    # ── interactive sidebar ────────────────────────────────────────────────────
+    # ── interactive sidebar ───────────────────────────────────────────────────
 
     def sidebar_select(self) -> None:
-        """Handle selection/click in the sidebar."""
+        """Delegate to ui.sidebar which owns the row→action mapping."""
+        from ..ui.sidebar import sidebar_select as _select
+
+        _select(self.nvim, self.state)
+        # Handle frame selection (jump frame in session)
         ui = self.state.ui
-        if not ui.sidebar_win or not self.nvim.api.win_is_valid(ui.sidebar_win):
+        win = ui.sidebar_win
+        if not win or not self.nvim.api.win_is_valid(win):
             return
-        
-        row = self.nvim.api.win_get_cursor(ui.sidebar_win)[0]
-        meta = ui.row_map.get(row - 1)
-        if not meta:
-            return
-
-        mtype = meta.get("type")
-
-        if mtype == "section_header":
-            sec_id = meta["section_id"]
-            self.state.ui.sections[sec_id].collapsed = not self.state.ui.sections[sec_id].collapsed
-            self._schedule_render("sidebar")
-
-        elif mtype == "stack_frame":
-            fid = meta.get("fid")
-            file = meta.get("file")
-            line = meta.get("line")
-            if fid is not None:
-                if self._session:
-                    self._session.current_fid = fid
-                self._run(self._refresh_variables_for_frame(fid))
-            if file and line:
-                self.nvim.async_call(self._show_execution_line, file, line, "frame")
-
-        elif mtype == "breakpoint":
-            file = meta.get("file")
-            line = meta.get("line")
-            if file and line:
-                self._focus_main_win()
-                self.nvim.command(f"edit {self.nvim.funcs.fnameescape(file)}")
-                self.nvim.api.win_set_cursor(0, [line, 0])
-
-        elif mtype == "variable":
-            vref = meta.get("vref", 0)
-            if vref > 0:
-                node = ui.var_nodes.setdefault(vref, VarNode())
-                node.expanded = not node.expanded
-                if node.expanded and not node.children:
-                    self._run(self._expand_variable(vref))
-                else:
-                    self._schedule_render("sidebar")
+        row = self.nvim.api.win_get_cursor(win)[0] - 1
+        key = ui.var_row_key.get(row, "")
+        if key.startswith("frame:"):
+            try:
+                idx = int(key.split(":")[1])
+                frames = ui.frames
+                if 0 <= idx < len(frames):
+                    fid = frames[idx].get("id")
+                    file = (frames[idx].get("source") or {}).get("path")
+                    line = frames[idx].get("line")
+                    if fid is not None:
+                        if self._session:
+                            self._session.current_fid = fid
+                        self._run(self._refresh_variables_for_frame(fid))
+                    if file and line:
+                        self.nvim.async_call(
+                            self._show_execution_line, file, line, "frame"
+                        )
+            except (ValueError, IndexError):
+                pass
+        elif key.startswith("bp:"):
+            try:
+                idx = int(key.split(":")[1])
+                bps = self._sorted_bps()
+                if 0 <= idx < len(bps):
+                    bp = bps[idx]
+                    self._focus_main_win()
+                    self.nvim.command(f"edit {self.nvim.funcs.fnameescape(bp.file)}")
+                    self.nvim.api.win_set_cursor(0, [bp.line, 0])
+            except (ValueError, IndexError):
+                pass
 
     def sidebar_inspect(self) -> None:
-        """Inspect variable details in a floating window."""
         ui = self.state.ui
-        if not ui.sidebar_win or not self.nvim.api.win_is_valid(ui.sidebar_win):
+        win = ui.sidebar_win
+        if not win or not self.nvim.api.win_is_valid(win):
             return
-
-        row = self.nvim.api.win_get_cursor(ui.sidebar_win)[0]
-        meta = ui.row_map.get(row - 1)
-        if not meta or meta.get("type") != "variable":
+        row = self.nvim.api.win_get_cursor(win)[0] - 1
+        key = ui.var_row_key.get(row, "")
+        if not key or key.startswith(("frame:", "bp:", "watch:", "goroutine:")):
             return
-
-        vref = meta.get("vref", 0)
-        name = meta.get("name", "variable")
-        val = meta.get("val", "")
+        # key format: scope:depth:name  — extract name and find variable
+        parts = key.split(":")
+        name = parts[-1] if parts else "?"
+        # Find the variable in current scopes
+        val = ""
+        vref = 0
+        for scope in ui.scopes or []:
+            for v in scope.get("variables", []):
+                if str(v.get("name")) == name:
+                    val = str(v.get("value") or "")
+                    vref = int(v.get("variablesReference") or 0)
+                    break
         self._run(self._inspect_variable_async(vref, name, val))
 
     async def _inspect_variable_async(self, vref: int, name: str, val: str) -> None:
         session = self._session
-        if not session:
-            return
-
-        vars_list = []
-        if vref > 0:
+        vars_list: list = []
+        if vref > 0 and session:
             ev = asyncio.Event()
 
             def _cb(r):
@@ -1402,18 +1347,15 @@ class Debugger:
                 vars_list = (r.get("body") or {}).get("variables") or []
                 ev.set()
 
-            session.request("variables", {"variablesReference": vref, "count": 200}, _cb)
+            session.request(
+                "variables", {"variablesReference": vref, "count": 200}, _cb
+            )
             try:
                 await asyncio.wait_for(ev.wait(), 3.0)
             except asyncio.TimeoutError:
                 pass
 
-        self.nvim.async_call(self._show_inspector, name, vars_list, vref, val)
-
-    def _show_inspector(self, name: str, variables: list, vref: int, val: str) -> None:
-        from ..ui.inspector import show_inspector
-
-        show_inspector(self.nvim, name, variables, vref, val)
+        self.nvim.async_call(show_inspector, self.nvim, name, vars_list, vref, val)
 
     async def _refresh_variables_for_frame(self, fid: int) -> None:
         session = self._session
@@ -1421,16 +1363,18 @@ class Debugger:
             return
         ev = asyncio.Event()
         resp: list = [{}]
-        session.request("scopes", {"frameId": fid}, lambda r: (resp.__setitem__(0, r), ev.set()))
+        session.request(
+            "scopes", {"frameId": fid}, lambda r: (resp.__setitem__(0, r), ev.set())
+        )
         try:
             await asyncio.wait_for(ev.wait(), 5.0)
         except asyncio.TimeoutError:
             return
-        
+
         scopes = (resp[0].get("body") or {}).get("scopes") or []
         if not scopes:
             return
-        
+
         session.last_scope_ref = scopes[0].get("variablesReference")
         vars_by_scope: dict = {}
         var_evts = []
@@ -1439,46 +1383,25 @@ class Debugger:
             ref = scope.get("variablesReference", 0)
             ev_v = asyncio.Event()
             var_evts.append(ev_v)
+
             def _v(r, s_ref=ref, e=ev_v):
                 vars_by_scope[s_ref] = (r.get("body") or {}).get("variables") or []
                 e.set()
+
             session.request("variables", {"variablesReference": ref, "count": 200}, _v)
 
         try:
-            await asyncio.wait_for(asyncio.gather(*(e.wait() for e in var_evts)), timeout=3.0)
+            await asyncio.wait_for(
+                asyncio.gather(*(e.wait() for e in var_evts)), timeout=3.0
+            )
         except asyncio.TimeoutError:
             pass
 
-        await self._refresh_expanded_variables(session)
-
         def _update():
-            items, count = build_variable_items(
-                scopes, vars_by_scope, self.state.ui.var_nodes, sb_width(self.nvim)
-            )
-            self.state.ui.sections["variables"].items = items
-            self.state.ui.sections["variables"].count = count or None
+            for scope in scopes:
+                ref = scope.get("variablesReference", 0)
+                scope["variables"] = vars_by_scope.get(ref, [])
+            self.state.ui.scopes = scopes
             self._schedule_render("sidebar")
-
-        self.nvim.async_call(_update)
-
-    async def _expand_variable(self, vref: int) -> None:
-        session = self._session
-        if not session:
-            return
-        ev = asyncio.Event()
-        resp: list = [{}]
-        session.request("variables", {"variablesReference": vref, "count": 200}, 
-                        lambda r: (resp.__setitem__(0, r), ev.set()))
-        try:
-            await asyncio.wait_for(ev.wait(), 5.0)
-        except asyncio.TimeoutError:
-            return
-        
-        children = (resp[0].get("body") or {}).get("variables") or []
-        def _update():
-            node = self.state.ui.var_nodes.get(vref)
-            if node:
-                node.children = children
-                self._schedule_render("sidebar")
 
         self.nvim.async_call(_update)

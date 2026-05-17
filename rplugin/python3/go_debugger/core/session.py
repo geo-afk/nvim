@@ -1,4 +1,5 @@
 """Async DAP session over TCP."""
+
 from __future__ import annotations
 import asyncio
 import json
@@ -11,10 +12,14 @@ _CRLF = b"\r\n\r\n"
 
 
 class DAPSession:
-    def __init__(self, on_event: Callable, on_output: Callable, on_close: Callable) -> None:
-        self._on_event = on_event    # (event_name, body) → None  [called in asyncio thread]
+    def __init__(
+        self, on_event: Callable, on_output: Callable, on_close: Callable
+    ) -> None:
+        self._on_event = (
+            on_event  # (event_name, body) → None  [called in asyncio thread]
+        )
         self._on_output = on_output  # (text) → None
-        self._on_close = on_close    # () → None
+        self._on_close = on_close  # () → None
         self.seq: int = 1
         self._callbacks: dict[int, Callable] = {}
         self._buf: bytes = b""
@@ -69,13 +74,13 @@ class DAPSession:
                         pass
                     break
             if cl is None:
-                self._buf = self._buf[idx + 4:]
+                self._buf = self._buf[idx + 4 :]
                 continue
             body_start = idx + 4
             if len(self._buf) < body_start + cl:
                 break
-            body = self._buf[body_start: body_start + cl]
-            self._buf = self._buf[body_start + cl:]
+            body = self._buf[body_start : body_start + cl]
+            self._buf = self._buf[body_start + cl :]
             try:
                 msg = json.loads(body.decode())
                 self._dispatch(msg)
@@ -91,16 +96,21 @@ class DAPSession:
         header = f"Content-Length: {len(encoded)}\r\n\r\n".encode()
         self._writer.write(header + encoded)
 
-    def request(self, command: str, args: Optional[dict] = None,
-                callback: Optional[Callable] = None) -> int:
+    def request(
+        self,
+        command: str,
+        args: Optional[dict] = None,
+        callback: Optional[Callable] = None,
+    ) -> int:
         if self.closed:
             return -1
         seq = self.seq
         self.seq += 1
         if callback:
             self._callbacks[seq] = callback
-        self.send({"seq": seq, "type": "request", "command": command,
-                   "arguments": args or {}})
+        self.send(
+            {"seq": seq, "type": "request", "command": command, "arguments": args or {}}
+        )
         return seq
 
     # ── dispatch ───────────────────────────────────────────────────────────────
