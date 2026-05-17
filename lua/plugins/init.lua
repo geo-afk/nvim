@@ -6,8 +6,6 @@
 --    2. Runs its own setup() with pcall guards
 -- =============================================================================
 
-local Loader = require("custom.loader")
-
 -- Build hooks (must be registered before vim.pack.add)
 vim.api.nvim_create_autocmd("PackChanged", {
   group = vim.api.nvim_create_augroup("pack_changed", { clear = true }),
@@ -28,88 +26,130 @@ vim.api.nvim_create_autocmd("PackChanged", {
   end,
 })
 
--- ── Core / UI foundation ─────────────────────────────────────────────────────
--- These must load immediately for visual consistency.
-Loader.now(function()
-  require("plugins.icons") -- nvim-web-devicons
-  require("plugins.colorscheme") -- tokyonight
-end)
+local loader = require("custom.loader")
 
--- ── Deferred Loading ─────────────────────────────────────────────────────────
--- Everything else is scheduled to load after the initial UI loop to speed up
--- the first frame and reduce startup blocking.
-Loader.later(function()
-  -- Keybinding helper
-  require("plugins.which-key")
+loader.register({
+  -- Core / UI foundation: needed before config.ui, statusline, and tabline draw.
+  { mod = "plugins.icons", priority = "critical" },
+  { mod = "plugins.colorscheme", priority = "critical" },
 
-  -- Syntax / parsing (Core essentials)
-  require("plugins.treesitter")
-  require("plugins.rainbow")
+  -- General UI and key discovery.
+  { mod = "plugins.which-key", defer = true },
+  { mod = "plugins.tint-diagnostic", defer = true },
+  { mod = "plugins.smear", defer = true },
+  { mod = "plugins.color-highlight", event = { "BufReadPost", "BufNewFile" } },
 
-  -- LSP toolchain
-  require("plugins.mason")
-  require("plugins.lsp")
-  require("plugins.completion")
-  require("plugins.snippets")
+  -- Syntax/parsing and language affordances.
+  {
+    mod = "plugins.treesitter",
+    event = { "BufReadPre", "BufNewFile" },
+  },
+  { mod = "plugins.rainbow", event = "BufReadPost", deps = { "plugins.treesitter" } },
+  { mod = "plugins.ts-autotag", ft = { "html", "javascriptreact", "typescriptreact", "vue", "svelte" } },
+  { mod = "plugins.lazydev", ft = "lua" },
+  {
+    mod = "plugins.gotools",
+    ft = { "go", "gomod", "gowork", "gotmpl" },
+    keys = "<leader>i",
+  },
+  {
+    mod = "plugins.go_debugger",
+    ft = "go",
+    keys = {
+      "<leader>Gd",
+      "<leader>Gt",
+      "<leader>Gb",
+      "<leader>Ga",
+      "<leader>GC",
+      "<leader>Gr",
+      "<leader>Gq",
+      "<leader>Gc",
+      "<leader>Gn",
+      "<leader>Gs",
+      "<leader>Go",
+      "<leader>Gz",
+      "<leader>Gg",
+      "<leader>Gp",
+      "<leader>GP",
+      "<leader>GL",
+      "<leader>GH",
+      "<leader>Gx",
+      "<leader>GX",
+      "<leader>Gk",
+      "<leader>Ge",
+      "<leader>GE",
+      "<leader>Gw",
+      "<leader>GW",
+      "<leader>Gu",
+      "<leader>GV",
+    },
+    config = function(go_debugger)
+      go_debugger.setup()
+    end,
+  },
 
-  -- Formatting / linting
-  require("plugins.formatting")
-  require("plugins.linting")
+  -- LSP and completion stack.
+  { mod = "plugins.mason", event = { "BufReadPre", "BufNewFile" } },
+  { mod = "plugins.lsp", event = { "BufReadPre", "BufNewFile" }, deps = { "plugins.mason" } },
+  { mod = "plugins.snippets", event = "InsertEnter" },
+  {
+    mod = "plugins.completion",
+    event = "InsertEnter",
+    deps = { "plugins.snippets", "plugins.lazydev" },
+  },
 
-  -- Navigation & UI (Basic)
-  require("plugins.tint-diagnostic")
-  require("plugins.smear")
-  require("plugins.color-highlight")
+  -- Formatting / linting / VCS.
+  { mod = "plugins.formatting", event = { "BufReadPre", "BufNewFile" } },
+  { mod = "plugins.linting", event = { "BufReadPost", "BufWritePost" } },
+  { mod = "plugins.gitsigns", event = { "BufReadPre", "BufNewFile" } },
 
-  -- ── Conditional / Lazy Loading ─────────────────────────────────────────────
+  -- Heavy navigation: command/key stubs load the real modules on first use.
+  {
+    mod = "plugins.telescope",
+    cmd = "Telescope",
+    keys = {
+      "<leader><leader>",
+      "<leader>sf",
+      "<leader>sg",
+      "<leader>sw",
+      "<leader>sd",
+      "<leader>sk",
+      "<leader>sh",
+      "<leader>ss",
+      "<leader>sr",
+      "<leader>s.",
+      "<leader>si",
+      "<leader>sn",
+      "<leader>s/",
+    },
+  },
+  {
+    mod = "plugins.flash",
+    defer = true,
+    deps = { "plugins.treesitter" },
+  },
+  {
+    mod = "plugins.trouble",
+    cmd = "Trouble",
+    keys = { "<leader>xx", "<leader>xX", "<leader>xs", "<leader>xl", "<leader>xL", "<leader>xQ" },
+  },
 
-  -- Language Specific
-  Loader.on_filetype("lua", function()
-    require("plugins.lazydev")
-  end)
-
-  Loader.on_filetype("go", function()
-    require("plugins.go_debugger").setup()
-    require("plugins.gotools")
-  end)
-
-  Loader.on_filetype({
-    "html",
-    "javascript",
-    "typescript",
-    "javascriptreact",
-    "typescriptreact",
-    "vue",
-    "svelte",
-    "xml",
-  }, function()
-    require("plugins.ts-autotag")
-  end)
-
-  -- Git signs: only on real files
-  Loader.on_event({ "BufReadPre", "BufNewFile" }, function()
-    require("plugins.gitsigns")
-  end)
-
-  -- Heavy Navigation: load on keypress
-  Loader.on_keys({ "<leader>s", "<leader><leader>" }, function()
-    require("plugins.telescope")
-  end)
-
-  Loader.on_keys({ "s", "S" }, function()
-    require("plugins.flash")
-  end)
-
-  Loader.on_keys({ "<leader>x" }, function()
-    require("plugins.trouble")
-  end)
-
-  -- Activate built-in 0.12 optional plugins
-  for _, pkg in ipairs({ "nvim.undotree", "nvim.difftool", "nvim.tohtml" }) do
-    ---@diagnostic disable-next-line: param-type-mismatch
-    pcall(vim.cmd, "packadd " .. pkg)
-  end
-end)
+  -- Built-in 0.12 optional plugins.
+  {
+    mod = "plugins.builtin_undotree",
+    cmd = "Undotree",
+    keys = "<leader>uu",
+  },
+  {
+    mod = "plugins.builtin_difftool",
+    cmd = "DiffTool",
+    keys = "<leader>nd",
+  },
+  {
+    mod = "plugins.builtin_tohtml",
+    cmd = "TOhtml",
+  },
+})
 
 local map = vim.keymap.set
 map("n", "<leader>pu", function()

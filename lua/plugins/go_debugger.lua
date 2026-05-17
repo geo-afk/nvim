@@ -1,11 +1,10 @@
 -- plugin/go_debugger.lua
--- Source this or add to your Neovim config.
--- Provides keymap setup via require("go_debugger").setup(opts)
+-- Provides global keymap setup via require("go_debugger").setup(opts)
 
 local M = {}
 
 function M.setup(opts)
-  opts = vim.tbl_deep_extend("force", { prefix = "G" }, opts or {})
+  opts = vim.tbl_deep_extend("force", { prefix = "<leader>G" }, opts or {})
   local p = opts.prefix
 
   -- ── session-scoped arrow keys ──────────────────────────────────────────────
@@ -35,13 +34,13 @@ function M.setup(opts)
 
   -- ── Keymap Registration ────────────────────────────────────────────────────
 
-  local function register_keymaps(buf)
+  local function register_keymaps()
     local function map(mode, suffix, cmd, desc, extra)
       vim.keymap.set(
         mode,
         p .. suffix,
         cmd,
-        vim.tbl_extend("force", { buffer = buf, silent = true, desc = "[go-debug] " .. desc }, extra or {})
+        vim.tbl_extend("force", { silent = true, desc = "[go-debug] " .. desc }, extra or {})
       )
     end
 
@@ -131,19 +130,9 @@ function M.setup(opts)
 
   -- ── Initialization ─────────────────────────────────────────────────────────
 
+  register_keymaps()
+
   local aug = vim.api.nvim_create_augroup("GoDebugConfig", { clear = true })
-
-  vim.api.nvim_create_autocmd("FileType", {
-    group = aug,
-    pattern = "go",
-    callback = function(ev)
-      -- Only enable if we are in a Go project (detected by go.mod)
-      if vim.fs.root(ev.buf, "go.mod") then
-        register_keymaps(ev.buf)
-      end
-    end,
-  })
-
   vim.api.nvim_create_autocmd("VimLeavePre", {
     group = aug,
     once = true,

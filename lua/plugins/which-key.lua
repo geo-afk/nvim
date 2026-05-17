@@ -26,6 +26,7 @@ wk.setup({
     { "<leader>e", group = "Explorer", icon = { icon = "󰙅 ", hl = "MiniIconsBrown" } },
     -- { "<leader>f", group = "Format", icon = { icon = "󰉿 ", hl = "MiniIconsAzure" } },
     { "<leader>g", group = "Git", icon = { icon = "󰊢 ", hl = "MiniIconsOrange" } },
+    { "<leader>G", group = "Go Debugger", icon = { icon = "󰃤 ", hl = "MiniIconsRed" } },
     { "<leader>n", group = "Neovim", icon = { icon = " ", hl = "MiniIconsBlue" } },
     { "<leader>p", group = "Packages / Plugins", icon = { icon = "󰏖 ", hl = "MiniIconsGreen" } },
     { "<leader>r", group = "Run / Server", icon = { icon = "󱂬 ", hl = "MiniIconsOrange" } },

@@ -31,21 +31,21 @@ luasnip.config.setup({
 })
 
 -- ── Load snippet collections ──────────────────────────────────────────────────
-pcall(require("luasnip.loaders.from_vscode").lazy_load, {
+pcall(require("luasnip.loaders.from_vscode").load, {
   exclude = vim.g.vscode_snippets_exclude or {},
 })
 
 if vim.g.vscode_snippets_path and vim.g.vscode_snippets_path ~= "" then
-  pcall(require("luasnip.loaders.from_vscode").lazy_load, {
+  pcall(require("luasnip.loaders.from_vscode").load, {
     paths = vim.g.vscode_snippets_path,
   })
 end
 
-pcall(require("luasnip.loaders.from_snipmate").lazy_load, {
+pcall(require("luasnip.loaders.from_snipmate").load, {
   paths = vim.g.snipmate_snippets_path or "",
 })
 
-pcall(require("luasnip.loaders.from_lua").lazy_load, {
+pcall(require("luasnip.loaders.from_lua").load, {
   paths = vim.g.lua_snippets_path or "",
 })
 
@@ -67,7 +67,7 @@ local s = ls.snippet
 local t = ls.text_node
 local i = ls.insert_node
 local d = ls.dynamic_node
-local c = ls.choice_node
+local l = ls.choice_node
 local sn = ls.snippet_node
 local snfn = ls.sn
 local fmt = require("luasnip.extras.fmt").fmt
@@ -117,7 +117,7 @@ local function transform(text, info)
   if text == "error" then
     if info then
       info.index = info.index + 1
-      return c(info.index, {
+      return l(info.index, {
         sn(nil, i(1, info.err_name)),
         sn(nil, fmt('fmt.Errorf("{}: %v", {})', { i(1), i(2, info.err_name) })),
         sn(nil, fmt('fmt.Errorf("{}: %w", {})', { i(1), i(2, info.err_name) })),
