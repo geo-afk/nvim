@@ -348,7 +348,7 @@ end
 --- @param opts     table
 --- @param on_done  function|nil
 function M.prompt_and_bind(client, bufnr, cap_key, def, opts, on_done)
-  local prompt = string.format("[lsp-keymapper] Bind '%s' - enter key (e.g. <leader>gd), blank to skip: ", def.label)
+  local prompt = string.format("[lsp-keymapper] Bind '%s' - enter key (e.g. <leader>cd), blank to skip: ", def.label)
 
   vim.ui.input({ prompt = prompt, default = def.suggested or "" }, function(input)
     if not input or input == "" then

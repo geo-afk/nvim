@@ -38,7 +38,7 @@ local nvim_utils = require("utils.nvim")
 local _BASE = (...) -- `...` is the full dotted module name of this file
 
 -- ──────────────────────────────────────────────────────────────────────────────
--- Lazy-load sub-modules (avoids loading them at startup)
+-- Sub-modules
 -- ──────────────────────────────────────────────────────────────────────────────
 
 local function caps_mod()
