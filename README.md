@@ -11,7 +11,7 @@ modules** that replace or extend the stock editor experience.
 > _Insert a screenshot showing the dashboard/editor with explorer, statusline, and tabline visible._
 
 - Requires **Neovim >= 0.12**
-- Uses **`vim.pack`** instead of `lazy.nvim` or `packer.nvim`
+- Replaces `lazy.nvim` or `packer.nvim`
 - Uses **Mason** for installing many LSP servers and CLI tools
 - Uses **native `vim.lsp.config()` / `vim.lsp.enable()`**
 - Ships several custom UI modules:

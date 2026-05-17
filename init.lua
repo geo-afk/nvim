@@ -20,58 +20,169 @@ end
 vim.g.mapleader = " "
 vim.g.maplocalleader = "\\"
 
-local Loader = require("custom.loader")
+-- ── Loader Bootstrap ─────────────────────────────────────────────────────────
+-- The custom loader owns require timing for first-frame startup, event hooks,
+-- command/key stubs, and on-demand setup callbacks.
+local loader = require("custom.loader")
 
--- ── Immediate Loading ────────────────────────────────────────────────────────
--- Core options, plugin registration, and visual foundation.
-Loader.now(function()
-  require("config.options")
-  require("plugins") -- lua/plugins/init.lua
-  require("config.keymaps")
-  require("config.autocmds")
+loader.setup({
+  profile = false,
+  debug = false,
+  defer_timeout = 100,
+  idle_batch = 3,
+})
 
-  -- Visual essentials: must be ready before first draw.
-  require("config.ui") -- ui2, float demos, Lua API showcases
-  require("custom.statusline").setup()
-  require("custom.tabline").setup()
+loader.register({
+  -- Startup spine: options, plugin declarations that shape first draw, globals.
+  { mod = "config.options", priority = "critical" },
+  { mod = "plugins", priority = "critical", deps = { "config.options" } },
+  { mod = "config.keymaps", priority = "critical", deps = { "config.options" } },
+  { mod = "config.autocmds", priority = "critical", deps = { "config.options" } },
+  { mod = "config.ui", priority = "critical", deps = { "plugins.colorscheme" } },
+  {
+    mod = "custom.statusline",
+    priority = "critical",
+    deps = { "config.ui", "plugins.icons" },
+    config = function(statusline)
+      statusline.setup()
+    end,
+  },
+  {
+    mod = "custom.tabline",
+    priority = "critical",
+    deps = { "config.ui", "custom.statusline" },
+    config = function(tabline)
+      tabline.setup()
+    end,
+  },
+
+  -- LSP/runtime services are ready before normal files finish opening.
+  {
+    mod = "config.lsp",
+    event = { "BufReadPre", "BufNewFile" },
+    deps = { "plugins.lsp", "plugins.completion", "custom.code_action" },
+  },
+  {
+    mod = "custom.code_action",
+    event = "LspAttach",
+    config = function(code_action)
+      code_action.setup()
+    end,
+  },
+  {
+    mod = "custom.codelens",
+    event = "LspAttach",
+    config = function(codelens)
+      codelens.setup()
+    end,
+  },
+  {
+    mod = "custom.lsp_keymapper",
+    event = "LspAttach",
+    config = function(keymapper)
+      keymapper.setup()
+    end,
+  },
+
+  -- UI tools and editing helpers.
+  {
+    mod = "custom.cmdline",
+    defer = true,
+    deps = { "config.ui" },
+    config = function(cmdline)
+      cmdline.setup()
+    end,
+  },
+  {
+    mod = "custom.autoclose",
+    event = "InsertEnter",
+    config = function(autoclose)
+      autoclose.setup()
+    end,
+  },
+  {
+    mod = "custom.glow",
+    ft = "markdown",
+    cmd = { "GlowPreview", "GlowURL", "GlowTUI", "GlowTUICwd", "GlowAutoToggle", "GlowVisual" },
+    config = function(glow)
+      glow.setup()
+    end,
+  },
+  {
+    mod = "custom.pack_manager",
+    cmd = "PackManager",
+    keys = "<leader>pp",
+    config = function(pack_manager)
+      pack_manager.setup()
+    end,
+  },
+  { mod = "custom.right_menu", idle = true },
+
+  -- Project/Git, Explorer, Terminal.
+  {
+    mod = "custom.lazygit",
+    keys = "<leader>gg",
+    config = function(lazygit)
+      lazygit.setup()
+    end,
+  },
+  {
+    mod = "custom.explorer",
+    cmd = { "Explorer", "ExplorerReveal", "ExplorerProjects", "ExplorerProjectPin" },
+    keys = "<leader>e",
+    config = function(explorer)
+      explorer.setup()
+    end,
+  },
+  {
+    mod = "custom.terminal_manager",
+    cmd = {
+      "TerminalNew",
+      "TerminalProfiles",
+      "TerminalProfileNew",
+      "TerminalAutomation",
+      "TerminalSplit",
+      "TerminalHide",
+      "TerminalSearch",
+      "TerminalFloat",
+      "TerminalPanel",
+      "TerminalEnvAdd",
+    },
+    keys = {
+      "<leader>zt",
+      "<leader>z|",
+      "<leader>z<",
+      "<leader>z>",
+      "<leader>zx",
+      "<leader>zh",
+      "<leader>zf",
+      "<leader>zn",
+      "<leader>zT",
+      "<leader>zp",
+      "<leader>zP",
+      { "<leader>zs", mode = "x" },
+    },
+  },
+
+  -- Language-specific helpers.
+  {
+    mod = "utils.go",
+    ft = { "go", "gomod", "gowork", "gotmpl" },
+    config = function(go_utils)
+      go_utils.setup()
+    end,
+  },
+  { mod = "custom.golang", ft = { "go", "gomod", "gowork", "gotmpl" }, deps = { "utils.go" } },
+})
+
+-- Load the plugin registry before bootstrap so plugin-level event/cmd/key specs
+-- are visible when the loader wires triggers.
+loader.load("plugins")
+
+local ok, err = pcall(function()
+  loader.bootstrap()
 end)
 
--- ── Deferred Loading ─────────────────────────────────────────────────────────
--- Heavy logic and optional utilities.
-Loader.later(function()
-  require("config.lsp") -- native LSP server configs
-
-  -- custom utilities
-  require("custom.cmdline").setup()
-  require("custom.autoclose").setup()
-  require("custom.pack_manager").setup()
-  require("custom.right_menu")
-
-  -- LSP-dependent: load on attachment
-  Loader.on_event("LspAttach", function()
-    require("custom.codelens").setup()
-    require("custom.lsp_keymapper").setup()
-    require("custom.code_action").setup()
-  end)
-
-  -- Go-specific: load only on Go files
-  Loader.on_filetype("go", function()
-    require("utils.go").setup()
-    require("custom.golang")
-  end)
-
-  -- Project/Git: load LazyGit on keypress
-  Loader.on_keys({ "<leader>gg" }, function()
-    require("custom.lazygit").setup()
-  end)
-
-  -- Explorer: load on keypress
-  Loader.on_keys({ "<leader>e" }, function()
-    require("custom.explorer").setup()
-  end)
-
-  -- Terminal: load on any global terminal management key
-  Loader.on_keys({ "<leader>z" }, function()
-    require("custom.terminal_manager")
-  end)
-end)
+if not ok then
+  vim.notify("Error in loader bootstrap: " .. tostring(err), vim.log.levels.ERROR)
+end
