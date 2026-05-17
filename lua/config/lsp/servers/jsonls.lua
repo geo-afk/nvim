@@ -10,6 +10,7 @@ return {
       schemas = {
         {
           fileMatch = { "package.json" },
+
           url = "https://json.schemastore.org/package.json",
         },
         {
