@@ -59,6 +59,7 @@ local function setup_attach()
       require("config.lsp.setup.ts_keymap").setup(buf, client)
       require("config.lsp.setup.go").goSemanticToken(client)
       require("config.lsp.setup.ts").ts_setup(client)
+      require("config.lsp.setup.angular").setup(client)
 
       -- Navigation (grn/gra/grr/gri/K are Neovim defaults; extras below)
       if client:supports_method("textDocument/definition") then
@@ -228,12 +229,6 @@ function M.setup_lsps()
       vim.notify("Failed to load LSP config  " .. key .. ": " .. tostring(config), vim.log.levels.WARN)
     end
   end
-
-  vim.lsp.config("angularls", {
-    on_attach = function(client)
-      client.server_capabilities.renameProvider = false
-    end,
-  })
 
   -- test_lsp()
 end

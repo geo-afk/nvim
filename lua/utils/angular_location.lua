@@ -70,6 +70,8 @@ local function build_angular_ls_config(path)
       ng_probe_dirs,
       "--angularCoreVersion",
       angular_version,
+      "--includeCompletionsForModuleExports",
+      "true",
     },
   }
 end
