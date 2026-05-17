@@ -1,5 +1,4 @@
 local nvim_utils = require("utils.nvim")
-local Loader = require("custom.loader")
 
 local api = vim.api
 local fn = vim.fn
@@ -259,13 +258,10 @@ function M.setup(opts)
   end
 
   if state.config.auto_restore then
-    -- Trigger restore on VimEnter to ensure everything is ready
-    -- but use Loader.later to keep the initial dashboard snappy if present.
-    Loader.later(function()
-      if fn.argc() == 0 and is_clean_start_buffer(api.nvim_get_current_buf()) then
-        M.restore({ silent = true })
-      end
-    end)
+    -- Trigger restore on VimEnter to ensure everything is ready.
+    if fn.argc() == 0 and is_clean_start_buffer(api.nvim_get_current_buf()) then
+      M.restore({ silent = true })
+    end
   end
 end
 
