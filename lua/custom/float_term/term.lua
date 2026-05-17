@@ -65,7 +65,7 @@ end
 --- Open a floating terminal that runs `cmd`.
 --- The window only closes on explicit user action (q / <Esc> in normal mode).
 --- @param cmd   string|string[]
---- @param opts  table?  { title = string }
+--- @param opts  table?  { title = string, on_exit = function }
 --- @return integer job_id, integer buf, integer win
 function M.create_terminal(cmd, opts)
   opts = opts or {}
@@ -117,6 +117,11 @@ function M.create_terminal(cmd, opts)
           pcall(function()
             vim.bo[buf].busy = nvim_012 and 0 or false
           end)
+
+          -- Call user on_exit if provided
+          if opts.on_exit then
+            pcall(opts.on_exit, exit_code)
+          end
 
           -- Only append the status when the window is still open.
           if not vim.api.nvim_win_is_valid(win) then
