@@ -197,7 +197,7 @@ local function do_apply(action, client)
 end
 
 ---Apply a selected code action item.
----Handles codeAction/resolve for lazy-loaded actions.
+---Handles codeAction/resolve for actions.
 ---@param item { action: table, client: vim.lsp.Client|nil, preview_action?: table }
 function M.apply(item)
   local action = item.preview_action or item.action

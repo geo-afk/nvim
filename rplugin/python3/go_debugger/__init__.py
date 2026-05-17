@@ -3,7 +3,7 @@
 from __future__ import annotations
 import pynvim
 from .core.debugger import Debugger
-from .ui.layout import close_ui, toggle_ui, refresh_ui
+from .ui.layout import close_ui, toggle_ui, refresh_ui, scroll_output_bottom
 from .ui.highlights import setup as setup_hl
 
 
@@ -13,7 +13,7 @@ class GoDebuggerPlugin:
         self.nvim = nvim
         self._dbg: Debugger | None = None
 
-    # ── lazy init ──────────────────────────────────────────────────────────────
+    # ── lazy init ─────────────────────────────────────────────────────────────
 
     def _get_dbg(self) -> Debugger:
         if self._dbg is None:
@@ -24,17 +24,7 @@ class GoDebuggerPlugin:
             self._dbg.load_watches()
         return self._dbg
 
-    # ── UI passthroughs (called from sidebar/output key bindings) ──────────────
-
-    def ui_close(self):
-        dbg = self._get_dbg()
-        close_ui(self.nvim, dbg.state)
-
-    def ui_refresh(self):
-        dbg = self._get_dbg()
-        refresh_ui(self.nvim, dbg.state)
-
-    # ── Execution passthrough methods (called by controls / sidebar keymaps) ───
+    # ── passthrough helpers ───────────────────────────────────────────────────
 
     def dbg_continue(self):
         self._get_dbg().continue_exec()
@@ -57,7 +47,7 @@ class GoDebuggerPlugin:
     def dbg_restart(self):
         self._get_dbg().restart()
 
-    # ── Commands ───────────────────────────────────────────────────────────────
+    # ── Commands ──────────────────────────────────────────────────────────────
 
     @pynvim.command("GoDlvDebug", nargs=0, sync=False)
     def cmd_debug(self):
@@ -137,8 +127,7 @@ class GoDebuggerPlugin:
 
     @pynvim.command("GoDlvInspect", nargs="*", sync=True)
     def cmd_inspect(self, args):
-        expr = args[0] if args else None
-        self._get_dbg().inspect(expr)
+        self._get_dbg().inspect(args[0] if args else None)
 
     @pynvim.command("GoDlvSetVar", nargs=0, sync=True)
     def cmd_set_var(self):
@@ -146,13 +135,19 @@ class GoDebuggerPlugin:
 
     @pynvim.command("GoDlvHover", nargs="*", sync=False)
     def cmd_hover(self, args):
-        expr = args[0] if args else None
-        self._get_dbg().hover_eval(expr)
+        self._get_dbg().hover_eval(args[0] if args else None)
 
     @pynvim.command("GoDlvCloseHover", nargs=0, sync=False)
     def cmd_close_hover(self):
         from .ui.hover import close_hover
+
         close_hover(self.nvim)
+
+    @pynvim.command("GoDlvUICloseInspector", nargs=0, sync=False)
+    def cmd_close_inspector(self):
+        from .ui.hover import close_inspector
+
+        close_inspector(self.nvim)
 
     @pynvim.command("GoDlvWatchAdd", nargs="*", sync=True)
     def cmd_watch_add(self, args):
@@ -164,48 +159,69 @@ class GoDebuggerPlugin:
 
     @pynvim.command("GoDlvUI", nargs=0, sync=False)
     def cmd_toggle_ui(self):
-        dbg = self._get_dbg()
-        toggle_ui(self.nvim, dbg.state, self)
+        toggle_ui(self.nvim, self._get_dbg().state, self)
 
     @pynvim.command("GoDlvUIClose", nargs=0, sync=False)
     def cmd_ui_close(self):
-        self.ui_close()
+        close_ui(self.nvim, self._get_dbg().state)
 
     @pynvim.command("GoDlvUIRefresh", nargs=0, sync=False)
     def cmd_ui_refresh(self):
-        self.ui_refresh()
-
-    @pynvim.command("GoDlvUIToggleSection", nargs=0, sync=False)
-    def cmd_ui_toggle_section(self):
-        self._get_dbg().sidebar_select()
+        refresh_ui(self.nvim, self._get_dbg().state)
 
     @pynvim.command("GoDlvUISelect", nargs=0, sync=False)
     def cmd_ui_select(self):
+        self._get_dbg().sidebar_select()
+
+    @pynvim.command("GoDlvUIToggleSection", nargs=0, sync=False)
+    def cmd_ui_toggle_section(self):
         self._get_dbg().sidebar_select()
 
     @pynvim.command("GoDlvUIInspect", nargs=0, sync=False)
     def cmd_ui_inspect(self):
         self._get_dbg().sidebar_inspect()
 
-    @pynvim.command("GoDlvUICloseInspector", nargs=0, sync=False)
-    def cmd_ui_close_inspector(self):
-        from .ui.inspector import close_inspector
-
-        close_inspector(self.nvim)
-
     @pynvim.command("GoDlvUINextSection", nargs=0, sync=False)
     def cmd_ui_next_section(self):
-        from .ui.layout import _jump_section
+        from .ui.sidebar import sidebar_next_section
 
-        dbg = self._get_dbg()
-        _jump_section(self.nvim, dbg.state, 1)
+        sidebar_next_section(self.nvim, self._get_dbg().state, 1)
+
+    @pynvim.command("GoDlvUIPrevSection", nargs=0, sync=False)
+    def cmd_ui_prev_section(self):
+        from .ui.sidebar import sidebar_next_section
+
+        sidebar_next_section(self.nvim, self._get_dbg().state, -1)
+
+    @pynvim.command("GoDlvUIScrollBottom", nargs=0, sync=False)
+    def cmd_ui_scroll_bottom(self):
+        scroll_output_bottom(self.nvim, self._get_dbg().state)
 
     @pynvim.command("GoDlvUIHelp", nargs=0, sync=True)
     def cmd_ui_help(self):
         from .ui.help import open_help
 
-        dbg = self._get_dbg()
-        open_help(self.nvim, dbg.state)
+        open_help(self.nvim, self._get_dbg().state)
+
+    # ── Toolbar commands (replaces GoDlvControl*) ─────────────────────────────
+
+    @pynvim.command("GoDlvUIToolbarNext", nargs=0, sync=False)
+    def cmd_toolbar_next(self):
+        from .ui.toolbar import toolbar_next
+
+        toolbar_next(self.nvim, self._get_dbg().state)
+
+    @pynvim.command("GoDlvUIToolbarPrev", nargs=0, sync=False)
+    def cmd_toolbar_prev(self):
+        from .ui.toolbar import toolbar_prev
+
+        toolbar_prev(self.nvim, self._get_dbg().state)
+
+    @pynvim.command("GoDlvUIToolbarExec", nargs=0, sync=False)
+    def cmd_toolbar_exec(self):
+        from .ui.toolbar import toolbar_exec
+
+        toolbar_exec(self.nvim, self._get_dbg().state, self)
 
     @pynvim.command("GoDlvToggleVirt", nargs=0, sync=False)
     def cmd_toggle_virt(self):
@@ -214,47 +230,11 @@ class GoDebuggerPlugin:
         toggle_virt()
         self.nvim.api.notify("[go-debug] inline virtual text toggled", 2, {})
 
-    @pynvim.command("GoDlvUIPrevSection", nargs=0, sync=False)
-    def cmd_ui_prev_section(self):
-        from .ui.layout import _jump_section
-
-        dbg = self._get_dbg()
-        _jump_section(self.nvim, dbg.state, -1)
-
-    @pynvim.command("GoDlvUIScrollBottom", nargs=0, sync=False)
-    def cmd_ui_scroll_bottom(self):
-        from .ui.layout import _scroll_output_bottom
-
-        dbg = self._get_dbg()
-        _scroll_output_bottom(self.nvim, dbg.state)
-
-    @pynvim.command("GoDlvControlExec", nargs=0, sync=False)
-    def cmd_control_exec(self):
-        from .ui.controls import control_exec
-
-        dbg = self._get_dbg()
-        control_exec(self.nvim, dbg.state, self)
-
-    @pynvim.command("GoDlvControlNext", nargs=0, sync=False)
-    def cmd_control_next(self):
-        from .ui.controls import control_next
-
-        dbg = self._get_dbg()
-        control_next(self.nvim, dbg.state)
-
-    @pynvim.command("GoDlvControlPrev", nargs=0, sync=False)
-    def cmd_control_prev(self):
-        from .ui.controls import control_prev
-
-        dbg = self._get_dbg()
-        control_prev(self.nvim, dbg.state)
-
     # ── Functions (callable from Lua) ─────────────────────────────────────────
 
     @pynvim.function("GoDbgHoverExpr", sync=False)
     def fn_hover_expr(self, args):
-        expr = args[0] if args else None
-        self._get_dbg().hover_eval(expr)
+        self._get_dbg().hover_eval(args[0] if args else None)
 
     @pynvim.function("GoDbgBpSigns", sync=False)
     def fn_bp_signs(self, args):
@@ -279,8 +259,7 @@ class GoDebuggerPlugin:
     @pynvim.autocmd("VimLeavePre", pattern="*", sync=False)
     def on_leave(self):
         try:
-            dbg = self._get_dbg()
-            dbg.stop()
+            self._get_dbg().stop()
         except Exception:
             pass
 
