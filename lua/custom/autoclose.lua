@@ -1,265 +1,99 @@
--- autoclose.lua (fixed + robust)
+-- =============================================================================
+-- autoclose.lua — Minimal auto-pair implementation
+-- =============================================================================
 
-local autoclose = {}
+local M = {}
 
--- ✅ compatibility shim (CRITICAL FIX)
-local unpack = unpack or table.unpack
-
-local config = {
-  keys = {
-    ["("] = { escape = false, close = true, pair = "()" },
-    ["["] = { escape = false, close = true, pair = "[]" },
-    ["{"] = { escape = false, close = true, pair = "{}" },
-
-    [">"] = { escape = true, close = false, pair = "<>" },
-    [")"] = { escape = true, close = false, pair = "()" },
-    ["]"] = { escape = true, close = false, pair = "[]" },
-    ["}"] = { escape = true, close = false, pair = "{}" },
-
-    ['"'] = { escape = true, close = true, pair = '""' },
-    ["'"] = { escape = true, close = true, pair = "''" },
-    ["`"] = { escape = true, close = true, pair = "``" },
-
-    [" "] = { escape = false, close = true, pair = "  " },
-
-    ["<BS>"] = {},
-    ["<C-H>"] = {},
-    ["<C-W>"] = {},
-    ["<CR>"] = { disable_command_mode = true },
-    ["<S-CR>"] = { disable_command_mode = true },
+local defaults = {
+  pairs = {
+    ["("] = ")",
+    ["["] = "]",
+    ["{"] = "}",
+    ['"'] = '"',
+    ["'"] = "'",
+    ["`"] = "`",
   },
-
-  options = {
-    disabled_filetypes = { "text" },
-    disable_when_touch = false,
-    touch_regex = "[%w(%[{]",
-    pair_spaces = false,
-    auto_indent = true,
-    disable_command_mode = false,
-  },
-
-  disabled = false,
+  disable_filetypes = { "TelescopePrompt", "vim" },
 }
 
-local pair_set = {}
+local config = {}
 local _setup_done = false
 
---------------------------------------------------
--- Helpers
---------------------------------------------------
-
-local function insert_get_pair()
-  local line = "_" .. vim.api.nvim_get_current_line()
-  local col = vim.api.nvim_win_get_cursor(0)[2] + 1
-  return line:sub(col, col + 1)
+local function is_disabled()
+  return vim.tbl_contains(config.disable_filetypes, vim.bo.filetype)
 end
 
-local function command_get_pair()
-  local line = "_" .. vim.fn.getcmdline()
-  local col = vim.fn.getcmdpos()
-  return line:sub(col, col + 1)
-end
-
-local function is_pair(pair)
-  return pair_set[pair] == true
-end
-
---------------------------------------------------
--- Tree-sitter awareness (FIXED)
---------------------------------------------------
-
-local function in_string_or_comment()
-  local ok, parser = pcall(vim.treesitter.get_parser, 0)
-  if not ok or not parser then
-    return false
-  end
-
-  local row, col = unpack(vim.api.nvim_win_get_cursor(0))
-
-  local ok_tree, tree = pcall(function()
-    local trees = parser:parse()
-    return trees and trees[1] or nil
-  end)
-
-  if not ok_tree or not tree then
-    return false
-  end
-
-  local root = tree:root()
-  if not root then
-    return false
-  end
-
-  local node = root:named_descendant_for_range(row - 1, col, row - 1, col)
-  if not node then
-    return false
-  end
-
-  local t = node:type()
-  return t and (t:find("string") or t:find("comment")) ~= nil
-end
-
---------------------------------------------------
--- Filetype checks
---------------------------------------------------
-
-local function is_disabled(info)
-  if config.disabled then
-    return true
-  end
-
-  local ft = vim.bo.filetype
-
-  for _, f in pairs(config.options.disabled_filetypes) do
-    if f == ft then
-      return true
-    end
-  end
-
-  if info.enabled_filetypes then
-    for _, f in pairs(info.enabled_filetypes) do
-      if f == ft then
-        return false
-      end
-    end
-    return true
-  end
-
-  if info.disabled_filetypes then
-    for _, f in pairs(info.disabled_filetypes) do
-      if f == ft then
-        return true
-      end
-    end
-  end
-
-  return false
-end
-
---------------------------------------------------
--- Core handler
---------------------------------------------------
-
-local function handler(key, info, mode)
-  if is_disabled(info) then
-    return key
-  end
-
-  local pair = mode == "insert" and insert_get_pair() or command_get_pair()
-
-  if (key == "<BS>" or key == "<C-H>") and is_pair(pair) then
-    return "<BS><Del>"
-  end
-
-  if key == "<C-W>" then
-    return "<C-W>"
-  end
-
-  if mode == "insert" and (key == "<CR>" or key == "<S-CR>") and is_pair(pair) then
-    return "<CR><ESC>O" .. (config.options.auto_indent and "" or "<C-D>")
-  end
-
-  if info.escape and pair:sub(2, 2) == key then
-    return mode == "insert" and "<C-G>U<Right>" or "<Right>"
-  end
-
-  if info.close then
-    if in_string_or_comment() then
-      return key
-    end
-
-    if key == "'" then
-      local left = pair:sub(1, 1)
-      local right = pair:sub(2, 2)
-
-      if left:match("[%w_]") or right:match("[%w_]") then
-        return key
-      end
-    end
-
-    if config.options.disable_when_touch and (pair .. "_"):sub(2, 2):match(config.options.touch_regex) then
-      return key
-    end
-
-    if
-      key == " "
-      and (
-        not config.options.pair_spaces
-        or (config.options.pair_spaces and not is_pair(pair))
-        or pair:sub(1, 1) == pair:sub(2, 2)
-      )
-    then
-      return key
-    end
-
-    return info.pair .. (mode == "insert" and "<C-G>U<Left>" or "<Left>")
-  end
-
-  return key
-end
-
---------------------------------------------------
--- Setup
---------------------------------------------------
-
-function autoclose.setup(user_config)
+function M.setup(opts)
   if _setup_done then
     return
   end
   _setup_done = true
+  config = vim.tbl_deep_extend("force", defaults, opts or {})
 
-  user_config = user_config or {}
+  local group = vim.api.nvim_create_augroup("AutoClose", { clear = true })
 
-  if user_config.keys then
-    for k, v in pairs(user_config.keys) do
-      config.keys[k] = v
-    end
-  end
+  for open, close in pairs(config.pairs) do
+    vim.keymap.set("i", open, function()
+      if is_disabled() then
+        return open
+      end
 
-  if user_config.options then
-    for k, v in pairs(user_config.options) do
-      config.options[k] = v
-    end
-  end
+      local line = vim.api.nvim_get_current_line()
+      local col = vim.api.nvim_win_get_cursor(0)[2]
+      local next_char = line:sub(col + 1, col + 1)
 
-  for _, info in pairs(config.keys) do
-    if info.pair and info.pair ~= "  " then
-      pair_set[info.pair] = true
-    end
-  end
+      -- If the closing pair is right ahead, just move past it (for quotes/braces)
+      if open == close and next_char == close then
+        return "<Right>"
+      end
 
-  for key, info in pairs(config.keys) do
-    vim.keymap.set("i", key, function()
-      return (key == " " and "<C-]>" or "") .. handler(key, info, "insert")
-    end, { noremap = true, expr = true })
+      -- If next char is alphanumeric, don't auto-close (prevents 'word(' -> 'word()' which is fine,
+      -- but also 'word' -> 'w'o'rd' if you type ' in the middle)
+      if next_char:match("%w") then
+        return open
+      end
 
-    if not config.options.disable_command_mode and not info.disable_command_mode then
-      vim.keymap.set("c", key, function()
-        return (key == " " and "<C-]>" or "") .. handler(key, info, "command")
-      end, { noremap = true, expr = true })
+      return open .. close .. "<Left>"
+    end, { expr = true, buffer = false, desc = "Auto-close " .. open })
+
+    -- Handle backspace to delete pair
+    vim.keymap.set("i", "<BS>", function()
+      if is_disabled() then
+        return "<BS>"
+      end
+
+      local line = vim.api.nvim_get_current_line()
+      local col = vim.api.nvim_win_get_cursor(0)[2]
+      local char_before = line:sub(col, col)
+      local char_after = line:sub(col + 1, col + 1)
+
+      if config.pairs[char_before] == char_after then
+        return "<BS><Del>"
+      end
+
+      return "<BS>"
+    end, { expr = true, buffer = false, desc = "Auto-close: delete pair" })
+
+    -- Handle CR to expand braces
+    if open == "{" then
+      vim.keymap.set("i", "<CR>", function()
+        if is_disabled() then
+          return "<CR>"
+        end
+
+        local line = vim.api.nvim_get_current_line()
+        local col = vim.api.nvim_win_get_cursor(0)[2]
+        local char_before = line:sub(col, col)
+        local char_after = line:sub(col + 1, col + 1)
+
+        if char_before == "{" and char_after == "}" then
+          return "<CR><Esc>O"
+        end
+
+        return "<CR>"
+      end, { expr = true, buffer = false, desc = "Auto-close: expand braces" })
     end
   end
 end
 
---------------------------------------------------
--- Toggle
---------------------------------------------------
-
-function autoclose.toggle()
-  config.disabled = not config.disabled
-end
-
---------------------------------------------------
--- Lazy setup
---------------------------------------------------
-
-vim.api.nvim_create_autocmd("InsertEnter", {
-  once = true,
-  callback = function()
-    if not _setup_done then
-      autoclose.setup({})
-    end
-  end,
-})
-
-return autoclose
+return M
