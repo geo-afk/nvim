@@ -55,7 +55,11 @@ map("n", "<leader>wa", "<cmd>wall ++p<CR>", { desc = "Save all (auto-parents)" }
 map("v", "<leader>P", '"_dP', vim.tbl_extend("force", noremap_s, { desc = "Paste without yanking" }))
 
 -- Restart Neovim (Native 0.12 command)
-map("n", "<leader>nr", "<cmd>wall | restart<CR>", { desc = "Restart Neovim" })
+map("n", "<leader>nr", function()
+  local session = vim.fs.joinpath(vim.fn.stdpath("state"), "restart_session.vim")
+  vim.cmd("mksession! " .. vim.fn.fnameescape(session))
+  vim.cmd("restart source " .. vim.fn.fnameescape(session))
+end, { desc = "Restart Neovim" })
 
 -- ── 2. Terminal Mode ────────────────────────────────────────────────────────
 -- Terminal mode mappings
