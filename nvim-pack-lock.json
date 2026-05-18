@@ -4,9 +4,17 @@
       "rev": "a62e1083a3cfe8b6b206e7d3d33a51091df25357",
       "src": "https://github.com/L3MON4D3/LuaSnip"
     },
+    "apidocs.nvim": {
+      "rev": "52ae3968ff64c3a7f9464a65f537dbae4e99033e",
+      "src": "https://github.com/emmanueltouzery/apidocs.nvim"
+    },
     "astrotheme": {
       "rev": "95c046b763266a4873bdf0cbf6a1824c929dec3a",
       "src": "https://github.com/AstroNvim/astrotheme"
+    },
+    "auto-session": {
+      "rev": "daa7c996a0395e26342934843938647d0f1e87f4",
+      "src": "https://github.com/rmagatti/auto-session"
     },
     "blink.cmp": {
       "rev": "b4b7cbb52bab6c716b317433fa9348a070cccee5",
@@ -36,9 +44,17 @@
       "rev": "db486b42299b2e3f5831809617af21becf268a39",
       "src": "https://github.com/lewis6991/gitsigns.nvim"
     },
+    "gotools": {
+      "rev": "42bbc5e3ccea4c170f08386b66c5073d8957ed59",
+      "src": "https://github.com/geo-afk/gotools"
+    },
     "lazydev.nvim": {
       "rev": "ff2cbcba459b637ec3fd165a2be59b7bbaeedf0d",
       "src": "https://github.com/folke/lazydev.nvim"
+    },
+    "markview.nvim": {
+      "rev": "a55e91f25994617a477d4a0e0b326f9dfa648f80",
+      "src": "https://github.com/OXY2DEV/markview.nvim"
     },
     "mason-lspconfig.nvim": {
       "rev": "25f609e7fca78af7cede4f9fa3af8a94b1c4950b",
@@ -55,6 +71,10 @@
     "mini.icons": {
       "rev": "7fdae2443a0e2910015ca39ad74b50524ee682d3",
       "src": "https://github.com/echasnovski/mini.icons"
+    },
+    "mini.sessions": {
+      "rev": "e59286b20fbf61171039ddfebc736cf9562e75d5",
+      "src": "https://github.com/nvim-mini/mini.sessions"
     },
     "nhc-forked": {
       "rev": "5d8f0a0fbec716fb693086462a10346db28a0bd3",

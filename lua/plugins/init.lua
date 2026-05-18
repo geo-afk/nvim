@@ -35,6 +35,7 @@ loader.register({
 
   -- General UI and key discovery.
   { mod = "plugins.which-key", defer = true },
+  { mod = "plugins.mini-session", defer = true },
   { mod = "plugins.tint-diagnostic", defer = true },
   { mod = "plugins.smear", defer = true },
   { mod = "plugins.color-highlight", event = { "BufReadPost", "BufNewFile" } },
