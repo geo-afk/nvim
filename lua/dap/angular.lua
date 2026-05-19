@@ -144,7 +144,8 @@ map("<leader>das", function()
       end
     end
     if not already_serving then
-      overseer.run_template({ name = "ng: serve" })
+      overseer.run_task({ name = "ng: serve" })
+
     end
   end
 

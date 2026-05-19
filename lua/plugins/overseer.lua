@@ -130,23 +130,17 @@ overseer.setup({
   component_aliases = {
     -- All tasks get these defaults automatically
     default = {
-      { "display_duration", detail_level = 2 },
-      "on_output_summarize",
       "on_exit_set_status",
       { "on_complete_notify", system = "unfocused" },
       "on_complete_dispose",
     },
     -- Long-running (persistent) tasks keep running and notify on crash
     default_persist = {
-      { "display_duration", detail_level = 2 },
-      "on_output_summarize",
       "on_exit_set_status",
       { "on_complete_notify", system = "unfocused" },
     },
     -- Tasks that should populate the quickfix list on completion
     default_quickfix = {
-      { "display_duration", detail_level = 2 },
-      "on_output_summarize",
       "on_exit_set_status",
       { "on_complete_notify", system = "unfocused" },
       "on_complete_dispose",
@@ -305,12 +299,12 @@ end, { desc = "Run an overseer Go task" })
 
 --- :OverseerRunNode  – quick shortcut for Node/TS template picker
 cmd("OverseerRunNode", function()
-  overseer.run_template({ tags = { "node" } })
+  overseer.run_task({ tags = { "node" } })
 end, { desc = "Run an overseer Node/TS task" })
 
 --- :OverseerRunAngular  – quick shortcut for Angular template picker
 cmd("OverseerRunAngular", function()
-  overseer.run_template({ tags = { "angular" } })
+  overseer.run_task({ tags = { "angular" } })
 end, { desc = "Run an overseer Angular task" })
 
 --- :OverseerSaveSession  – manually save bundle as "session"

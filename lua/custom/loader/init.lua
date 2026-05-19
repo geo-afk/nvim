@@ -216,7 +216,7 @@ function M._wire_triggers(spec)
           local args = cmd_opts.args ~= "" and (" " .. cmd_opts.args) or ""
           vim.cmd(cmd .. bang .. args)
         end
-      end, { bang = true, nargs = "*", desc = "󱐌 " .. mod })
+      end, { bang = true, nargs = "*", desc = "󱐌 " .. mod:match("[^.]+$") })
     end
   end
 
@@ -226,9 +226,8 @@ function M._wire_triggers(spec)
     local mode = type(key_spec) == "table" and (key_spec.mode or "n") or "n"
     local user_desc = type(key_spec) == "table" and key_spec.desc
 
-    local icon = "󱐌 "
     local label = user_desc or mod:match("[^.]+$")
-    local final_desc = icon .. label
+    local final_desc = "󱐌 " .. label
 
     vim.keymap.set(mode, lhs, function()
       vim.keymap.del(mode, lhs)

@@ -108,21 +108,21 @@ function M.refresh()
 
   -- Check if any client supports code actions
   local clients = vim.lsp.get_clients({ bufnr = bufnr })
-  local supports_code_actions = false
+  local target_client = nil
   for _, client in ipairs(clients) do
-    if client.supports_method("textDocument/codeAction") then
-      supports_code_actions = true
+    if client:supports_method("textDocument/codeAction") then
+      target_client = client
       break
     end
   end
 
-  if not supports_code_actions then
+  if not target_client then
     M.clear()
     return
   end
 
   -- Prepare LSP Parameters
-  local params = vim.lsp.util.make_range_params()
+  local params = vim.lsp.util.make_range_params(0, target_client.offset_encoding)
   -- Include diagnostics in context so servers can return specific fixes
   params.context = {
     diagnostics = vim.lsp.diagnostic.get_line_diagnostics(bufnr, line),

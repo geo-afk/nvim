@@ -11,7 +11,7 @@ local function get_context_items()
 
   local function any_client_supports(method)
     for _, client in ipairs(clients) do
-      if client.supports_method(method) then
+      if client:supports_method(method) then
         return true
       end
     end

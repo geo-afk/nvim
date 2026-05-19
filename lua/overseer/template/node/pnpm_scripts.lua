@@ -50,8 +50,6 @@ return {
             cmd  = { "pnpm", "run", script_name },
             cwd  = root,
             components = {
-              { "display_duration",   detail_level = 2 },
-              "on_output_summarize",
               "on_exit_set_status",
               { "on_complete_notify", system = "unfocused" },
               "on_complete_dispose",
