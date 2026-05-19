@@ -67,16 +67,6 @@ loader.register({
     ft = { "markdown", "html", "yaml", "latex ", "typst " },
     -- keys = { "<leader>m" },
   },
-
-  -- {
-  --   mod = "plugins.go_debugger",
-  --   ft = { "go", "gomod" },
-  --   -- keys = { "<leader>Gd" },
-  --   config = function(go_debugger)
-  --     go_debugger.setup()
-  --   end,
-  -- },
-  --
   -- LSP and completion stack.
   { mod = "plugins.mason", event = { "BufReadPre", "BufNewFile" } },
   { mod = "plugins.lsp", event = { "BufReadPre", "BufNewFile" }, deps = { "plugins.mason" } },
