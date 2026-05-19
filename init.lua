@@ -83,6 +83,13 @@ loader.register({
       keymapper.setup()
     end,
   },
+  {
+    mod = "custom.lightbulb",
+    event = "LspAttach",
+    config = function(lightbulb)
+      lightbulb.setup()
+    end,
+  },
 
   -- UI tools and editing helpers.
   {
