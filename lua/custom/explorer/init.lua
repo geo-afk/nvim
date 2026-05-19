@@ -538,20 +538,36 @@ function M.setup(opts)
     local _follow_timer = nil
     nvim_utils.autocmd("BufEnter", {
       desc = "explorer: follow active buffer",
-      callback = function()
+      callback = function(ev)
         if not (S.win and api.nvim_win_is_valid(S.win)) then
           return
         end
-        if api.nvim_get_current_win() == S.win then
+
+        local buf = ev.buf
+        if not (buf and api.nvim_buf_is_valid(buf)) then
           return
         end
-        if vim.bo.buftype ~= "" then
+
+        -- If current window is the explorer...
+        if api.nvim_get_current_win() == S.win then
+          -- If the explorer window was hijacked by a regular buffer (e.g. via tabline click), restore it.
+          if buf ~= S.buf and vim.bo[buf].buftype == "" and vim.bo[buf].filetype ~= "explorer" then
+            vim.schedule(function()
+              if S.win and api.nvim_win_is_valid(S.win) and S.buf and api.nvim_buf_is_valid(S.buf) then
+                api.nvim_win_set_buf(S.win, S.buf)
+              end
+            end)
+          end
+          return
+        end
+
+        if vim.bo[buf].buftype ~= "" then
           return
         end
         if S.search_active then
           return
         end
-        local path = api.nvim_buf_get_name(0)
+        local path = api.nvim_buf_get_name(buf)
         if path == "" then
           return
         end
