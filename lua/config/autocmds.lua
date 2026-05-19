@@ -356,3 +356,27 @@ autocmd("TermClose", {
     end
   end,
 })
+
+-- Resize DAP / overseer splits on window resize
+autocmd("VimResized", {
+  group = augroup("ResizeSplits", { clear = true }),
+  callback = function()
+    vim.cmd("tabdo wincmd =")
+  end,
+})
+
+-- Close certain utility buffers with q
+autocmd("FileType", {
+  group = augroup("QuickClose", { clear = true }),
+  pattern = { "qf", "help", "man", "dap-float", "dapui_*" },
+  callback = function(ev)
+    vim.keymap.set("n", "q", "<cmd>close<CR>", { buffer = ev.buf, silent = true, noremap = true })
+  end,
+})
+
+-- Auto-open quickfix after overseer populates it
+autocmd("QuickFixCmdPost", {
+  group = augroup("AutoQuickfix", { clear = true }),
+  pattern = "[^l]*",
+  command = "cwindow",
+})

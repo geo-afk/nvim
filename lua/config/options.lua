@@ -16,9 +16,9 @@ vim.o.cmdheight = 0 -- Hide command line unless needed
 
 -- ── UI / appearance ───────────────────────────────────────────────────────────
 opt.number = true
+opt.signcolumn = "yes:2"
 opt.relativenumber = true
 opt.cursorline = true
-opt.signcolumn = "yes"
 opt.wrap = false
 opt.scrolloff = 8
 opt.sidescrolloff = 8
