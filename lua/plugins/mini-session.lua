@@ -99,3 +99,13 @@ end, { desc = "Delete session" })
 map("n", "<leader>kr", function()
   MiniSessions.restart()
 end, { desc = "Restart with session" })
+
+----------------------------------------------------------------------
+-- Which-key documentation
+----------------------------------------------------------------------
+local wk_ok, wk = pcall(require, "which-key")
+if wk_ok then
+  wk.add({
+    { "<leader>k", group = "Sessions" },
+  })
+end
