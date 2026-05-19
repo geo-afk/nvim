@@ -216,7 +216,7 @@ function M._wire_triggers(spec)
           local args = cmd_opts.args ~= "" and (" " .. cmd_opts.args) or ""
           vim.cmd(cmd .. bang .. args)
         end
-      end, { bang = true, nargs = "*", desc = "lazy-load: " .. mod })
+      end, { bang = true, nargs = "*", desc = "󱐌 " .. mod })
     end
   end
 
@@ -224,6 +224,11 @@ function M._wire_triggers(spec)
   for _, key_spec in ipairs(spec.keys) do
     local lhs = type(key_spec) == "table" and key_spec[1] or key_spec
     local mode = type(key_spec) == "table" and (key_spec.mode or "n") or "n"
+    local user_desc = type(key_spec) == "table" and key_spec.desc
+
+    local icon = "󱐌 "
+    local label = user_desc or mod:match("[^.]+$")
+    local final_desc = icon .. label
 
     vim.keymap.set(mode, lhs, function()
       vim.keymap.del(mode, lhs)
@@ -231,7 +236,7 @@ function M._wire_triggers(spec)
       -- Re-feed the key so the real mapping (if any) fires.
       local key = vim.api.nvim_replace_termcodes(lhs, true, false, true)
       vim.api.nvim_feedkeys(key, "mt", false)
-    end, { desc = "lazy-load: " .. mod, nowait = true })
+    end, { desc = final_desc, nowait = true })
   end
 end
 
