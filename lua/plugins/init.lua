@@ -35,7 +35,16 @@ loader.register({
 
   -- General UI and key discovery.
   { mod = "plugins.which-key", defer = true },
-  { mod = "plugins.mini-session", defer = true },
+  {
+    mod = "plugins.mini-session",
+    keys = {
+      { "<leader>ks", desc = "Select session" },
+      { "<leader>kw", desc = "Write session" },
+      { "<leader>kl", desc = "Load latest" },
+      { "<leader>kd", desc = "Delete session" },
+      { "<leader>kr", desc = "Restart Neovim" },
+    },
+  },
   { mod = "plugins.tint-diagnostic", defer = true },
   { mod = "plugins.smear", defer = true },
   { mod = "plugins.color-highlight", event = { "BufReadPost", "BufNewFile" } },
@@ -59,15 +68,15 @@ loader.register({
     -- keys = { "<leader>m" },
   },
 
-  {
-    mod = "plugins.go_debugger",
-    ft = { "go", "gomod" },
-    -- keys = { "<leader>Gd" },
-    config = function(go_debugger)
-      go_debugger.setup()
-    end,
-  },
-
+  -- {
+  --   mod = "plugins.go_debugger",
+  --   ft = { "go", "gomod" },
+  --   -- keys = { "<leader>Gd" },
+  --   config = function(go_debugger)
+  --     go_debugger.setup()
+  --   end,
+  -- },
+  --
   -- LSP and completion stack.
   { mod = "plugins.mason", event = { "BufReadPre", "BufNewFile" } },
   { mod = "plugins.lsp", event = { "BufReadPre", "BufNewFile" }, deps = { "plugins.mason" } },
@@ -112,6 +121,50 @@ loader.register({
     mod = "plugins.trouble",
     cmd = "Trouble",
     keys = { "<leader>xx", "<leader>xX", "<leader>xs", "<leader>xl", "<leader>xL", "<leader>xQ" },
+  },
+
+  -- Tasks and Debugging.
+  {
+    mod = "plugins.overseer",
+    cond = function()
+      return vim.fs.root(0, { "go.mod", "package.json", "angular.json", ".git", "Makefile" }) ~= nil
+    end,
+    cmd = { "OverseerRun", "OverseerToggle", "OverseerBuild" },
+    keys = {
+      { "<leader>or", desc = "Run task" },
+      { "<leader>ot", desc = "Toggle panel" },
+      { "<leader>oo", desc = "Open output" },
+      { "<leader>ol", desc = "Rerun last" },
+      { "<leader>ob", desc = "Task builder" },
+      { "<leader>os", desc = "Save bundle" },
+      { "<leader>oL", desc = "Load bundle" },
+      { "<leader>oQ", desc = "Quickfix last" },
+    },
+  },
+  {
+    mod = "plugins.dap",
+    cond = function()
+      return vim.fs.root(0, { "go.mod", "package.json", "angular.json", ".git" }) ~= nil
+    end,
+    cmd = { "DapContinue", "DapToggleBreakpoint", "DapStepOver", "DapStepInto", "DapStepOut" },
+    keys = {
+      { "<leader>dc", desc = "Continue" },
+      { "<leader>dC", desc = "Run to cursor" },
+      { "<leader>dq", desc = "Terminate" },
+      { "<leader>dr", desc = "Restart" },
+      { "<leader>dp", desc = "Pause" },
+      { "<leader>dl", desc = "Run last" },
+      { "<leader>dn", desc = "Step over" },
+      { "<leader>di", desc = "Step into" },
+      { "<leader>do", desc = "Step out" },
+      { "<leader>db", desc = "Step back" },
+      { "<leader>dB", desc = "Toggle breakpoint" },
+      { "<leader>dX", desc = "Clear all" },
+      { "<leader>dh", desc = "Hover variable" },
+      { "<leader>du", desc = "Toggle UI" },
+      { "<leader>de", desc = "Eval expr" },
+    },
+    deps = { "plugins.overseer" },
   },
 
   -- Built-in 0.12 optional plugins.
