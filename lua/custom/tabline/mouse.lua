@@ -46,10 +46,9 @@ function M.handle_click(bufnr, clicks, button, modifier)
     buffers.close(bufnr, focus)
   elseif button == "l" then
     -- Left click → switch
-    -- Avoid switching when already on this buffer (no flicker)
-    if vim.api.nvim_get_current_buf() ~= bufnr then
-      vim.api.nvim_set_current_buf(bufnr)
-    end
+    -- Use the smart switcher from the main module to ensure sidebar windows
+    -- are not hijacked by file buffers.
+    require("custom.tabline").switch_to_buffer(bufnr)
   end
   -- Right click: intentionally ignored (let the terminal handle it)
 end

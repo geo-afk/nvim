@@ -34,6 +34,36 @@ end
 
 -- ─── buffer navigation ────────────────────────────────────────────────────
 
+--- Smartly switch to a buffer in a regular edit window.
+--- If the current window is a sidebar (like explorer), it finds the best edit window.
+---@param bufnr integer
+function M.switch_to_buffer(bufnr)
+  if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
+    return
+  end
+
+  local current_win = vim.api.nvim_get_current_win()
+  local target_win = current_win
+
+  -- Try to avoid switching in a sidebar/special window
+  local ok_explorer, explorer = pcall(require, "custom.explorer")
+  if ok_explorer and type(explorer.is_regular_edit_window) == "function" then
+    if not explorer.is_regular_edit_window(current_win) then
+      local edit_win = explorer.get_edit_win()
+      if edit_win then
+        target_win = edit_win
+      end
+    end
+  end
+
+  if target_win and vim.api.nvim_win_is_valid(target_win) then
+    vim.api.nvim_win_set_buf(target_win, bufnr)
+    vim.api.nvim_set_current_win(target_win)
+  else
+    vim.api.nvim_set_current_buf(bufnr)
+  end
+end
+
 function M.next_buffer()
   if not _buffers then
     return
@@ -46,7 +76,7 @@ function M.next_buffer()
   local idx = _buffers.get_index(current) or 0
   local next_b = bufs[(idx % #bufs) + 1]
   if next_b and next_b ~= current then
-    vim.api.nvim_set_current_buf(next_b)
+    M.switch_to_buffer(next_b)
   end
 end
 
@@ -64,7 +94,7 @@ function M.prev_buffer()
   local idx = _buffers.get_index(current) or 1
   local prev_b = bufs[((idx - 2) % #bufs) + 1]
   if prev_b and prev_b ~= current then
-    vim.api.nvim_set_current_buf(prev_b)
+    M.switch_to_buffer(prev_b)
   end
 end
 
