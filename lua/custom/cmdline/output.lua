@@ -133,7 +133,7 @@ local function set_viewer_buffer(buf, lines, format, syntax_enabled)
   vim.api.nvim_set_option_value("swapfile", false, { buf = buf })
   vim.api.nvim_set_option_value("modifiable", true, { buf = buf })
   vim.api.nvim_set_option_value("readonly", false, { buf = buf })
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
+  api.nvim_buf_set_lines(buf, 0, -1, false, lines)
   vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
   vim.api.nvim_set_option_value("readonly", true, { buf = buf })
   apply_highlighting(buf, format, syntax_enabled)
@@ -303,9 +303,7 @@ local function store_last(spec)
 end
 
 function M.show(spec)
-  vim.validate({
-    spec = { spec, "table" },
-  })
+  vim.validate("spec", spec, "table")
 
   local lines = normalize_lines(spec.lines)
   if #lines == 0 then
@@ -313,12 +311,20 @@ function M.show(spec)
   end
 
   local config = vim.tbl_deep_extend("force", M.config, spec.config or {})
-  vim.validate({
-    min_width = { config.min_width, "number" },
-    max_height_ratio = { config.max_height_ratio, "number" },
-    default_wrap = { config.default_wrap, "boolean" },
-    enable_syntax = { config.enable_syntax, "boolean" },
-  })
+  vim.validate(
+    "min_width",
+    config.min_width,
+    "number",
+    "max_height_ratio",
+    config.max_height_ratio,
+    "number",
+    "default_wrap",
+    config.default_wrap,
+    "boolean",
+    "enable_syntax",
+    config.enable_syntax,
+    "boolean"
+  )
 
   local max_width = type(spec.max_width) == "number" and spec.max_width or math.floor(vim.o.columns * 0.6)
   local target_row = type(spec.target_row) == "number" and spec.target_row
@@ -369,7 +375,7 @@ function M.show(spec)
     end
   end
 
-  apply_mappings(buf, win, lines, format, spec.command, close)
+  apply_mappings(buf, win, lines, format, command, close)
 
   vim.keymap.set("n", "s", function()
     close()

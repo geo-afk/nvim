@@ -127,7 +127,7 @@ function M.refresh()
   local params = vim.lsp.util.make_range_params(0, active_client.offset_encoding)
   -- Include diagnostics in context so servers can return specific fixes
   params.context = {
-    diagnostics = vim.lsp.diagnostic.get_line_diagnostics(bufnr, line),
+    diagnostics = vim.diagnostic.get(bufnr, { lnum = line }),
   }
 
   -- Send asynchronous request to all supporting clients
