@@ -1,5 +1,3 @@
-local code_action = require("custom.code_action")
-local rename = require("config.lsp.functions.rename")
 local M = {}
 
 -- ── Diagnostic configuration ──────────────────────────────────────────────────
@@ -78,7 +76,9 @@ local function setup_attach()
       end
 
       if client:supports_method("textDocument/rename") then
-        vim.keymap.set("n", "<leader>cr", rename.rename, opts("LSP: Rename all instances"))
+        vim.keymap.set("n", "<leader>cr", function()
+          require("config.lsp.functions.rename").rename()
+        end, opts("LSP: Rename all instances"))
       end
 
       if client:supports_method("textDocument/implementation") then
@@ -94,6 +94,14 @@ local function setup_attach()
 
       if client:supports_method("textDocument/codeAction") then
         vim.keymap.set({ "n", "x" }, "<leader>ca", function()
+          local ok_module, code_action = pcall(require, "custom.code_action")
+          if not ok_module then
+            vim.notify("Code action module failed: " .. tostring(code_action), vim.log.levels.ERROR, {
+              title = "Code Actions",
+            })
+            return
+          end
+
           local ok, err = pcall(code_action.open, {
             bufnr = buf,
           })
@@ -177,14 +185,14 @@ local function setup_attach()
           vim.api.nvim_set_hl(0, "LspReferenceText", { link = "MatchParen" })
           vim.api.nvim_set_hl(0, "LspReferenceWrite", { link = "MatchParen" })
 
-          local hl_group = vim.api.nvim_create_augroup("lsp_document_highlight", { clear = true })
+          local hl_group = vim.api.nvim_create_augroup("lsp_document_highlight_" .. buf, { clear = true })
           vim.api.nvim_create_autocmd(
             { "CursorHold" },
-            { pattern = "<buffer>", callback = vim.lsp.buf.document_highlight, group = hl_group }
+            { buffer = buf, callback = vim.lsp.buf.document_highlight, group = hl_group }
           )
           vim.api.nvim_create_autocmd(
             { "CursorMoved" },
-            { pattern = "<buffer>", callback = vim.lsp.buf.clear_references, group = hl_group }
+            { buffer = buf, callback = vim.lsp.buf.clear_references, group = hl_group }
           )
         end
       end

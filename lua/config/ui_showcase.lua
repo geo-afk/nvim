@@ -1,16 +1,15 @@
 -- =============================================================================
 --  config/ui_showcase.lua  ·  Neovim 0.12+ Feature Showcases
 -- =============================================================================
--- This module contains demonstration commands for new Neovim 0.12 APIs.
--- They are separated from core config to keep the visual layer clean.
 
 local M = {}
 
 -- =============================================================================
---  FLOATING WINDOW WITH STATUSLINE  (0.12-new)
+--  Floating window with per-window statusline (0.12-new)
 -- =============================================================================
+
 local function open_info_float()
-  local buf = vim.api.nvim_create_buf(false, true) -- scratch buffer
+  local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, {
     "  Neovim 0.12 Info Float",
     "",
@@ -20,12 +19,16 @@ local function open_info_float()
     "  Press q to close.",
   })
 
+  local lines = vim.o.lines
+  local cols = vim.o.columns
+  local H, W = 8, 48
+
   local win = vim.api.nvim_open_win(buf, true, {
     relative = "editor",
-    width = 48,
-    height = 8,
-    row = math.floor((vim.o.lines - 8) / 2),
-    col = math.floor((vim.o.columns - 48) / 2),
+    width = W,
+    height = H,
+    row = math.floor((lines - H) / 2),
+    col = math.floor((cols - W) / 2),
     border = "rounded",
     title = " Nvim 0.12 Status ",
     title_pos = "center",
@@ -40,7 +43,7 @@ local function open_info_float()
 end
 
 -- =============================================================================
---  LUA API SHOWCASES
+--  API demos
 -- =============================================================================
 
 local function show_diff_example()
@@ -63,8 +66,7 @@ local function bisect_example()
 end
 
 local function fs_ext_example()
-  local files = { "init.lua", "archive.tar.gz", "no_ext", ".hidden" }
-  for _, f in ipairs(files) do
+  for _, f in ipairs({ "init.lua", "archive.tar.gz", "no_ext", ".hidden" }) do
     vim.notify(f .. " → ext: '" .. (vim.fs.ext(f) or "nil") .. "'", vim.log.levels.INFO)
   end
 end
@@ -72,17 +74,16 @@ end
 local function version_example()
   local r1 = vim.version.range(">=0.11.0 <1.0.0")
   local r2 = vim.version.range(">=0.12.0 <0.13.0")
+  local cur = vim.version()
   vim.notify("Range 1: " .. tostring(r1), vim.log.levels.INFO)
   vim.notify("Range 2: " .. tostring(r2), vim.log.levels.INFO)
-  local intersection = vim.version.intersect(r1, r2)
-  vim.notify("Intersection: " .. tostring(intersection), vim.log.levels.INFO)
-  local current = vim.version()
-  vim.notify("nvim " .. tostring(current) .. " in r2? " .. tostring(r2:has(current)), vim.log.levels.INFO)
+  vim.notify("Intersection: " .. tostring(vim.version.intersect(r1, r2)), vim.log.levels.INFO)
+  vim.notify("nvim " .. tostring(cur) .. " in r2? " .. tostring(r2:has(cur)), vim.log.levels.INFO)
 end
 
 local function iter_example()
-  local nums = vim.iter({ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 })
-  local result = nums
+  local result = vim
+    .iter({ 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 })
     :skip(function(v)
       return v < 4
     end)
@@ -103,16 +104,11 @@ end
 local function hl_range_example()
   local buf = vim.api.nvim_get_current_buf()
   local line = vim.api.nvim_win_get_cursor(0)[1] - 1
-  vim.hl.range(buf, vim.api.nvim_create_namespace("demo_hl"), "Search", { line, 0 }, { line, -1 }, { timeout = 500 })
+  local ns1 = vim.api.nvim_create_namespace("demo_hl")
+  local ns2 = vim.api.nvim_create_namespace("demo_hl2")
+  vim.hl.range(buf, ns1, "Search", { line, 0 }, { line, -1 }, { timeout = 500 })
   vim.defer_fn(function()
-    vim.hl.range(
-      buf,
-      vim.api.nvim_create_namespace("demo_hl2"),
-      "IncSearch",
-      { line, 0 },
-      { line, -1 },
-      { timeout = 500 }
-    )
+    vim.hl.range(buf, ns2, "IncSearch", { line, 0 }, { line, -1 }, { timeout = 500 })
   end, 600)
 end
 
@@ -131,35 +127,42 @@ local function progress_demo()
   end
 end
 
-function M.setup()
-  vim.api.nvim_create_user_command("NvimInfo", open_info_float, { desc = "[0.12] Show status float" })
-  vim.api.nvim_create_user_command("FloatToTab", function()
-    local wins = vim.api.nvim_tabpage_list_wins(0)
-    local float_win = nil
-    for _, w in ipairs(wins) do
-      if vim.api.nvim_win_get_config(w).relative ~= "" then
-        float_win = w
-        break
-      end
-    end
-    if not float_win then
-      vim.notify("No float found", vim.log.levels.WARN)
+local function float_to_tab()
+  for _, w in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if vim.api.nvim_win_get_config(w).relative ~= "" then
+      vim.cmd("tabnew")
+      pcall(vim.api.nvim_win_set_config, w, {
+        relative = "editor",
+        tabnr = vim.api.nvim_get_current_tabpage(),
+      })
       return
     end
-    vim.cmd("tabnew")
-    local new_tab = vim.api.nvim_get_current_tabpage()
-    vim.api.nvim_win_set_config(float_win, { relative = "editor", tabnr = new_tab })
-  end, { desc = "[0.12] Move float to new tab" })
+  end
+  vim.notify("No float found", vim.log.levels.WARN)
+end
 
-  vim.api.nvim_create_user_command("DiffExample", show_diff_example, { desc = "[0.12] vim.text.diff() demo" })
-  vim.api.nvim_create_user_command("UniqueExample", unique_example, { desc = "[0.12] vim.list.unique() demo" })
-  vim.api.nvim_create_user_command("BisectExample", bisect_example, { desc = "[0.12] vim.list.bisect() demo" })
-  vim.api.nvim_create_user_command("FsExtExample", fs_ext_example, { desc = "[0.12] vim.fs.ext() demo" })
-  vim.api.nvim_create_user_command("VersionExample", version_example, { desc = "[0.12] vim.version demo" })
-  vim.api.nvim_create_user_command("IterExample", iter_example, { desc = "[0.12] Iter demo" })
-  vim.api.nvim_create_user_command("JsonExample", json_example, { desc = "[0.12] vim.json demo" })
-  vim.api.nvim_create_user_command("HlRangeDemo", hl_range_example, { desc = "[0.12] vim.hl.range() demo" })
-  vim.api.nvim_create_user_command("ProgressDemo", progress_demo, { desc = "[0.12] nvim_echo() progress demo" })
+-- =============================================================================
+--  Setup
+-- =============================================================================
+
+function M.setup()
+  local cmds = {
+    { "NvimInfo", open_info_float, "[0.12] Show status float" },
+    { "FloatToTab", float_to_tab, "[0.12] Move float to new tab" },
+    { "DiffExample", show_diff_example, "[0.12] vim.text.diff() demo" },
+    { "UniqueExample", unique_example, "[0.12] vim.list.unique() demo" },
+    { "BisectExample", bisect_example, "[0.12] vim.list.bisect() demo" },
+    { "FsExtExample", fs_ext_example, "[0.12] vim.fs.ext() demo" },
+    { "VersionExample", version_example, "[0.12] vim.version demo" },
+    { "IterExample", iter_example, "[0.12] Iter demo" },
+    { "JsonExample", json_example, "[0.12] vim.json demo" },
+    { "HlRangeDemo", hl_range_example, "[0.12] vim.hl.range() demo" },
+    { "ProgressDemo", progress_demo, "[0.12] nvim_echo() progress demo" },
+  }
+
+  for _, cmd in ipairs(cmds) do
+    vim.api.nvim_create_user_command(cmd[1], cmd[2], { desc = cmd[3] })
+  end
 
   vim.keymap.set("n", "<leader>ni", open_info_float, { desc = "[0.12] Open Neovim info float" })
 end
