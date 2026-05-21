@@ -41,17 +41,19 @@ dap.adapters.go = function(callback, config)
     return
   end
 
+  local uv = vim.uv or vim.loop
   local port   = config.port or math.random(38000, 39000)
-  local stdout = vim.loop.new_pipe(false)
+  local stdout = uv.new_pipe(false)
   local handle
+  local connected = false
 
-  handle = vim.loop.spawn("dlv", {
+  handle = uv.spawn("dlv", {
     stdio = { nil, stdout },
     args  = { "dap", "-l", ("127.0.0.1:%d"):format(port) },
     detached = false,
   }, function(code)
-    stdout:close()
-    handle:close()
+    if stdout and not stdout:is_closing() then stdout:close() end
+    if handle and not handle:is_closing() then handle:close() end
     if code ~= 0 then
       vim.notify(("[dap/go] dlv exited code %d"):format(code), vim.log.levels.ERROR)
     end
@@ -64,7 +66,8 @@ dap.adapters.go = function(callback, config)
 
   stdout:read_start(function(err, chunk)
     assert(not err, err)
-    if chunk and chunk:match("DAP server listening") then
+    if not connected and chunk and chunk:match("DAP server listening") then
+      connected = true
       callback({ type = "server", host = "127.0.0.1", port = port })
     end
   end)

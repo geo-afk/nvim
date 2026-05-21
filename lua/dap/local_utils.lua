@@ -56,7 +56,22 @@ end
 function M.js_debug_path()
   local env = os.getenv("VSCODE_JS_DEBUG_PATH")
   if env and vim.fn.isdirectory(env) == 1 then return env end
-  return vim.fn.stdpath("data") .. "/vscode-js-debug"
+  local candidates = {
+    vim.fn.stdpath("data") .. "/vscode-js-debug",
+    vim.fn.stdpath("data") .. "/mason/packages/js-debug-adapter",
+    vim.fn.stdpath("data") .. "/mason/packages/js-debug-adapter/js-debug",
+  }
+  for _, path in ipairs(candidates) do
+    if vim.fn.isdirectory(path) == 1 then
+      return path
+    end
+  end
+
+  vim.notify(
+    "[dap/js] vscode-js-debug not found. Set VSCODE_JS_DEBUG_PATH or install/build microsoft/vscode-js-debug.",
+    vim.log.levels.WARN
+  )
+  return candidates[1]
 end
 
 --- Return true when the file exists relative to cwd or as absolute path.
