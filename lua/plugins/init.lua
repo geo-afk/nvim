@@ -64,7 +64,7 @@ loader.register({
   },
   {
     mod = "plugins.markdown",
-    ft = { "markdown", "html", "yaml", "latex ", "typst " },
+    ft = { "markdown", "html", "yaml", "latex", "typst" },
     -- keys = { "<leader>m" },
   },
   -- LSP and completion stack.

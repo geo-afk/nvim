@@ -127,8 +127,6 @@ ts.setup({
   install_dir = vim.fs.joinpath(vim.fn.stdpath("data"), "site"),
 })
 
-pcall(ts.install, parsers)
-
 local group = vim.api.nvim_create_augroup("nvim_treesitter_setup", { clear = true })
 
 local function handle_buffer(bufnr)
