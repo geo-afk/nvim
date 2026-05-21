@@ -61,6 +61,10 @@ loader.register({
     mod = "config.lsp",
     event = { "BufReadPre", "BufNewFile" },
     deps = { "plugins.lsp", "plugins.completion" },
+    config = function(lsp)
+      lsp.setup_lsps()
+      lsp.setup()
+    end,
   },
   {
     mod = "custom.code_action",

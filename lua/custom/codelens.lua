@@ -340,7 +340,11 @@ function M.show_references()
   local bufnr = vim.api.nvim_get_current_buf()
   local symbol = vim.fn.expand("<cword>")
 
-  local params = vim.lsp.util.make_position_params(0, "utf-8")
+  local clients = vim.lsp.get_clients({ bufnr = bufnr })
+  if not clients or #clients == 0 then
+    return
+  end
+  local params = vim.lsp.util.make_position_params(0, clients[1].offset_encoding)
   params.context = {
     includeDeclaration = state.config.reference_ui.include_declaration == true,
   }

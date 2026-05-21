@@ -130,45 +130,33 @@ local function setup_attach()
       -- [0.12-new] Code lens
       if client:supports_method("textDocument/codeLens") then
         vim.lsp.codelens.enable(true, { bufnr = buf })
+        vim.b[buf].codelens_enabled = true
         vim.keymap.set("n", "<leader>ci", function()
-          local enabled = vim.lsp.codelens.is_enabled({ bufnr = buf })
-          vim.lsp.codelens.enable(not enabled, { bufnr = buf })
-          vim.notify("CodeLens " .. (not enabled and "enabled" or "disabled"), vim.log.levels.INFO)
+          local next = not vim.b[buf].codelens_enabled
+          vim.lsp.codelens.enable(next, { bufnr = buf })
+          vim.b[buf].codelens_enabled = next
+          vim.notify("CodeLens " .. (next and "enabled" or "disabled"), vim.log.levels.INFO)
         end, opts("Toggle CodeLens"))
       end
 
       -- [0.12-new] Workspace diagnostics
       if client:supports_method("workspace/diagnostic") then
-        vim.keymap.set("n", "<leader>dW", vim.lsp.buf.workspace_diagnostics, opts("[0.12] Workspace diagnostics"))
+        vim.keymap.set("n", "<leader>dW", function()
+          vim.diagnostic.setqflist({ scope = "workspace" })
+          vim.cmd("copen")
+        end, opts("[0.12] Workspace diagnostics"))
       end
 
       -- [0.12-new] Linked editing range
-      -- if client:supports_method("textDocument/linkedEditingRange") then
-      --   vim.keymap.set("n", "<leader>le", vim.lsp.buf.linked_editing_range, opts("[0.12] Linked editing range"))
-      -- end
-
-      -- Corrected linked editing range toggle
       if client:supports_method("textDocument/linkedEditingRange") then
         vim.keymap.set("n", "<leader>ce", function()
-          local enabled = false
-          if vim.lsp.linked_editing_range.is_enabled then
-            enabled = vim.lsp.linked_editing_range.is_enabled({ bufnr = buf })
-          elseif vim.b[buf].lsp_linked_editing_enabled ~= nil then
-            enabled = vim.b[buf].lsp_linked_editing_enabled
-          else
-            -- Fallback: check if any client for this buffer has it enabled
-            local clients = vim.lsp.get_clients({ bufnr = buf, method = "textDocument/linkedEditingRange" })
-            for _, c in ipairs(clients) do
-              if c._enabled_capabilities and c._enabled_capabilities.linked_editing_range then
-                enabled = true
-                break
-              end
-            end
+          local next = not vim.b[buf].lsp_linked_editing_enabled
+          vim.b[buf].lsp_linked_editing_enabled = next
+          -- Toggle via built-in (available in 0.12 nightly) or use vim.lsp.buf
+          if vim.lsp.buf.linked_editing_range then
+            vim.lsp.buf.linked_editing_range()
           end
-
-          vim.lsp.linked_editing_range.enable(not enabled, { bufnr = buf })
-          vim.b[buf].lsp_linked_editing_enabled = not enabled
-          vim.notify("Linked Editing " .. (not enabled and "enabled" or "disabled"), vim.log.levels.INFO)
+          vim.notify("Linked Editing " .. (next and "enabled" or "disabled"), vim.log.levels.INFO)
         end, opts("[0.12] Toggle linked editing ranges"))
       end
 
@@ -185,15 +173,26 @@ local function setup_attach()
           vim.api.nvim_set_hl(0, "LspReferenceText", { link = "MatchParen" })
           vim.api.nvim_set_hl(0, "LspReferenceWrite", { link = "MatchParen" })
 
-          local hl_group = vim.api.nvim_create_augroup("lsp_document_highlight_" .. buf, { clear = true })
-          vim.api.nvim_create_autocmd(
-            { "CursorHold" },
-            { buffer = buf, callback = vim.lsp.buf.document_highlight, group = hl_group }
-          )
-          vim.api.nvim_create_autocmd(
-            { "CursorMoved" },
-            { buffer = buf, callback = vim.lsp.buf.clear_references, group = hl_group }
-          )
+          local hl_group = vim.api.nvim_create_augroup("lsp_doc_hl_" .. buf, { clear = true })
+          vim.api.nvim_create_autocmd("CursorHold", {
+            buffer = buf,
+            group = hl_group,
+            callback = vim.lsp.buf.document_highlight,
+          })
+          vim.api.nvim_create_autocmd({ "CursorMoved", "InsertEnter" }, {
+            buffer = buf,
+            group = hl_group,
+            callback = vim.lsp.buf.clear_references,
+          })
+          vim.api.nvim_create_autocmd("LspDetach", {
+            buffer = buf,
+            group = hl_group,
+            once = true,
+            callback = function()
+              pcall(vim.lsp.buf.clear_references)
+              pcall(vim.api.nvim_del_augroup_by_name, "lsp_doc_hl_" .. buf)
+            end,
+          })
         end
       end
     end,
@@ -204,6 +203,7 @@ end
 M.servers = {
   gopls = "go",
   html = "html",
+  jsonls = "jsonls",
   sqls = "sqls",
   lua_ls = "lua_ls",
   typos_lsp = "typos_lsp",
@@ -213,12 +213,15 @@ M.servers = {
 }
 
 local function get_capabilities()
-  local original_capabilities = vim.lsp.protocol.make_client_capabilities()
+  local caps = vim.lsp.protocol.make_client_capabilities()
   local ok, blink = pcall(require, "blink.cmp")
-  if not ok then
-    return original_capabilities
+  if ok then
+    caps = vim.tbl_deep_extend("force", caps, blink.get_lsp_capabilities(caps))
   end
-  return vim.tbl_deep_extend("force", original_capabilities, blink.get_lsp_capabilities(original_capabilities))
+  -- Add universally useful extensions (Fix #14)
+  caps.textDocument.foldingRange = { dynamicRegistration = false, lineFoldingOnly = true }
+  caps.textDocument.colorProvider = { dynamicRegistration = false }
+  return caps
 end
 
 function M.setup_lsps()
@@ -269,9 +272,5 @@ function M.setup()
   setup_attach()
   setup_commands()
 end
-
--- Perform setup immediately when module is loaded
-M.setup_lsps()
-M.setup()
 
 return M

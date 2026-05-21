@@ -3,7 +3,7 @@
 --
 -- Responsibilities:
 --   • Condition evaluation
---   • Dependency resolution (iterative, cycle-safe)
+--   • Dependency resolution (DFS, cycle-safe)
 --   • Safe require() with profiling
 --   • Post-load config callbacks
 --   • State-machine transitions
@@ -60,34 +60,14 @@ local function run_config(spec, result)
 end
 
 -- ── Internal: dependency resolution ──────────────────────────────────────────
--- Iterative BFS to load all unloaded dependencies before the target module.
--- Guards against circular dependencies via a per-call visited set.
+-- Ensures all direct dependencies of `root_mod` are loaded.
+-- Cycle detection is handled by the caller (M.load) using the `visited` stack.
 
 local function load_deps(root_mod, visited)
-  visited = visited or {}
   local queue = deps_mod.get_direct(root_mod)
-  local seen = {}
-
-  local i = 1
-  while i <= #queue do
-    local dep = queue[i]
-    i = i + 1
-    if not seen[dep] then
-      seen[dep] = true
-      if visited[dep] then
-        utils.log("warn", "circular dependency: %s ← %s", dep, root_mod)
-      elseif not modules.is_loaded(dep) then
-        visited[dep] = true
-        -- Load transitive deps first.
-        load_deps(dep, visited)
-        M.load(dep, { trigger = "dependency", _visited = visited })
-        -- Enqueue dep's own deps for BFS continuation.
-        for _, d2 in ipairs(deps_mod.get_direct(dep)) do
-          if not seen[d2] then
-            queue[#queue + 1] = d2
-          end
-        end
-      end
+  for _, dep in ipairs(queue) do
+    if not modules.is_loaded(dep) then
+      M.load(dep, { trigger = "dependency", _visited = visited })
     end
   end
 end
@@ -113,6 +93,13 @@ function M.load(mod, opts)
     return false
   end
 
+  -- Circular dependency detection (DFS stack-based).
+  local visited = opts._visited or {}
+  if visited[mod] then
+    utils.log("warn", "circular dependency detected: %s", mod)
+    return false
+  end
+
   -- Guard: module not yet registered → load it directly (ad-hoc require).
   local spec = modules.get(mod)
 
@@ -127,10 +114,10 @@ function M.load(mod, opts)
     end
   end
 
-  -- Resolve and load dependencies.
-  local visited = opts._visited or {}
+  -- Resolve and load dependencies before loading the module itself.
   visited[mod] = true
   load_deps(mod, visited)
+  visited[mod] = nil -- Backtrack for cycle detection
 
   -- Perform the actual require.
   local ok, result = do_require(mod)
