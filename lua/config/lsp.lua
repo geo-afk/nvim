@@ -208,6 +208,7 @@ M.servers = {
   lua_ls = "lua_ls",
   typos_lsp = "typos_lsp",
   vtsls = "vtsls",
+  biome = "biome",
   angularls = "angularls",
   tailwindcss = "tailwindcss",
 }

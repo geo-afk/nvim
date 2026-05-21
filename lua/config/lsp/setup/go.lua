@@ -6,15 +6,15 @@ function M.goSemanticToken(client)
   end
 
   -- [0.12-fix] Adjust semantic token priority locally for Go buffers (Fix #15)
-  local original_priority = vim.highlight.priorities.semantic_tokens
-  vim.highlight.priorities.semantic_tokens = 95
+  local original_priority = vim.hl.priorities.semantic_tokens
+  vim.hl.priorities.semantic_tokens = 95
 
   -- Restore priority when leaving Go buffers
   vim.api.nvim_create_autocmd("BufLeave", {
     once = false,
     pattern = "*.go",
     callback = function()
-      vim.highlight.priorities.semantic_tokens = original_priority
+      vim.hl.priorities.semantic_tokens = original_priority
     end,
   })
 
