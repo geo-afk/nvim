@@ -44,6 +44,36 @@ local function get_global_plugin()
   }
 end
 
+local function get_global_plugin_for_root(root_dir)
+  if not ok_utils or not utils.find_angular_root then
+    return {}
+  end
+
+  local angular_root = utils.find_angular_root(root_dir)
+  if not angular_root then
+    return {}
+  end
+
+  if not ok_pkg or not pkg.get_pkg_path then
+    return {}
+  end
+
+  local ok_path, angular_ls_path =
+    pcall(pkg.get_pkg_path, "angular-language-server", "/node_modules/@angular/language-server")
+
+  if not ok_path or not angular_ls_path then
+    return {}
+  end
+
+  return {
+    {
+      name = "@angular/language-server",
+      location = angular_ls_path,
+      enableForWorkspaceTypeScriptVersions = false,
+    },
+  }
+end
+
 ---@module "lspconfig"
 ---@type vim.lsp.Config
 return {
@@ -58,6 +88,11 @@ return {
     "typescript.tsx",
   },
   init_options = { hostInfo = "neovim" },
+  before_init = function(_, config)
+    config.settings = config.settings or {}
+    config.settings.tsserver = config.settings.tsserver or {}
+    config.settings.tsserver.globalPlugins = get_global_plugin_for_root(config.root_dir)
+  end,
 
   ---@type lspconfig.settings.vtsls
   settings = {

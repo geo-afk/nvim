@@ -1,14 +1,10 @@
 -- Safely attempt to load the angular path helper
-local ok, angular_paths = pcall(require, "utils.angular_location")
+local ok, angular_location = pcall(require, "utils.angular_location")
 local ok_utils, utils = pcall(require, "utils")
 
 -- fallback if module is missing
 if not ok then
   vim.notify("[angularls] utils.angular_location not found. Falling back to default command.", vim.log.levels.WARN)
-
-  angular_paths = {
-    cmd = { "ngserver", "--stdio" }, -- fallback Angular language server command
-  }
 end
 
 return {
@@ -26,7 +22,13 @@ return {
     },
   },
 
-  cmd = angular_paths.cmd,
+  cmd = function(dispatchers, config)
+    local cmd = { "ngserver", "--stdio" }
+    if ok and type(angular_location.build_cmd) == "function" then
+      cmd = angular_location.build_cmd(config.root_dir)
+    end
+    return vim.lsp.rpc.start(cmd, dispatchers)
+  end,
 
   root_dir = function(bufnr, on_dir)
     if not ok_utils or not utils.find_angular_root then
