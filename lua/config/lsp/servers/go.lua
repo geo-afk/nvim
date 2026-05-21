@@ -13,7 +13,6 @@ return {
       standaloneTags = { "ignore", "mage" },
       usePlaceholders = true,
       completeUnimported = true,
-      -- directoryFlags = { '-.git', '-.vscode', '-.idea', '-.vscode-test', '-node_modules' },
       completeFunctionCalls = true,
       linksInHover = true,
       staticcheck = true,
@@ -42,9 +41,6 @@ return {
         unusedwrite = true,
         useany = true,
       },
-      -- ui = {
-      -- 	semanticTokens = true,
-      -- },
     },
   },
 }

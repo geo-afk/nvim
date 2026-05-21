@@ -8,7 +8,12 @@ return {
       connections = {
         {
           driver = "postgresql",
-          dataSourceName = "host=127.0.0.1 port=5432 user=postgres password=pascal321 dbname=auth sslmode=disable",
+          dataSourceName = string.format(
+            "host=127.0.0.1 port=5432 user=%s password=%s dbname=%s sslmode=disable",
+            os.getenv("SQLS_DB_USER") or "postgres",
+            os.getenv("SQLS_DB_PASSWORD") or "",
+            os.getenv("SQLS_DB_NAME") or "auth"
+          ),
         },
       },
       telemetry = {

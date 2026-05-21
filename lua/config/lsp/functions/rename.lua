@@ -45,11 +45,11 @@ local function get_symbol_to_rename(cb)
   end
 end
 
--- Preview affected files by doing a workspace/executeCommand dry-run via references
-local function get_affected_files(newName, cb)
+-- Preview affected files and return the cached edit result
+local function get_affected_files_and_edit(newName, cb)
   local clients = lsp.get_clients({ bufnr = 0, method = "textDocument/rename" })
   if #clients == 0 then
-    cb({})
+    cb({}, nil, nil)
     return
   end
   local client = clients[1]
@@ -57,7 +57,7 @@ local function get_affected_files(newName, cb)
   params.newName = newName
   client:request("textDocument/rename", params, function(err, result)
     if err or not result then
-      cb({})
+      cb({}, nil, nil)
       return
     end
     local files = {}
@@ -82,18 +82,20 @@ local function get_affected_files(newName, cb)
         end
       end
     end
-    cb(files)
+    cb(files, result, client)
   end, 0)
 end
 
 local function apply_rename_in_current_file(newName)
-  local params = lsp.util.make_position_params(nil, nil)
-  params.newName = newName
   local clients = lsp.get_clients({ bufnr = 0, method = "textDocument/rename" })
   if #clients == 0 then
     return
   end
   local client = clients[1]
+  -- FIX #6: use client's offset_encoding
+  local params = lsp.util.make_position_params(nil, client.offset_encoding)
+  params.newName = newName
+
   client:request("textDocument/rename", params, function(err, result)
     if err or not result then
       vim.notify("Rename failed: " .. (err and err.message or "no result"), vim.log.levels.ERROR)
@@ -120,7 +122,7 @@ local function apply_rename_in_current_file(newName)
   end, 0)
 end
 
-local function show_affected_files_and_confirm(files, newName, on_confirm)
+local function show_affected_files_and_confirm(files, on_confirm)
   local lines = { " Affected files:", "" }
   for _, f in ipairs(files) do
     table.insert(lines, "  • " .. f)
@@ -160,7 +162,7 @@ local function show_affected_files_and_confirm(files, newName, on_confirm)
   end, { buffer = buf })
 end
 
-local function show_scope_picker(to_rename, on_scope)
+local function show_scope_picker(on_scope)
   local lines = {
     "",
     "  [1] Current file only",
@@ -200,35 +202,13 @@ local function show_scope_picker(to_rename, on_scope)
 end
 
 local function show_rename_input(to_rename, on_confirm)
-  local buf = api.nvim_create_buf(false, true)
-  local winopts = {
-    height = 1,
-    style = "minimal",
-    border = "single",
-    row = 1,
-    col = 1,
-    relative = "cursor",
-    width = #to_rename + 15,
-    title = { { " New Name ", "@comment.danger" } },
-    title_pos = "center",
-  }
-  local win = api.nvim_open_win(buf, true, winopts)
-  vim.wo[win].winhl = "Normal:Normal,FloatBorder:FloatBorder,CursorLine:PmenuSel"
-  api.nvim_set_current_win(win)
-  api.nvim_buf_set_lines(buf, 0, -1, true, { to_rename })
-  vim.bo[buf].buftype = "prompt"
-  vim.fn.prompt_setprompt(buf, "")
-  vim.api.nvim_input("A")
-
-  vim.keymap.set({ "i", "n" }, "<Esc>", function()
-    api.nvim_buf_delete(buf, { force = true })
-  end, { buffer = buf })
-
-  vim.fn.prompt_setcallback(buf, function(text)
-    api.nvim_buf_delete(buf, { force = true })
-    local newName = vim.trim(text)
-    if #newName > 0 and newName ~= to_rename then
-      on_confirm(newName)
+  -- FIX #23: Use vim.ui.input for better portability and standard behavior
+  vim.ui.input({
+    prompt = "New name: ",
+    default = to_rename,
+  }, function(input)
+    if input and input ~= "" and input ~= to_rename then
+      on_confirm(input)
     end
   end)
 end
@@ -242,17 +222,23 @@ local function rename()
 
   get_symbol_to_rename(function(to_rename)
     show_rename_input(to_rename, function(newName)
-      show_scope_picker(to_rename, function(scope)
+      show_scope_picker(function(scope)
         if scope == "file" then
           apply_rename_in_current_file(newName)
         else
           -- workspace: preview affected files first
-          get_affected_files(newName, function(files)
+          get_affected_files_and_edit(newName, function(files, result, client)
             if #files == 0 then
+              -- Fallback to standard rename if no files detected (shouldn't happen with result present)
               vim.lsp.buf.rename(newName)
             else
-              show_affected_files_and_confirm(files, newName, function()
-                vim.lsp.buf.rename(newName)
+              show_affected_files_and_confirm(files, function()
+                -- FIX #9: Apply cached edit directly to avoid double request
+                if result and client then
+                  lsp.util.apply_workspace_edit(result, client.offset_encoding)
+                else
+                  vim.lsp.buf.rename(newName)
+                end
               end)
             end
           end)

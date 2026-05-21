@@ -5,6 +5,7 @@ return {
   cmd = { "vscode-html-language-server", "--stdio" },
   filetypes = { "html" },
   root_markers = { "package.json", ".git" },
+  single_file_support = false, -- Fix #25
   ---@type lspconfig.settings.html
   settings = {
     html = {

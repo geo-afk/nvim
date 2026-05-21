@@ -16,7 +16,7 @@ return {
         displayContext = 5,
         enable = true,
         keywordSnippet = "Both",
-        portfix = ".",
+        postfix = ".",
         showWord = "Enable",
       },
       workspace = {
