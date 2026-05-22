@@ -177,3 +177,11 @@ vim.api.nvim_create_autocmd({ "BufReadPost", "BufNewFile" }, {
   end,
   desc = "Apply Angular Treesitter parser or fallback",
 })
+
+-- If this module was loaded by the loader's FileType trigger, the current
+-- buffer's FileType event has already fired before the autocmd above exists.
+-- Apply once immediately so the first buffer opened from the explorer is not
+-- missed.
+if vim.api.nvim_get_current_buf() ~= 0 then
+  handle_buffer(vim.api.nvim_get_current_buf())
+end

@@ -47,14 +47,36 @@ loader.register({
   },
   { mod = "plugins.tint-diagnostic", defer = true },
   { mod = "plugins.smear", defer = true },
-  { mod = "plugins.color-highlight", event = { "BufReadPost", "BufNewFile" } },
+  { mod = "plugins.color-highlight", defer = true },
 
   -- Syntax/parsing and language affordances.
   {
     mod = "plugins.treesitter",
-    event = { "BufReadPre", "BufNewFile" },
+    ft = {
+      "angular",
+      "css",
+      "go",
+      "gomod",
+      "gowork",
+      "gotmpl",
+      "html",
+      "javascript",
+      "javascriptreact",
+      "json",
+      "jsonc",
+      "lua",
+      "markdown",
+      "query",
+      "regex",
+      "scss",
+      "sql",
+      "toml",
+      "typescript",
+      "typescriptreact",
+      "vim",
+    },
   },
-  { mod = "plugins.rainbow", event = "BufReadPost", deps = { "plugins.treesitter" } },
+  { mod = "plugins.rainbow", defer = true, deps = { "plugins.treesitter" } },
   { mod = "plugins.ts-autotag", ft = { "html", "javascriptreact", "typescriptreact", "vue", "svelte" } },
   { mod = "plugins.lazydev", ft = "lua" },
   {
@@ -68,8 +90,12 @@ loader.register({
     -- keys = { "<leader>m" },
   },
   -- LSP and completion stack.
-  { mod = "plugins.mason", event = { "BufReadPre", "BufNewFile" } },
-  { mod = "plugins.lsp", event = { "BufReadPre", "BufNewFile" }, deps = { "plugins.mason" } },
+  {
+    mod = "plugins.mason",
+    cmd = "Mason",
+    keys = { { "<leader>pm", desc = "Mason UI" } },
+  },
+  { mod = "plugins.lsp", defer = true, priority = "high" },
   { mod = "plugins.snippets", event = "InsertEnter" },
   {
     mod = "plugins.completion",
@@ -78,9 +104,9 @@ loader.register({
   },
 
   -- Formatting / linting / VCS.
-  { mod = "plugins.formatting", event = { "BufReadPre", "BufNewFile" } },
-  { mod = "plugins.linting", event = { "BufReadPost", "BufWritePost" } },
-  { mod = "plugins.gitsigns", event = { "BufReadPre", "BufNewFile" } },
+  { mod = "plugins.formatting", defer = true },
+  { mod = "plugins.linting", defer = true },
+  { mod = "plugins.gitsigns", idle = true },
 
   -- Heavy navigation: command/key stubs load the real modules on first use.
   {

@@ -56,14 +56,16 @@ loader.register({
     end,
   },
 
-  -- LSP/runtime services are ready before normal files finish opening.
+  -- LSP/runtime services are configured shortly after startup so opening files
+  -- from the explorer does not pay the setup cost synchronously.
   {
     mod = "config.lsp",
-    event = { "BufReadPre", "BufNewFile" },
-    deps = { "plugins.lsp", "plugins.completion" },
+    defer = true,
+    priority = "high",
+    deps = { "plugins.lsp" },
     config = function(lsp)
-      lsp.setup_lsps()
       lsp.setup()
+      lsp.setup_lsps()
     end,
   },
   {
