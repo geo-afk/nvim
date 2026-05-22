@@ -79,12 +79,18 @@ end
 function M.set_state(mod, s)
   state.load_state[mod] = s
   if s == M.S.LOADED then
-    state.load_order[#state.load_order + 1] = mod
+    if not vim.tbl_contains(state.load_order, mod) then
+      state.load_order[#state.load_order + 1] = mod
+    end
   end
 end
 
 function M.is_loaded(mod)
   return state.load_state[mod] == M.S.LOADED
+end
+
+function M.is_loading(mod)
+  return state.load_state[mod] == M.S.LOADING
 end
 
 function M.is_failed(mod)

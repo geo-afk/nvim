@@ -206,6 +206,7 @@ M.servers = {
   jsonls = "jsonls",
   sqls = "sqls",
   lua_ls = "lua_ls",
+  codebook = "codebook",
   typos_lsp = "typos_lsp",
   vtsls = "vtsls",
   biome = "biome",
@@ -225,7 +226,26 @@ local function get_capabilities()
   return caps
 end
 
+local function ensure_mason_bin_on_path()
+  local bin = vim.fs.joinpath(vim.fn.stdpath("data"), "mason", "bin")
+  if vim.uv.fs_stat(bin) == nil then
+    return
+  end
+
+  local sep = package.config:sub(1, 1) == "\\" and ";" or ":"
+  local path = vim.env.PATH or ""
+  for entry in vim.gsplit(path, sep, { plain = true }) do
+    if vim.fs.normalize(entry) == vim.fs.normalize(bin) then
+      return
+    end
+  end
+
+  vim.env.PATH = bin .. sep .. path
+end
+
 function M.setup_lsps()
+  ensure_mason_bin_on_path()
+
   -- Default setup  lsp clients
   vim.lsp.config("*", {
     capabilities = get_capabilities(),
@@ -241,6 +261,10 @@ function M.setup_lsps()
       vim.notify("Failed to load LSP config  " .. key .. ": " .. tostring(config), vim.log.levels.WARN)
     end
   end
+
+  vim.schedule(function()
+    pcall(vim.cmd.doautoall, "nvim.lsp.enable FileType")
+  end)
 
   -- test_lsp()
 end

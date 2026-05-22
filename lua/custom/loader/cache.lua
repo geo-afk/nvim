@@ -26,6 +26,14 @@ end
 
 --- Evict a module so the next require() re-executes it.
 function M.invalidate(mod)
+  if vim.loader and vim.loader.find and vim.loader.reset then
+    for _, found in ipairs(vim.loader.find(mod) or {}) do
+      if found.modpath then
+        pcall(vim.loader.reset, found.modpath)
+      end
+    end
+  end
+
   package.loaded[mod] = nil
   _owned[mod] = nil
   -- Keep the count so the profiler can show "reloaded N times".

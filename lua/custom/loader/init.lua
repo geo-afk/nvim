@@ -31,6 +31,18 @@
 
 local M = {}
 
+local KEYMAP_SPEC_KEYS = {
+  buffer = true,
+  desc = true,
+  expr = true,
+  nowait = true,
+  remap = true,
+  replace_keycodes = true,
+  script = true,
+  silent = true,
+  unique = true,
+}
+
 -- Sub-modules are required inside functions, not at module scope, so that
 -- the loader itself doesn't block Neovim startup with heavyweight requires.
 -- Once setup() is called the modules are all cached; subsequent calls are free.
@@ -147,12 +159,24 @@ function M.bootstrap()
     core.load_batch(critical, { trigger = "critical" })
   end
 
+  table.sort(deferred, function(a, b)
+    local ma = modules.get(a) or {}
+    local mb = modules.get(b) or {}
+    local rank = { high = 1, normal = 2, low = 3 }
+    local pa = rank[ma.priority] or 2
+    local pb = rank[mb.priority] or 2
+    if pa ~= pb then
+      return pa < pb
+    end
+    return a < b
+  end)
+
   -- 2. Deferred — arm after VimEnter.
   if #deferred > 0 or #idle > 0 then
     local function on_vimenter()
       if #deferred > 0 then
         scheduler.schedule_deferred(function()
-          core.load_batch(deferred, { trigger = "deferred" })
+          core.load_batch(deferred, { trigger = "deferred", continue_on_error = true })
         end)
         scheduler.flush_deferred()
         -- Idle setup is triggered inside flush_deferred → process_deferred.
@@ -194,6 +218,44 @@ function M._wire_triggers(spec)
   local events = require("custom.loader.events")
   local core = require("custom.loader.core")
 
+  local function command_replay(cmd_name, cmd_opts)
+    local cmd_args = {
+      cmd = cmd_name,
+      args = cmd_opts.fargs or {},
+      bang = cmd_opts.bang or false,
+    }
+
+    if cmd_opts.range and cmd_opts.range > 0 then
+      cmd_args.range = { cmd_opts.line1, cmd_opts.line2 }
+    end
+    if cmd_opts.reg and cmd_opts.reg ~= "" then
+      cmd_args.reg = cmd_opts.reg
+    end
+    if cmd_opts.mods and cmd_opts.mods ~= "" then
+      cmd_args.mods = cmd_opts.mods
+    end
+
+    vim.api.nvim_cmd(cmd_args, {})
+  end
+
+  local function keymap_opts(key_spec)
+    if type(key_spec) ~= "table" then
+      return { desc = "Load " .. mod, nowait = true }
+    end
+
+    local opts = {}
+    for k, v in pairs(key_spec) do
+      if KEYMAP_SPEC_KEYS[k] then
+        opts[k] = v
+      end
+    end
+    opts.desc = opts.desc or ("Load " .. mod)
+    if opts.nowait == nil then
+      opts.nowait = true
+    end
+    return opts
+  end
+
   -- Event triggers.
   if #spec.event > 0 then
     events.on_event(spec.event, { mod })
@@ -207,16 +269,24 @@ function M._wire_triggers(spec)
   -- Command stubs: thin shims that load the real module on first call.
   for _, cmd in ipairs(spec.cmd) do
     if vim.fn.exists(":" .. cmd) ~= 2 then
-      vim.api.nvim_create_user_command(cmd, function(cmd_opts)
-        vim.api.nvim_del_user_command(cmd)
-        core.load(mod, { trigger = "cmd:" .. cmd })
-        -- Re-execute if the real command was registered by the module.
-        if vim.fn.exists(":" .. cmd) == 2 then
-          local bang = cmd_opts.bang and "!" or ""
-          local args = cmd_opts.args ~= "" and (" " .. cmd_opts.args) or ""
-          vim.cmd(cmd .. bang .. args)
-        end
-      end, { bang = true, nargs = "*", desc = "󱐌 " .. mod })
+      local function create_command_stub()
+        vim.api.nvim_create_user_command(cmd, function(cmd_opts)
+          pcall(vim.api.nvim_del_user_command, cmd)
+
+          local ok = core.load(mod, { trigger = "cmd:" .. cmd })
+          if not ok then
+            create_command_stub()
+            return
+          end
+
+          -- Re-execute if the real command was registered by the module.
+          if vim.fn.exists(":" .. cmd) == 2 then
+            command_replay(cmd, cmd_opts)
+          end
+        end, { bang = true, nargs = "*", range = true, desc = "Load " .. mod })
+      end
+
+      create_command_stub()
     end
   end
 
@@ -224,19 +294,28 @@ function M._wire_triggers(spec)
   for _, key_spec in ipairs(spec.keys) do
     local lhs = type(key_spec) == "table" and key_spec[1] or key_spec
     local mode = type(key_spec) == "table" and (key_spec.mode or "n") or "n"
-    local user_desc = type(key_spec) == "table" and key_spec.desc
+    local opts = keymap_opts(key_spec)
+    local del_opts = opts.buffer and { buffer = opts.buffer } or nil
 
-    local icon = "󱐌 "
-    local label = user_desc or mod:match("[^.]+$")
-    local final_desc = icon .. label
+    local function create_key_stub()
+      vim.keymap.set(mode, lhs, function()
+        pcall(vim.keymap.del, mode, lhs, del_opts)
 
-    vim.keymap.set(mode, lhs, function()
-      vim.keymap.del(mode, lhs)
-      core.load(mod, { trigger = "keys:" .. lhs })
-      -- Re-feed the key so the real mapping (if any) fires.
-      local key = vim.api.nvim_replace_termcodes(lhs, true, false, true)
-      vim.api.nvim_feedkeys(key, "mt", false)
-    end, { desc = final_desc, nowait = true })
+        local ok = core.load(mod, { trigger = "keys:" .. lhs })
+        if not ok then
+          create_key_stub()
+          return
+        end
+
+        -- Re-feed the key so the real mapping (if any) fires.
+        vim.schedule(function()
+          local key = vim.api.nvim_replace_termcodes(lhs, true, false, true)
+          vim.api.nvim_feedkeys(key, "mt", false)
+        end)
+      end, opts)
+    end
+
+    create_key_stub()
   end
 end
 

@@ -51,12 +51,15 @@ end
 local function run_config(spec, result)
   local cb = spec and (spec.config or spec.on_load)
   if type(cb) ~= "function" then
-    return
+    return true
   end
   local ok, err = pcall(cb, result)
   if not ok then
     utils.log("error", "config callback for %s: %s", spec.mod, tostring(err))
+    modules.set_state(spec.mod, modules.S.FAILED)
+    return false
   end
+  return true
 end
 
 -- ── Internal: dependency resolution ──────────────────────────────────────────
@@ -67,9 +70,30 @@ local function load_deps(root_mod, visited)
   local queue = deps_mod.get_direct(root_mod)
   for _, dep in ipairs(queue) do
     if not modules.is_loaded(dep) then
-      M.load(dep, { trigger = "dependency", _visited = visited })
+      local ok = M.load(dep, { trigger = "dependency", _visited = visited })
+      if not ok then
+        return false, dep
+      end
     end
   end
+  return true
+end
+
+local function eval_cond(spec)
+  if not spec or spec.cond == nil then
+    return true
+  end
+
+  if type(spec.cond) ~= "function" then
+    return spec.cond == true
+  end
+
+  local ok, result = pcall(spec.cond)
+  if not ok then
+    return false, result
+  end
+
+  return result == true
 end
 
 -- ── Public: load a single module ─────────────────────────────────────────────
@@ -84,6 +108,11 @@ function M.load(mod, opts)
 
   -- Guard: already loaded (skip unless forced).
   if modules.is_loaded(mod) and not opts.force then
+    return true
+  end
+
+  if modules.is_loading(mod) and not opts.force then
+    utils.log("debug", "already loading: %s", mod)
     return true
   end
 
@@ -104,20 +133,26 @@ function M.load(mod, opts)
   local spec = modules.get(mod)
 
   -- Evaluate condition.
-  if spec and spec.cond ~= nil then
-    local cond = spec.cond
-    local result = type(cond) == "function" and cond() or cond
-    if not result then
-      modules.set_state(mod, modules.S.SKIPPED)
+  local cond_ok, cond_err = eval_cond(spec)
+  if not cond_ok then
+    modules.set_state(mod, modules.S.SKIPPED)
+    if cond_err ~= nil then
+      utils.log("warn", "condition failed for %s: %s", mod, tostring(cond_err))
+    else
       utils.log("debug", "condition false, skipped: %s", mod)
-      return false
     end
+    return false
   end
 
   -- Resolve and load dependencies before loading the module itself.
   visited[mod] = true
-  load_deps(mod, visited)
+  local deps_ok, failed_dep = load_deps(mod, visited)
   visited[mod] = nil -- Backtrack for cycle detection
+  if not deps_ok then
+    modules.set_state(mod, modules.S.FAILED)
+    utils.log("error", "dependency failed for %s: %s", mod, tostring(failed_dep))
+    return false
+  end
 
   -- Perform the actual require.
   local ok, result = do_require(mod)
@@ -126,7 +161,9 @@ function M.load(mod, opts)
   end
 
   -- Post-load config callback.
-  run_config(spec, result)
+  if not run_config(spec, result) then
+    return false
+  end
 
   return true
 end
@@ -134,21 +171,26 @@ end
 -- ── Public: batch load in dependency order ────────────────────────────────────
 
 ---@param mod_list string[]
----@param opts?    { trigger?: string, force?: boolean }
+---@param opts?    { trigger?: string, force?: boolean, continue_on_error?: boolean }
 function M.load_batch(mod_list, opts)
   opts = opts or {}
   local sorted, cycles = deps_mod.topo_sort(mod_list)
 
   if #cycles > 0 then
-    utils.log("warn", "circular deps detected, loading anyway: %s", table.concat(cycles, ", "))
-    for _, m in ipairs(cycles) do
-      sorted[#sorted + 1] = m
-    end
+    utils.log("error", "circular deps detected, refusing batch load: %s", table.concat(cycles, ", "))
+    return false
   end
 
+  local all_ok = true
   for _, mod in ipairs(sorted) do
-    M.load(mod, opts)
+    if not M.load(mod, opts) then
+      all_ok = false
+      if not opts.continue_on_error then
+        return false
+      end
+    end
   end
+  return all_ok
 end
 
 -- ── Public: force reload ──────────────────────────────────────────────────────
