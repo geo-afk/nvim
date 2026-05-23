@@ -108,7 +108,14 @@ loader.register({
   },
   {
     mod = "custom.autoclose",
-    event = "InsertEnter",
+    event = "BufReadPost",
+    keys = {
+      "<leader>aa",
+      "<leader>ad",
+      "<leader>ar",
+      "<leader>an",
+      "<leader>aa",
+    },
     config = function(autoclose)
       autoclose.setup()
     end,
