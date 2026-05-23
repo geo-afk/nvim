@@ -60,6 +60,15 @@ function M.handle_cr()
     return "<CR><Esc>O"
   end
 
+  -- Tag expansion: <tag>|</tag>
+  if char_before == ">" and char_after == "<" then
+    local prev_text = line:sub(1, col)
+    local next_text = line:sub(col + 1)
+    if prev_text:match("<%w+>$") and next_text:match("^</%w+>") then
+      return "<CR><Esc>O"
+    end
+  end
+
   return "<CR>"
 end
 
@@ -80,6 +89,47 @@ function M.handle_close(char)
   end
 
   return char
+end
+
+---Smart tag autoclose handler
+---@return string|nil
+function M.handle_tag_close()
+  if not config.get("enabled") then
+    return ">"
+  end
+
+  local line = vim.api.nvim_get_current_line()
+  local col = vim.api.nvim_win_get_cursor(0)[2]
+  local before = line:sub(1, col)
+
+  -- Match an opening tag like <div> but not a self-closing one like <img />
+  local tag_name = before:match("<([%w%-]+)[^>]*$")
+  if tag_name and not before:match("/$") then
+    -- Check if it's a void element (HTML specific)
+    local void_elements = {
+      area = true,
+      base = true,
+      br = true,
+      col = true,
+      embed = true,
+      hr = true,
+      img = true,
+      input = true,
+      link = true,
+      meta = true,
+      param = true,
+      source = true,
+      track = true,
+      wbr = true,
+    }
+    if void_elements[tag_name:lower()] then
+      return ">"
+    end
+
+    return ">" .. "</" .. tag_name .. ">" .. string.rep("<Left>", #tag_name + 3)
+  end
+
+  return ">"
 end
 
 return M

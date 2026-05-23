@@ -50,15 +50,16 @@ function M.can_close(open, close)
   end
 
   -- 3. Treesitter Context Checking
+  local node = ts.get_node()
   local ignored_nodes = config.get("ignored_nodes")
-  if ts.in_comment(ignored_nodes) then
+  if ts.in_comment(ignored_nodes, node) then
     return false
   end
 
   -- Quote triggers inside string contexts should be ignored to prevent nesting quotes
   if open == close then
     local ignored_quote = config.get("ignored_quote_nodes")
-    if ts.in_string(ignored_quote) then
+    if ts.in_string(ignored_quote, node) then
       -- Edge case: inside a TSX/JSX template or Lua multiline, pairing might be desired.
       -- However, generally we do not double pair identical quotes inside strings.
       return false
@@ -89,7 +90,9 @@ function M.can_close(open, close)
     -- Let's check if the downstream text actually contains the closing character.
     -- If there's an unmatched close ahead, don't auto-close.
     local remaining = line:sub(col + 1)
-    local _, close_matches = remaining:gsub("%" .. close, "")
+    -- Escape special characters for gsub
+    local escaped_close = close:gsub("[%(%)%.%%%+%-%*%?%[%^%$]", "%%%1")
+    local _, close_matches = remaining:gsub(escaped_close, "")
     if close_matches > 0 then
       return false
     end

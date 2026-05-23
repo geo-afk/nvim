@@ -108,14 +108,16 @@ function M.word_surround()
 
   -- Find start column of the word under cursor
   local start_col = col
+  -- Backtrack while on word characters
   while start_col > 0 and line:sub(start_col, start_col):match("[%w_]") do
     start_col = start_col - 1
   end
+  -- If we're not at start of line, increment to point to the first word char
   if start_col > 0 or not line:sub(1, 1):match("[%w_]") then
     start_col = start_col + 1
   end
 
-  local end_col = start_col + #cword
+  local end_col = start_col + #cword - 1
 
   -- Prompt user for delimiter character
   vim.api.nvim_echo({ { "Delimiter to wrap word (or t for tag): ", "Question" } }, false, {})
@@ -129,12 +131,17 @@ function M.word_surround()
     return
   end
 
-  local text = line:sub(start_col, end_col)
+  -- nvim_buf_set_text uses 0-indexed columns, end is exclusive
+  -- start_col-1 is the 0-indexed start.
+  local s_col = math.max(0, start_col - 1)
+  local e_col = s_col + #cword
+
+  local text = line:sub(start_col, start_col + #cword - 1)
   local new_text = open_str .. text .. close_str
 
-  vim.api.nvim_buf_set_text(0, row, start_col - 1, row, end_col - 1, { new_text })
+  vim.api.nvim_buf_set_text(0, row, s_col, row, e_col, { new_text })
   -- Reposition cursor to remain inside the word
-  vim.api.nvim_win_set_cursor(0, { row + 1, start_col + #open_str - 1 })
+  vim.api.nvim_win_set_cursor(0, { row + 1, s_col + #open_str })
 end
 
 ---Surrounds the current Treesitter node under the cursor
@@ -159,73 +166,77 @@ function M.node_surround()
     return
   end
 
-  local text = vim.api.nvim_buf_get_text(0, start_row, start_col, end_row, end_col, {})
+  local ok, text = pcall(vim.api.nvim_buf_get_text, 0, start_row, start_col, end_row, end_col, {})
+  if not ok then
+    return
+  end
+
   text[1] = open_str .. text[1]
   text[#text] = text[#text] .. close_str
 
   vim.api.nvim_buf_set_text(0, start_row, start_col, end_row, end_col, text)
 end
 
----Find the closest matching pair enclosing the cursor on the current line
----@return integer|nil open_idx
----@return integer|nil close_idx
----@return string|nil char
+---Find the closest matching pair enclosing the cursor using Treesitter
+---@return integer[]|nil start_pos {row, col}
+---@return integer[]|nil end_pos {row, col}
+---@return string|nil old_char
 local function find_surrounding_pair()
-  local line = vim.api.nvim_get_current_line()
-  local col = vim.api.nvim_win_get_cursor(0)[2] + 1 -- 1-indexed for string ops
-
-  local pairs = {
-    ["("] = ")",
-    ["["] = "]",
-    ["{"] = "}",
-    ['"'] = '"',
-    ["'"] = "'",
-    ["`"] = "`",
-  }
-
-  -- Scan outwards
-  local left = col - 1
-  local right = col
-
-  while left >= 1 and right <= #line do
-    local lchar = line:sub(left, left)
-    local rchar = line:sub(right, right)
-
-    if pairs[lchar] == rchar then
-      return left, right, lchar
-    end
-
-    -- Expand search window intelligently
-    if pairs[lchar] then
-      right = right + 1
-    else
-      left = left - 1
-    end
+  local node = ts.get_pair_node()
+  if not node then
+    return nil, nil, nil
   end
 
-  return nil, nil, nil
+  local start_row, start_col, end_row, end_col = node:range()
+
+  -- Get the actual characters at the boundaries to identify the pair
+  local ok, start_text = pcall(vim.api.nvim_buf_get_text, 0, start_row, start_col, start_row, start_col + 1, {})
+  if not ok or not start_text[1] then
+    return nil, nil, nil
+  end
+
+  return { start_row, start_col }, { end_row, end_col }, start_text[1]
 end
 
 ---Delete the nearest surrounding pair
 function M.delete_surround()
-  local open_idx, close_idx = find_surrounding_pair()
-  if not open_idx or not close_idx then
-    vim.api.nvim_echo({ { "No surrounding pair found on line", "WarningMsg" } }, false, {})
+  local start_pos, end_pos = find_surrounding_pair()
+  if not start_pos or not end_pos then
+    vim.api.nvim_echo({ { "No surrounding pair found", "WarningMsg" } }, false, {})
     return
   end
 
-  local row = vim.api.nvim_win_get_cursor(0)[1] - 1
+  local node = ts.get_pair_node()
+  if not node then
+    return
+  end
 
-  -- Delete closing character first to preserve indexing of the opening one
-  vim.api.nvim_buf_set_text(0, row, close_idx - 1, row, close_idx, {})
-  vim.api.nvim_buf_set_text(0, row, open_idx - 1, row, open_idx, {})
+  -- For tags (elements), the delimiters are usually the first and last children
+  local first = node:child(0)
+  local last = node:child(node:child_count() - 1)
+
+  -- Ensure we don't delete the same node twice if it's a leaf
+  if first and last and first:id() ~= last:id() then
+    local f_sr, f_sc, f_er, f_ec = first:range()
+    local l_sr, l_sc, l_er, l_ec = last:range()
+
+    -- Delete closing first
+    vim.api.nvim_buf_set_text(0, l_sr, l_sc, l_er, l_ec, {})
+    vim.api.nvim_buf_set_text(0, f_sr, f_sc, f_er, f_ec, {})
+  else
+    -- Fallback to single character deletion from range
+    -- start_pos[1], start_pos[2] is the row, col of the opener
+    -- end_pos[1], end_pos[2] is the row, col AFTER the closer
+    vim.api.nvim_buf_set_text(0, end_pos[1], end_pos[2] - 1, end_pos[1], end_pos[2], {})
+    vim.api.nvim_buf_set_text(0, start_pos[1], start_pos[2], start_pos[1], start_pos[2] + 1, {})
+  end
 end
 
 ---Replace the nearest surrounding pair
 function M.replace_surround()
-  local open_idx, close_idx, old_char = find_surrounding_pair()
-  if not open_idx or not close_idx or not old_char then
-    vim.api.nvim_echo({ { "No surrounding pair found on line", "WarningMsg" } }, false, {})
+  local start_pos, end_pos, old_char = find_surrounding_pair()
+  if not start_pos or not end_pos then
+    vim.api.nvim_echo({ { "No surrounding pair found", "WarningMsg" } }, false, {})
     return
   end
 
@@ -241,11 +252,24 @@ function M.replace_surround()
     return
   end
 
-  local row = vim.api.nvim_win_get_cursor(0)[1] - 1
+  local node = ts.get_pair_node()
+  if not node then
+    return
+  end
 
-  -- Perform replacement
-  vim.api.nvim_buf_set_text(0, row, close_idx - 1, row, close_idx, { close_str })
-  vim.api.nvim_buf_set_text(0, row, open_idx - 1, row, open_idx, { open_str })
+  local first = node:child(0)
+  local last = node:child(node:child_count() - 1)
+
+  if first and last and first:id() ~= last:id() then
+    local f_sr, f_sc, f_er, f_ec = first:range()
+    local l_sr, l_sc, l_er, l_ec = last:range()
+
+    vim.api.nvim_buf_set_text(0, l_sr, l_sc, l_er, l_ec, { close_str })
+    vim.api.nvim_buf_set_text(0, f_sr, f_sc, f_er, f_ec, { open_str })
+  else
+    vim.api.nvim_buf_set_text(0, end_pos[1], end_pos[2] - 1, end_pos[1], end_pos[2], { close_str })
+    vim.api.nvim_buf_set_text(0, start_pos[1], start_pos[2], start_pos[1], start_pos[2] + 1, { open_str })
+  end
 end
 
 return M

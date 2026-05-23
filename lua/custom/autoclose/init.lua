@@ -62,6 +62,11 @@ function M.setup(opts)
     end, { expr = true, desc = "Smart skip: " .. closer })
   end
 
+  -- Bind tag closing
+  vim.keymap.set("i", ">", function()
+    return handlers.handle_tag_close()
+  end, { expr = true, desc = "Smart tag close" })
+
   -- ── 3. Register Handler Keymaps ─────────────────────────────────────────────
   -- Bind smart backspace deletion
   vim.keymap.set("i", "<BS>", function()
@@ -91,7 +96,7 @@ function M.setup(opts)
   end
 
   -- Normal mode surround treesitter node
-  vim.keymap.set("n", "<leader>sn", function()
+  vim.keymap.set("n", "<leader>an", function()
     surround.node_surround()
   end, { desc = "Surround Treesitter node under cursor" })
 

@@ -53,10 +53,10 @@ M.defaults = {
   markdown_fence = "```",
   -- Default keymaps
   keymaps = {
-    surround_normal = "<leader>sa", -- normal mode surround (asks for target object, then char)
-    surround_visual = "<leader>sa", -- visual mode surround (wraps selection)
-    surround_delete = "<leader>sd", -- delete surrounding chars
-    surround_replace = "<leader>sr", -- replace surrounding chars
+    surround_normal = "<leader>aa", -- normal mode surround (asks for target object, then char)
+    surround_visual = "<leader>aa", -- visual mode surround (wraps selection)
+    surround_delete = "<leader>ad", -- delete surrounding chars
+    surround_replace = "<leader>ar", -- replace surrounding chars
     toggle = "<leader>ua",          -- toggle autoclose globally
   },
 }
