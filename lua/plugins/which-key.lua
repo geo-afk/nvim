@@ -33,6 +33,7 @@ wk.setup({
     { "<leader>s", group = "Search / Find", icon = { icon = "󰍉 ", hl = "MiniIconsYellow" } },
     { "<leader>z", group = "Terminal", icon = { icon = "󰆍 ", hl = "MiniIconsGrey" } },
     { "<leader>u", group = "Utility / Undo", icon = { icon = "󰕌 ", hl = "MiniIconsPurple" } },
+    { "<leader>a", group = "Actions / Autoclose", icon = { icon = "󱗼 ", hl = "MiniIconsGreen" } },
     { "<leader>w", group = "Save", icon = { icon = "󰆓 ", hl = "MiniIconsBlue" } },
     { "<leader>x", group = "Trouble / Lists", icon = { icon = "󱨧 ", hl = "MiniIconsRed" } },
 
