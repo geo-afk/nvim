@@ -5,7 +5,6 @@ local M = {}
 local state = {
   ns = vim.api.nvim_create_namespace("CustomCodeLens"),
   augroup = nil,
-  refresh_timers = {}, -- bufnr -> timer
   enabled_buffers = {},
   config = {
     enabled = true,
@@ -108,15 +107,18 @@ function M.clear(bufnr)
   end
 end
 
----Render lenses for a buffer based on current LSP cache.
-function M.render(bufnr)
+---Render lenses for a buffer based on current LSP cache or provided result.
+---@param bufnr  integer?
+---@param lenses table?   Optional raw LSP result
+function M.render(bufnr, lenses)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
   if not is_buf_valid(bufnr) or not buf_enabled(bufnr) then
     M.clear(bufnr)
     return
   end
 
-  local lenses = vim.lsp.codelens.get({ bufnr = bufnr })
+  -- Use provided lenses or fetch from cache
+  lenses = lenses or vim.lsp.codelens.get({ bufnr = bufnr })
   M.clear(bufnr)
 
   if not lenses or #lenses == 0 then
@@ -125,12 +127,11 @@ function M.render(bufnr)
 
   -- Group lenses by line
   local grouped = {}
-  for _, entry in ipairs(lenses) do
-    local lens = entry.lens
+  for _, lens in ipairs(lenses) do
     if lens and lens.range then
       local line = lens.range.start.line
       grouped[line] = grouped[line] or {}
-      table.insert(grouped[line], entry)
+      table.insert(grouped[line], lens)
     end
   end
 
@@ -139,8 +140,7 @@ function M.render(bufnr)
   for line, entries in pairs(grouped) do
     if not state.config.focused_only or math.abs(line - cursor_line) < 2 then
       local chunks = {}
-      for i, entry in ipairs(entries) do
-        local lens = entry.lens
+      for i, lens in ipairs(entries) do
         local title = (lens.command and lens.command.title) or "Unknown"
         local icon = get_icon(title)
 
@@ -179,35 +179,30 @@ function M.refresh(bufnr)
     return
   end
 
-  -- In Neovim 0.10+, vim.lsp.codelens.enable(true) is the standard way.
-  -- To force a refresh (similar to go.nvim), we disable and re-enable.
-  vim.lsp.codelens.enable(false, { bufnr = bufnr })
+  -- The modern way to trigger a refresh in 0.12/0.13 is enable(true).
+  -- Our custom handler will intercept the result and perform custom rendering.
   vim.lsp.codelens.enable(true, { bufnr = bufnr })
 end
 
----Debounced refresh and render.
-function M.schedule_refresh(bufnr)
-  bufnr = bufnr or vim.api.nvim_get_current_buf()
-  if not is_buf_valid(bufnr) then
-    return
-  end
+-- ── Setup & Handlers ────────────────────────────────────────────────────────
 
-  if state.refresh_timers[bufnr] then
-    state.refresh_timers[bufnr]:stop()
-  else
-    state.refresh_timers[bufnr] = vim.uv.new_timer()
-  end
+local function setup_handler()
+  -- Intercept CodeLens results to prevent native rendering while allowing custom rendering.
+  -- This override prevents Neovim from calling its internal on_codelens/display.
+  vim.lsp.handlers[METHOD_CODELENS] = function(err, result, ctx, _)
+    if err or not result then
+      return
+    end
 
-  state.refresh_timers[bufnr]:start(
-    500,
-    0,
-    vim.schedule_wrap(function()
-      M.refresh(bufnr)
-    end)
-  )
+    -- Manually update the buffer cache so codelens.run() can find the lenses.
+    -- We use the buffer variable directly to avoid deprecated save() calls.
+    vim.b[ctx.bufnr].lsp_code_lens = result
+
+    if is_buf_valid(ctx.bufnr) and buf_enabled(ctx.bufnr) then
+      M.render(ctx.bufnr, result)
+    end
+  end
 end
-
--- ── Autocmds ────────────────────────────────────────────────────────────────
 
 local function setup_autocmds()
   if state.augroup then
@@ -216,11 +211,12 @@ local function setup_autocmds()
 
   state.augroup = vim.api.nvim_create_augroup("CustomCodeLens", { clear = true })
 
-  vim.api.nvim_create_autocmd({ "LspAttach", "BufEnter", "InsertLeave", "BufWritePre", "BufWritePost" }, {
+  -- Initial render on Enter (using cached data)
+  vim.api.nvim_create_autocmd("BufEnter", {
     group = state.augroup,
     callback = function(args)
       if buf_enabled(args.buf) then
-        M.schedule_refresh(args.buf)
+        M.render(args.buf)
       end
     end,
   })
@@ -239,30 +235,38 @@ local function setup_autocmds()
     group = state.augroup,
     callback = function(args)
       state.enabled_buffers[args.buf] = nil
-      if state.refresh_timers[args.buf] then
-        state.refresh_timers[args.buf]:stop()
-        if not state.refresh_timers[args.buf]:is_closing() then
-          state.refresh_timers[args.buf]:close()
-        end
-        state.refresh_timers[args.buf] = nil
-      end
     end,
   })
-
-  -- Override the default display handler to use our custom rendering
-  -- This ensures that whenever the LSP returns results, we render them our way.
-  local old_on_codelens = vim.lsp.handlers[METHOD_CODELENS]
-  vim.lsp.handlers[METHOD_CODELENS] = function(err, result, ctx, config)
-    if old_on_codelens then
-      old_on_codelens(err, result, ctx, config)
-    else
-      vim.lsp.codelens.on_codelens(err, result, ctx, config)
-    end
-    M.render(ctx.bufnr)
-  end
 end
 
 -- ── Public API ───────────────────────────────────────────────────────────────
+
+---Shared LspAttach handler to be called from config/lsp.lua.
+---@param client table
+---@param bufnr integer
+function M.on_attach(client, bufnr)
+  if not client.supports_method(METHOD_CODELENS) then
+    return
+  end
+
+  -- Enable native codelens lifecycle (handles automatic refreshes on InsertLeave/BufWritePost).
+  -- Our handler override ensures that ONLY our custom UI is displayed.
+  vim.lsp.codelens.enable(true, { bufnr = bufnr })
+  state.enabled_buffers[bufnr] = true
+
+  -- Set up keymaps
+  local km = state.config.keymaps
+  local opts = { buffer = bufnr, silent = true }
+
+  vim.keymap.set("n", km.run, M.run_action, vim.tbl_extend("force", opts, { desc = "LSP: Run CodeLens" }))
+  vim.keymap.set("n", km.toggle, function()
+    M.toggle(bufnr)
+  end, vim.tbl_extend("force", opts, { desc = "LSP: Toggle CodeLens" }))
+  vim.keymap.set("n", km.references, M.show_references, vim.tbl_extend("force", opts, { desc = "LSP: Show References" }))
+
+  -- Initial refresh
+  M.refresh(bufnr)
+end
 
 function M.run_action()
   local bufnr = vim.api.nvim_get_current_buf()
@@ -282,9 +286,9 @@ function M.run_action()
 
   -- 1. Find all lenses on the current line
   local line_lenses = {}
-  for _, entry in ipairs(lenses) do
-    if entry.lens.range.start.line == cursor_line then
-      table.insert(line_lenses, entry)
+  for _, lens in ipairs(lenses) do
+    if lens.range.start.line == cursor_line then
+      table.insert(line_lenses, lens)
     end
   end
 
@@ -295,15 +299,15 @@ function M.run_action()
   else
     -- 2. Find nearest if none on current line (handles clicking virt_lines above/below)
     local min_dist = math.huge
-    for _, entry in ipairs(lenses) do
-      local dist = math.abs(entry.lens.range.start.line - cursor_line)
+    for _, lens in ipairs(lenses) do
+      local dist = math.abs(lens.range.start.line - cursor_line)
       if dist < min_dist then
         min_dist = dist
-        target = entry
+        target = lens
       end
     end
     -- Only snap if it's reasonably close (e.g., within 2 lines)
-    if not target or math.abs(target.lens.range.start.line - cursor_line) > 2 then
+    if not target or math.abs(target.range.start.line - cursor_line) > 2 then
       vim.notify("No CodeLens nearby", vim.log.levels.INFO, { title = "CodeLens" })
       return
     end
@@ -311,7 +315,7 @@ function M.run_action()
 
   if target then
     -- Move cursor to the exact start of the lens for reliable execution
-    vim.api.nvim_win_set_cursor(0, { target.lens.range.start.line + 1, target.lens.range.start.character })
+    vim.api.nvim_win_set_cursor(0, { target.range.start.line + 1, target.range.start.character })
 
     -- Small defer to let the cursor move register before LSP request
     vim.schedule(function()
@@ -326,7 +330,6 @@ function M.toggle(bufnr)
   state.enabled_buffers[bufnr] = enabled
 
   -- Use enable() to toggle the built-in LSP codelens logic for this buffer.
-  -- In 0.10+, this is the standard way to manage codelens lifecycle.
   vim.lsp.codelens.enable(enabled, { bufnr = bufnr })
 
   if not enabled then
@@ -344,10 +347,13 @@ function M.show_references()
   if not clients or #clients == 0 then
     return
   end
-  local params = vim.lsp.util.make_position_params(0, clients[1].offset_encoding)
-  params.context = {
-    includeDeclaration = state.config.reference_ui.include_declaration == true,
-  }
+
+  ---@diagnostic disable-next-line: inject-field
+  local params = vim.tbl_extend("force", vim.lsp.util.make_position_params(0, clients[1].offset_encoding), {
+    context = {
+      includeDeclaration = state.config.reference_ui.include_declaration == true,
+    },
+  })
 
   vim.lsp.buf_request(bufnr, METHOD_REFERENCES, params, function(err, result, ctx)
     if err or not result or vim.tbl_isempty(result) then
@@ -385,22 +391,15 @@ function M.setup(user_config)
   vim.api.nvim_set_hl(0, hl.text, { link = "Comment", default = true })
   vim.api.nvim_set_hl(0, hl.sign, { link = "Comment", default = true })
 
+  setup_handler()
   setup_autocmds()
 
-  -- User commands
+  -- Global user commands
   vim.api.nvim_create_user_command("LspCodeLensRun", M.run_action, { desc = "Run CodeLens action" })
   vim.api.nvim_create_user_command("LspCodeLensToggle", function()
     M.toggle()
   end, { desc = "Toggle CodeLens" })
   vim.api.nvim_create_user_command("LspReferencesUI", M.show_references, { desc = "Show references UI" })
-
-  -- Default keymaps
-  local km = state.config.keymaps
-  vim.keymap.set("n", km.run, M.run_action, { desc = "LSP: Run CodeLens" })
-  vim.keymap.set("n", km.toggle, function()
-    M.toggle()
-  end, { desc = "LSP: Toggle CodeLens" })
-  vim.keymap.set("n", km.references, M.show_references, { desc = "LSP: Show References" })
 
   return M
 end
