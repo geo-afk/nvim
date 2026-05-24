@@ -142,12 +142,12 @@ local function build_params(client, bufnr, winid, range, visual_marks)
   end
   params.position = nil
 
-  params.context = {
-    diagnostics = diagnostics_for_range(bufnr, params.range, client.id),
-    triggerKind = vim.lsp.protocol.CodeActionTriggerKind.Invoked,
-  }
-
-  return params
+  return vim.tbl_extend("force", params, {
+    context = {
+      diagnostics = diagnostics_for_range(bufnr, params.range, client.id),
+      triggerKind = vim.lsp.protocol.CodeActionTriggerKind.Invoked,
+    },
+  })
 end
 
 -- ── Action application ───────────────────────────────────────────────────────
