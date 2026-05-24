@@ -180,6 +180,16 @@ end
 -- Invalidated by LspAttach / LspDetach in init.lua.
 
 local client_cache = {} -- [bufnr] = string
+local name_alias = {
+  ["typescript-language-server"] = "tsserver",
+  ["typescript-tools"] = "ts-tools",
+  ["lua-language-server"] = "lua_ls",
+  ["rust-analyzer"] = "rust",
+  ["gopls"] = "go",
+  ["pyright"] = "pyright",
+  ["basedpyright"] = "pyright",
+  ["vtsls"] = "vtsls",
+}
 
 local function get_client_str(bufnr)
   if client_cache[bufnr] then
@@ -195,15 +205,51 @@ local function get_client_str(bufnr)
     if not seen[c.name] then
       seen[c.name] = true
       if c.name ~= "null-ls" and c.name ~= "none-ls" then
-        names[#names + 1] = c.name
+        names[#names + 1] = name_alias[c.name] or c.name
       elseif #clients == 1 then
-        names[#names + 1] = c.name
+        names[#names + 1] = name_alias[c.name] or c.name
       end
     end
   end
   local r = table.concat(names, ", ")
   client_cache[bufnr] = r
   return r
+end
+
+local function lsp_summary(bufnr)
+  local names = get_client_str(bufnr)
+  if names == "" then
+    return ""
+  end
+  local count = 1
+  for _ in names:gmatch(",") do
+    count = count + 1
+  end
+  if count > 2 then
+    local first = names:match("^[^,]+") or names
+    return first .. " +" .. (count - 1)
+  end
+  return names
+end
+
+local function diag_parts(bufnr, level)
+  local d = get_diags(bufnr)
+  local parts = {}
+  if d.e > 0 then
+    parts[#parts + 1] = hl("StatusLineDiagError") .. "󰅚 " .. d.e .. hl("StatusLine")
+  end
+  if d.w > 0 and level ~= "minimal" then
+    parts[#parts + 1] = hl("StatusLineDiagWarn") .. "󰀪 " .. d.w .. hl("StatusLine")
+  end
+  if level == "full" then
+    if d.h > 0 then
+      parts[#parts + 1] = hl("StatusLineDiagHint") .. "󰌶 " .. d.h .. hl("StatusLine")
+    end
+    if d.i > 0 then
+      parts[#parts + 1] = hl("StatusLineDiagInfo") .. "󰋼 " .. d.i .. hl("StatusLine")
+    end
+  end
+  return parts
 end
 
 function M.invalidate_clients(bufnr)
@@ -265,6 +311,30 @@ function M.render(winid, bufnr, width)
     return ""
   end
   return utils.join(parts, " ")
+end
+
+function M.variants(ctx)
+  sweep_stale(uv.now())
+  local bufnr = ctx.bufnr
+  local clients = get_client_str(bufnr)
+  local summary = lsp_summary(bufnr)
+  local active = clients ~= "" and (hl("StatusLineLSPActive") .. "󰄴" .. hl("StatusLine")) or ""
+  local client_full = clients ~= "" and (hl("StatusLineLSPName") .. clients .. hl("StatusLine")) or ""
+  local client_summary = summary ~= "" and (hl("StatusLineLSPName") .. summary .. hl("StatusLine")) or ""
+  local full = utils.join(vim.list_extend(diag_parts(bufnr, "full"), { active, client_full }), " ")
+  local compact = utils.join(vim.list_extend(diag_parts(bufnr, "compact"), { active, client_summary }), " ")
+  local minimal = utils.join(vim.list_extend(diag_parts(bufnr, "minimal"), { active }), " ")
+  local icon = active
+  local has_diags = #diag_parts(bufnr, "minimal") > 0
+  if has_diags then
+    icon = utils.join({ diag_parts(bufnr, "minimal")[1], active }, " ")
+  end
+  return {
+    { name = "full", text = full },
+    { name = "compact", text = compact },
+    { name = "minimal", text = minimal },
+    { name = "icon", text = icon },
+  }
 end
 
 return M

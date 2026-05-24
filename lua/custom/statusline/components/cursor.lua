@@ -147,4 +147,23 @@ function M.render(winid, width)
   return utils.join({ pos_str, progress_str, bar_str }, " ")
 end
 
+function M.variants(ctx)
+  local winid = ctx.winid
+  local cursor = vim.api.nvim_win_get_cursor(winid)
+  local line = cursor[1]
+  local col = cursor[2] + 1
+  local bufnr = vim.api.nvim_win_get_buf(winid)
+  local total = vim.api.nvim_buf_line_count(bufnr)
+  local pct = total > 0 and math.floor((line / total) * 100) or 0
+
+  local pos = hl("StatusLineCursor") .. string.format(" %d:%d ", line, col) .. hl("StatusLine")
+  local progress = hl("StatusLineProgress") .. pct_label(pct) .. hl("StatusLine")
+  local bar = progress_bar(pct)
+  return {
+    { name = "full", text = utils.join({ pos, progress, bar }, " ") },
+    { name = "compact", text = utils.join({ pos, progress }, " ") },
+    { name = "minimal", text = pos },
+  }
+end
+
 return M

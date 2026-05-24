@@ -92,18 +92,27 @@ local function refresh(cwd)
   M.cache[cwd] = M.cache[cwd] or {}
   M.cache[cwd].ts = now
 
-  async_cmd({ "git", "rev-parse", "--abbrev-ref", "HEAD" }, cwd, function(branch_raw)
-    if not branch_raw then
-      M.cache[cwd] = { branch = nil, added = 0, modified = 0, removed = 0, ts = now }
+  async_cmd({ "git", "status", "--porcelain=v1", "--branch" }, cwd, function(status_raw)
+    if not status_raw then
+      M.cache[cwd] = { branch = nil, state = nil, added = 0, modified = 0, removed = 0, ts = now }
       M.redraw_fn() -- surgical, no bang
       return
     end
-    local branch = branch_raw:gsub("%s+$", "")
-    async_cmd({ "git", "status", "--porcelain" }, cwd, function(status_raw)
-      local a, m, r = parse_status(status_raw)
-      M.cache[cwd] = { branch = branch, added = a, modified = m, removed = r, ts = uv.now() }
-      M.redraw_fn() -- surgical, no bang
-    end)
+    local first = status_raw:match("([^\n]+)") or ""
+    local branch = first:match("^## ([^%.%s]+)") or first:match("^## No commits yet on ([^%s]+)")
+    local state = nil
+    if first:find("HEAD %(no branch%)") or first:find("HEAD detached") then
+      state = "DETACHED"
+      branch = "HEAD"
+    elseif first:find("rebase", 1, true) then
+      state = "REBASE"
+    elseif first:find("merge", 1, true) then
+      state = "MERGE"
+    end
+    local body = status_raw:gsub("^[^\n]*\n?", "")
+    local a, m, r = parse_status(body)
+    M.cache[cwd] = { branch = branch, state = state, added = a, modified = m, removed = r, ts = uv.now() }
+    M.redraw_fn() -- surgical, no bang
   end)
 end
 
@@ -149,6 +158,49 @@ function M.render(winid, width)
   end
 
   return utils.join(parts, " ")
+end
+
+local function diff_parts(entry)
+  local parts = {}
+  if entry.added > 0 then
+    parts[#parts + 1] = hl("StatusLineGitAdd") .. " " .. entry.added .. hl("StatusLine")
+  end
+  if entry.modified > 0 then
+    parts[#parts + 1] = hl("StatusLineGitMod") .. "󰦒 " .. entry.modified .. hl("StatusLine")
+  end
+  if entry.removed > 0 then
+    parts[#parts + 1] = hl("StatusLineGitDel") .. " " .. entry.removed .. hl("StatusLine")
+  end
+  return parts
+end
+
+function M.variants(ctx)
+  local cwd = vim.fn.getcwd()
+  local entry = M.cache[cwd]
+  if not entry then
+    refresh(cwd)
+    return {}
+  end
+  if not entry.branch then
+    return {}
+  end
+
+  local state = entry.state and (hl("StatusLineGitMod") .. " " .. entry.state .. hl("StatusLine")) or ""
+  local diffs = diff_parts(entry)
+  local full_branch = hl("StatusLineGitBranch") .. " " .. entry.branch .. hl("StatusLine")
+  local compact_branch = hl("StatusLineGitBranch")
+    .. " "
+    .. utils.compact_branch(entry.branch, 18)
+    .. hl("StatusLine")
+  local icon = hl("StatusLineGitBranch") .. "" .. hl("StatusLine")
+  local diff_full = utils.join(diffs, " ")
+  local diff_icon = (#diffs > 0) and (hl("StatusLineGitMod") .. "±" .. hl("StatusLine")) or ""
+
+  return {
+    { name = "full", text = utils.join({ full_branch, state, diff_full }, " ") },
+    { name = "compact", text = utils.join({ compact_branch, state, diff_icon }, " ") },
+    { name = "icon", text = utils.join({ icon, diff_icon }, " ") },
+  }
 end
 
 return M

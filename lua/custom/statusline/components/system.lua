@@ -114,4 +114,30 @@ function M.render(winid, width)
   return utils.join(parts, " ")
 end
 
+function M.variants(ctx)
+  local winid = ctx.winid
+  local win_width = ctx.width or 100
+  local bufnr = vim.api.nvim_win_get_buf(winid)
+  local parts = {}
+  local reg = vim.fn.reg_recording()
+  if reg ~= "" then
+    parts[#parts + 1] = hl("StatusLineMacro") .. " @" .. reg .. " " .. hl("StatusLine")
+  end
+  if vim.o.paste then
+    parts[#parts + 1] = hl("StatusLinePaste") .. " PASTE " .. hl("StatusLine")
+  end
+  if vim.wo[winid].spell then
+    local lang = vim.bo[bufnr].spelllang or "en"
+    parts[#parts + 1] = hl("StatusLineSpell") .. " SPELL:" .. lang .. " " .. hl("StatusLine")
+  end
+  local live = utils.join(parts, " ")
+  local os = hl("StatusLineOS") .. os_icon .. hl("StatusLine")
+  local cwd = hl("StatusLineCWD") .. short_cwd(math.min(30, math.floor(win_width * 0.2))) .. hl("StatusLine")
+  return {
+    { name = "full", text = utils.join({ live, os, cwd }, " ") },
+    { name = "compact", text = utils.join({ live, os }, " ") },
+    { name = "minimal", text = live },
+  }
+end
+
 return M

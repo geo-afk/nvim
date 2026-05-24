@@ -1,83 +1,9 @@
--- =============================================================================
--- statusline/builder.lua  — segment-level dirty-flag partial update system
--- =============================================================================
---
--- DOES NEOVIM SUPPORT TRUE PARTIAL STATUSLINE UPDATES?
--- ══════════════════════════════════════════════════════
---
--- Short answer: not at the terminal layer, but YES at the Lua layer —
--- and that is where all the performance wins are.
---
--- ┌─────────────────────────────────────────────────────────────┐
--- │  TERMINAL LAYER  (Neovim → terminal emulator)               │
--- │                                                             │
--- │  vim.o.statusline is ONE string. Neovim evaluates it,       │
--- │  moves the cursor to the statusline row, and repaints the   │
--- │  ENTIRE row using ANSI escape sequences every redraw.       │
--- │  There is no VT100 / ANSI escape to "update columns 40-60   │
--- │  only". The full row is always sent to the terminal.        │
--- │  This is documented in neovim/neovim#20582 and the VT100    │
--- │  specification (ESC[2K clears the whole line; there is no   │
--- │  selective column-range update escape).                     │
--- └─────────────────────────────────────────────────────────────┘
---
--- ┌─────────────────────────────────────────────────────────────┐
--- │  LUA LAYER  (where ALL the cost actually lives)             │
--- │                                                             │
--- │  The expensive work is not painting pixels — it is the Lua  │
--- │  data collection: getfsize(), fnamemodify(), get_clients(),  │
--- │  buf_line_count(), string.format() × N.                     │
--- │                                                             │
--- │  Partial updates at the Lua layer means: each component     │
--- │  has a dirty flag.  On a given eval() call, only DIRTY      │
--- │  components re-run their data collection and string build.  │
--- │  Clean components return their cached string immediately.   │
--- │                                                             │
--- │  The final table.concat() is always O(N segments), but N    │
--- │  is tiny (6) and string concat of short strings is ~10 ns.  │
--- └─────────────────────────────────────────────────────────────┘
---
--- PERFORMANCE IMPACT
--- ══════════════════
---
--- Measured by component:
---
---   Component   │ Cost per call  │ Trigger rate      │ Saved with dirty-flag
---   ────────────┼────────────────┼───────────────────┼──────────────────────
---   file        │ ~5–20 µs       │ every scroll key  │ ✓ 99 % of calls
---   git         │ 0 (cached)     │ async only        │ ✓ always cached
---   lsp         │ ~1–3 µs        │ every key (diags) │ ✓ skip when not dirty
---   system      │ ~0.5–2 µs      │ every key (spell) │ ✓ skip when idle
---   cursor      │ ~0.5 µs        │ every scroll key  │ ✗ always fresh (cheap)
---   mode        │ ~0.3 µs        │ every key         │ ✗ always fresh (cheap)
---
--- During scrolling (the hot path):
---   • file, git, lsp, system are ALL clean → their render() is never called
---   • Only mode and cursor run, taking ~0.8 µs total
---   • The old approach ran all 6, taking ~25–30 µs per keypress
---   • Net: ~30× reduction in Lua CPU per scroll event
---
--- ARCHITECTURE
--- ════════════
--- Each registered section has:
---   fn(w,b,a)   render function
---   dirty       boolean — set by M.mark_dirty(id) / M.mark_dirty_all()
---   cache       string  — last rendered value
---   id          string  — component identity key for external invalidation
---
--- Two render tiers:
---   ALWAYS-FRESH  — components too cheap to cache (mode, cursor)
---   DIRTY-TRACKED — components whose data only changes on specific events
---
--- =============================================================================
-
 local M = {}
+
+local config = require("custom.statusline.config")
 local hl = require("custom.statusline.highlights").hl
 local utils = require("custom.statusline.utils")
 
--- ---------------------------------------------------------------------------
--- Minimal-buffer detection
--- ---------------------------------------------------------------------------
 local minimal_fts = {
   ["NvimTree"] = true,
   ["neo-tree"] = true,
@@ -93,41 +19,59 @@ local minimal_fts = {
   ["toggleterm"] = true,
 }
 
+local sections = {}
+local stats = {
+  renders = 0,
+  last_width = 0,
+  last_total = 0,
+  last_dropped = {},
+  last_degraded = {},
+}
+
+local ALWAYS_FRESH = { mode = true, cursor = true }
+
+local function cache_key(sec, ctx)
+  local bucket = math.floor((ctx.width or 80) / 8)
+  return table.concat({ sec.id, ctx.bufnr or 0, bucket, ctx.active and "a" or "i" }, ":")
+end
+
 local function is_minimal_buf(bufnr)
   local ft = vim.bo[bufnr].filetype or ""
   local bt = vim.bo[bufnr].buftype or ""
   return minimal_fts[ft] or minimal_fts[bt] or false
 end
 
--- ---------------------------------------------------------------------------
--- Section registry
--- Entry: { side, fn, id, always_fresh, dirty, cache }
--- ---------------------------------------------------------------------------
-local sections = {}
+local function normalize_variants(raw)
+  if type(raw) == "string" then
+    raw = { { text = raw } }
+  end
+  local out = {}
+  for _, item in ipairs(raw or {}) do
+    if item and item.text and item.text ~= "" then
+      out[#out + 1] = item
+    end
+  end
+  return out
+end
 
--- Components that are too cheap to need caching — recalculate every eval().
-local ALWAYS_FRESH = { mode = true, cursor = true }
+function M.reset()
+  sections = {}
+end
 
---- Register a component.
---- @param side "left"|"center"|"right"
---- @param fn   function(winid, bufnr, active) → string
---- @param id   string  unique name for this component (used by mark_dirty)
-function M.add(side, fn, id)
+function M.add(side, fn, id, opts)
+  opts = opts or {}
   sections[#sections + 1] = {
     side = side,
     fn = fn,
     id = id or tostring(#sections + 1),
+    priority = opts.priority or 50,
+    required = opts.required or false,
     always_fresh = ALWAYS_FRESH[id] or false,
-    dirty = true, -- start dirty so first render always runs
-    cache = "",
+    dirty = true,
+    cache = nil,
   }
 end
 
--- ---------------------------------------------------------------------------
--- Dirty-flag API — called by autocmds / component invalidators
--- ---------------------------------------------------------------------------
-
---- Mark a single component dirty by id.
 function M.mark_dirty(id)
   for _, sec in ipairs(sections) do
     if sec.id == id then
@@ -137,7 +81,6 @@ function M.mark_dirty(id)
   end
 end
 
---- Mark ALL cached components dirty (e.g. on window resize / colorscheme).
 function M.mark_dirty_all()
   for _, sec in ipairs(sections) do
     if not sec.always_fresh then
@@ -146,74 +89,129 @@ function M.mark_dirty_all()
   end
 end
 
---- Mark dirty all components that belong to a given side.
-function M.mark_dirty_side(side)
-  for _, sec in ipairs(sections) do
-    if sec.side == side and not sec.always_fresh then
-      sec.dirty = true
-    end
+local function get_variants(sec, ctx)
+  local key = cache_key(sec, ctx)
+  if sec.always_fresh or sec.dirty or not sec.cache or sec.cache_key ~= key then
+    local ok, raw = pcall(sec.fn, ctx)
+    sec.cache = ok and normalize_variants(raw) or {}
+    sec.cache_key = key
+    sec.dirty = false
   end
+  return sec.cache
 end
 
-local function separators(active, win_width)
-  local base = active and "StatusLine" or "StatusLineNC"
-  if win_width < 50 then
-    return {
-      left = hl(base) .. " ",
-      center = hl(base) .. " ",
-      right = hl(base) .. " ",
-    }
-  elseif win_width < 85 then
-    return {
-      left = hl("StatusLineSep") .. "·" .. hl(base),
-      center = hl("StatusLineFill") .. " " .. hl(base),
-      right = hl("StatusLineFill") .. " " .. hl(base),
-    }
+local function separator_for(width)
+  local sep = config.options.separators
+  if width < 56 then
+    return sep.compact or " "
   end
-  return {
-    left = hl("StatusLineSep") .. " • " .. hl(base),
-    center = hl("StatusLineFill") .. "  " .. hl(base),
-    right = hl("StatusLineFill") .. "  " .. hl(base),
-  }
+  return sep.wide or " │ "
 end
 
--- ---------------------------------------------------------------------------
--- Gather — partial-update hot path
--- ---------------------------------------------------------------------------
-local function gather(side, winid, bufnr, active, separator, win_width)
-  local parts = {}
-
-  for _, sec in ipairs(sections) do
+local function build_items(side, ctx)
+  local items = {}
+  for order, sec in ipairs(sections) do
     if sec.side == side then
-      local rendered
-      if sec.always_fresh then
-        -- Always-fresh: call every time (cheap, < 1 µs)
-        local ok, s = pcall(sec.fn, winid, bufnr, active, win_width)
-        rendered = (ok and s) or ""
-        sec.cache = rendered
-      elseif sec.dirty then
-        -- Dirty: rebuild the cached string
-        local ok, s = pcall(sec.fn, winid, bufnr, active, win_width)
-        rendered = (ok and s) or ""
-        sec.cache = rendered
-        sec.dirty = false
-      else
-        -- Clean: use cached string directly — zero function call overhead
-        rendered = sec.cache
+      local variants = get_variants(sec, ctx)
+      if #variants > 0 then
+        if ctx.width < 50 and not sec.required then
+          goto continue
+        end
+        local initial = 1
+        if ctx.width < 50 then
+          initial = sec.required and math.min(#variants, sec.id == "file" and 3 or #variants) or #variants
+        elseif ctx.width < 74 then
+          initial = math.min(#variants, 2)
+        end
+        items[#items + 1] = {
+          id = sec.id,
+          order = order,
+          side = side,
+          priority = sec.priority,
+          required = sec.required,
+          variants = variants,
+          index = initial,
+          text = variants[initial].text,
+        }
       end
+      ::continue::
+    end
+  end
+  return items
+end
 
-      if rendered ~= "" then
-        parts[#parts + 1] = rendered
+local function total_width(left, right, sep)
+  local function side_width(group)
+    local parts = {}
+    for _, item in ipairs(group) do
+      if item.text and item.text ~= "" then
+        parts[#parts + 1] = item.text
+      end
+    end
+    return utils.statusline_width(utils.join(parts, sep))
+  end
+  return side_width(left) + side_width(right)
+end
+
+local function degrade_once(items, degraded, dropped)
+  local candidate
+  for _, item in ipairs(items) do
+    local can_degrade = (tonumber(item.index) or 1) < #(item.variants or {})
+    local can_drop = not item.required and item.text ~= ""
+    if can_degrade or can_drop then
+      if not candidate or item.priority < candidate.priority or (item.priority == candidate.priority and item.order > candidate.order) then
+        candidate = item
       end
     end
   end
-
-  return utils.join(parts, separator)
+  if not candidate then
+    return false
+  end
+  if (tonumber(candidate.index) or 1) < #(candidate.variants or {}) then
+    candidate.index = candidate.index + 1
+    candidate.text = candidate.variants[candidate.index].text
+    degraded[candidate.id] = candidate.variants[candidate.index].name or tostring(candidate.index)
+  else
+    candidate.text = ""
+    dropped[candidate.id] = true
+  end
+  return true
 end
 
--- ---------------------------------------------------------------------------
--- Minimal statusline for special buffers
--- ---------------------------------------------------------------------------
+local function fit(left, right, budget, sep)
+  local all = {}
+  for _, item in ipairs(left) do
+    all[#all + 1] = item
+  end
+  for _, item in ipairs(right) do
+    all[#all + 1] = item
+  end
+
+  local degraded, dropped = {}, {}
+  local guard = 0
+  stats.last_fit_start = total_width(left, right, sep)
+  stats.last_budget = budget
+  while total_width(left, right, sep) > budget and guard < 80 do
+    guard = guard + 1
+    if not degrade_once(all, degraded, dropped) then
+      break
+    end
+  end
+  stats.last_degraded = degraded
+  stats.last_dropped = dropped
+  stats.last_fit_end = total_width(left, right, sep)
+end
+
+local function join_items(items, sep)
+  local parts = {}
+  for _, item in ipairs(items) do
+    if item.text and item.text ~= "" then
+      parts[#parts + 1] = item.text
+    end
+  end
+  return utils.join(parts, sep)
+end
+
 local function minimal_render(bufnr)
   local label = (vim.bo[bufnr].filetype ~= "" and vim.bo[bufnr].filetype:upper())
     or (vim.bo[bufnr].buftype ~= "" and vim.bo[bufnr].buftype:upper())
@@ -221,10 +219,8 @@ local function minimal_render(bufnr)
   return hl("StatusLineNC") .. " " .. hl("StatusLineFilePath") .. label .. hl("StatusLineNC") .. "%="
 end
 
--- ---------------------------------------------------------------------------
--- Main render entry
--- ---------------------------------------------------------------------------
 function M.render(winid)
+  stats.renders = stats.renders + 1
   winid = (winid == 0 or not winid) and vim.api.nvim_get_current_win() or winid
   local bufnr = vim.api.nvim_win_get_buf(winid)
   local active = (winid == vim.api.nvim_get_current_win())
@@ -233,21 +229,36 @@ function M.render(winid)
     return minimal_render(bufnr)
   end
 
-  local base_hl = active and hl("StatusLine") or hl("StatusLineNC")
-  local win_width = vim.api.nvim_win_get_width(winid)
-  local sep = separators(active, win_width)
-  local left = gather("left", winid, bufnr, active, sep.left, win_width)
-  local center = gather("center", winid, bufnr, active, sep.center, win_width)
-  local right = gather("right", winid, bufnr, active, sep.right, win_width)
+  local width = vim.api.nvim_win_get_width(winid)
+  local base = active and hl("StatusLine") or hl("StatusLineNC")
+  local ctx = { winid = winid, bufnr = bufnr, active = active, width = width }
+  local sep = separator_for(width)
+  local left = build_items("left", ctx)
+  local right = build_items("right", ctx)
+  local budget = math.max(8, width - (config.options.density.target_padding or 2))
 
-  if center ~= "" then
-    local center_width = utils.statusline_width(center)
-    local outer_width = utils.statusline_width(left) + utils.statusline_width(right)
-    if center_width > 0 and (outer_width + center_width + 8) < win_width then
-      return base_hl .. left .. " %=" .. center .. "%= " .. right
-    end
+  fit(left, right, budget, sep)
+
+  local left_s = join_items(left, sep)
+  local right_s = join_items(right, sep)
+  stats.last_width = width
+  stats.last_total = utils.statusline_width(left_s) + utils.statusline_width(right_s)
+  stats.last_items = {}
+  for _, item in ipairs(left) do
+    stats.last_items[#stats.last_items + 1] = { id = item.id, index = item.index, variants = #item.variants, priority = item.priority, required = item.required }
   end
-  return base_hl .. left .. " %=" .. right
+  for _, item in ipairs(right) do
+    stats.last_items[#stats.last_items + 1] = { id = item.id, index = item.index, variants = #item.variants, priority = item.priority, required = item.required }
+  end
+
+  if width < 42 then
+    sep = " "
+  end
+  return base .. left_s .. " %=" .. right_s
+end
+
+function M.debug()
+  return vim.deepcopy(stats)
 end
 
 return M

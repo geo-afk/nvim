@@ -77,6 +77,18 @@ function M.render(winid, width)
   return pill, info.hl
 end
 
+function M.variants(ctx)
+  local win_width = ctx.width or 100
+  local info = get_mode_info()
+  local label = win_width > 50 and info.label or ""
+  local full = hl(info.hl) .. info.icon .. label .. hl("StatusLine")
+  local icon = hl(info.hl) .. info.icon:gsub("%s+$", "") .. hl("StatusLine")
+  return {
+    { name = "full", text = full },
+    { name = "icon", text = icon },
+  }
+end
+
 --- Returns just the active highlight group name (for other components to use).
 function M.active_hl()
   return get_mode_info().hl

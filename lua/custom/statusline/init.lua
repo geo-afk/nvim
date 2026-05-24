@@ -35,6 +35,8 @@ local M = {}
 local uv = vim.uv or vim.loop
 
 local builder, git_comp, lsp_comp
+local opts_ref
+local anim_timer
 
 -- ---------------------------------------------------------------------------
 -- Time-gated redraw (16 ms minimum between explicit redraws)
@@ -71,6 +73,30 @@ local function schedule_redraw()
 end
 
 M.schedule_redraw = schedule_redraw
+
+local function pulse_redraw()
+  if not opts_ref or not opts_ref.animation or not opts_ref.animation.enabled then
+    schedule_redraw()
+    return
+  end
+  if anim_timer then
+    anim_timer:stop()
+    anim_timer:close()
+    anim_timer = nil
+  end
+  local steps = opts_ref.animation.steps or 5
+  local tick = 0
+  anim_timer = uv.new_timer()
+  anim_timer:start(0, opts_ref.animation.interval or 45, vim.schedule_wrap(function()
+    tick = tick + 1
+    schedule_redraw()
+    if tick >= steps and anim_timer then
+      anim_timer:stop()
+      anim_timer:close()
+      anim_timer = nil
+    end
+  end))
+end
 
 -- ---------------------------------------------------------------------------
 -- Eval bridge
@@ -111,7 +137,7 @@ local function setup_autocmds()
   -- the mode pill colour updates even if no other data changed.
   vim.api.nvim_create_autocmd("ModeChanged", {
     group = group,
-    callback = vim.schedule_wrap(schedule_redraw),
+    callback = vim.schedule_wrap(pulse_redraw),
   })
 
   -- ── File writes: invalidate file + git ────────────────────────────────────
@@ -129,8 +155,11 @@ local function setup_autocmds()
   vim.api.nvim_create_autocmd("BufEnter", {
     group = group,
     callback = function(args)
+      require("custom.statusline.highlights").setup(opts_ref, args.buf)
       require("custom.statusline.components.file").invalidate(args.buf)
       builder.mark_dirty("file")
+      builder.mark_dirty_all()
+      pulse_redraw()
     end,
   })
 
@@ -196,17 +225,6 @@ local function setup_autocmds()
     end,
   })
 
-  -- ── LSP progress ──────────────────────────────────────────────────────────
-  local has_lsp_progress = pcall(vim.api.nvim_get_autocmds, { event = "LspProgress" })
-  if has_lsp_progress then
-    vim.api.nvim_create_autocmd("LspProgress", {
-      group = group,
-      callback = function(ev)
-        lsp_comp.on_progress(ev)
-      end,
-    })
-  end
-
   -- ── LSP attach / detach ───────────────────────────────────────────────────
   vim.api.nvim_create_autocmd("LspAttach", {
     group = group,
@@ -245,7 +263,7 @@ local function setup_autocmds()
     group = group,
     callback = function()
       vim.schedule(function()
-        require("custom.statusline.highlights").setup()
+        require("custom.statusline.highlights").setup(opts_ref, vim.api.nvim_get_current_buf())
         builder.mark_dirty_all()
         schedule_redraw()
       end)
@@ -258,45 +276,23 @@ end
 -- ---------------------------------------------------------------------------
 local defaults = {
   global = true,
-  sections = {
-    { side = "left", comp = "mode" },
-    { side = "left", comp = "file" },
-    { side = "left", comp = "git" },
-    { side = "right", comp = "lsp" },
-    { side = "right", comp = "system" },
-    { side = "right", comp = "cursor" },
-  },
 }
 
-local function make_render_fn(key)
+local function make_variant_fn(key)
   local mode_comp = require("custom.statusline.components.mode")
   local file_comp = require("custom.statusline.components.file")
   local cursor_comp = require("custom.statusline.components.cursor")
   local sys_comp = require("custom.statusline.components.system")
-
   local fns = {
-    mode = function(w, _b, _a, width)
-      local s, _ = mode_comp.render(w, width)
-      return s
-    end,
-    file = function(w, b, a, width)
-      return file_comp.render(w, b, a, width)
-    end,
-    git = function(w, _b, _a, width)
-      return git_comp.render(w, width)
-    end,
-    lsp = function(w, b, _a, width)
-      return lsp_comp.render(w, b, width)
-    end,
-    cursor = function(w, _b, _a, width)
-      return cursor_comp.render(w, width)
-    end,
-    system = function(w, _b, _a, width)
-      return sys_comp.render(w, width)
-    end,
+    mode = mode_comp.variants,
+    file = file_comp.variants,
+    git = git_comp.variants,
+    lsp = lsp_comp.variants,
+    cursor = cursor_comp.variants,
+    system = sys_comp.variants,
   }
   return fns[key] or function()
-    return ""
+    return {}
   end
 end
 
@@ -304,13 +300,15 @@ end
 -- Public entry point
 -- ---------------------------------------------------------------------------
 function M.setup(user_opts)
-  local opts = vim.tbl_deep_extend("force", defaults, user_opts or {})
+  local opts = require("custom.statusline.config").setup(vim.tbl_deep_extend("force", defaults, user_opts or {}))
+  opts_ref = opts
 
   builder = require("custom.statusline.builder")
   git_comp = require("custom.statusline.components.git")
   lsp_comp = require("custom.statusline.components.lsp")
 
-  require("custom.statusline.highlights").setup()
+  builder.reset()
+  require("custom.statusline.highlights").setup(opts, vim.api.nvim_get_current_buf())
 
   lsp_comp.redraw_fn = function()
     builder.mark_dirty("lsp")
@@ -324,7 +322,7 @@ function M.setup(user_opts)
 
   -- Register each section with its id so mark_dirty() can target it.
   for _, sec in ipairs(opts.sections) do
-    builder.add(sec.side, make_render_fn(sec.comp), sec.comp)
+    builder.add(sec.side, make_variant_fn(sec.comp), sec.comp, sec)
   end
 
   vim.o.showmode = false
@@ -332,7 +330,14 @@ function M.setup(user_opts)
   vim.o.statusline = "%!v:lua.require('custom.statusline').eval()"
 
   setup_autocmds()
+  vim.api.nvim_create_user_command("StatuslineDebug", function()
+    vim.print(builder.debug())
+  end, { force = true })
   git_comp.update(vim.fn.getcwd())
+end
+
+function M.debug()
+  return builder and builder.debug() or {}
 end
 
 return M

@@ -111,10 +111,62 @@ local function first_color(group_list, attr)
   return nil
 end
 
+local language_accents = {
+  lua = "#89b4fa",
+  rust = "#f38ba8",
+  go = "#94e2d5",
+  python = "#f9e2af",
+  javascript = "#f9e2af",
+  typescript = "#89b4fa",
+  tsx = "#89b4fa",
+  jsx = "#f9e2af",
+  html = "#fab387",
+  css = "#89dceb",
+  scss = "#f38ba8",
+  json = "#a6e3a1",
+  markdown = "#cba6f7",
+}
+
+local function hex_to_rgb(hex)
+  hex = (hex or ""):gsub("#", "")
+  if #hex ~= 6 then
+    return nil
+  end
+  return tonumber(hex:sub(1, 2), 16), tonumber(hex:sub(3, 4), 16), tonumber(hex:sub(5, 6), 16)
+end
+
+local function rgb_to_hex(r, g, b)
+  return string.format("#%02x%02x%02x", math.max(0, math.min(255, r)), math.max(0, math.min(255, g)), math.max(0, math.min(255, b)))
+end
+
+local function blend(fg, bg, alpha)
+  local fr, fg_g, fb = hex_to_rgb(fg)
+  local br, bg_g, bb = hex_to_rgb(bg)
+  if not fr or not br then
+    return bg
+  end
+  return rgb_to_hex(
+    math.floor(fr * alpha + br * (1 - alpha)),
+    math.floor(fg_g * alpha + bg_g * (1 - alpha)),
+    math.floor(fb * alpha + bb * (1 - alpha))
+  )
+end
+
+local function project_accent(bufnr)
+  bufnr = bufnr or vim.api.nvim_get_current_buf()
+  local ft = vim.bo[bufnr].filetype or ""
+  if language_accents[ft] then
+    return language_accents[ft]
+  end
+  local name = vim.api.nvim_buf_get_name(bufnr)
+  local ext = name:match("%.([%w_%-]+)$")
+  return ext and language_accents[ext:lower()] or nil
+end
+
 -- ---------------------------------------------------------------------------
 -- Build a dynamic palette from the active colorscheme.
 -- ---------------------------------------------------------------------------
-local function build_palette()
+local function build_palette(opts, bufnr)
   -- ── Base ──────────────────────────────────────────────────────────────────
   -- "Normal" defines the editor canvas.  For the statusline background we
   -- prefer whatever the colorscheme sets for StatusLine; if it's unset we
@@ -177,7 +229,7 @@ local function build_palette()
   local paste_bg = first_color({ "Special", "@string.special" }, "fg") or FALLBACK.paste
   local spell_bg = first_color({ "SpellBad", "SpellLocal" }, "fg") or FALLBACK.spell_color
 
-  return {
+  local palette = {
     bg = sl_bg,
     bg_dim = sl_nc_bg,
     bg_alt = cursor_bg,
@@ -229,6 +281,27 @@ local function build_palette()
     os_icon = normal_fg,
     cwd_c = comment,
   }
+
+  opts = opts or {}
+  if opts.transparent then
+    palette.bg = "NONE"
+    palette.bg_dim = "NONE"
+  end
+
+  local accent = opts.theme and opts.theme.project_aware and project_accent(bufnr)
+  if accent then
+    palette.accent = accent
+    palette.git_branch = accent
+    palette.progress = accent
+    palette.ruler_fill = accent
+    palette.normal = blend(accent, palette.normal, 0.55)
+    if palette.bg ~= "NONE" then
+      palette.bg = blend(accent, palette.bg, 0.08)
+      palette.bg_chip = blend(accent, palette.bg_chip, 0.12)
+    end
+  end
+
+  return palette
 end
 
 -- ---------------------------------------------------------------------------
@@ -324,8 +397,8 @@ end
 
 --- (Re-)apply all highlight groups from the current colorscheme.
 --- Call once at startup and again on ColorScheme events.
-function M.setup()
-  local palette = build_palette()
+function M.setup(opts, bufnr)
+  local palette = build_palette(opts, bufnr)
   define_groups(palette)
   -- Expose built palette for inspection / debugging
   M._palette = palette

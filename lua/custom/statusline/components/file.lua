@@ -200,6 +200,62 @@ local function smart_path(name, max_w)
   return fname:sub(1, max_w - 3) .. "..."
 end
 
+local function data(bufnr)
+  local ft = vim.bo[bufnr].filetype or ""
+  local name = vim.api.nvim_buf_get_name(bufnr)
+  local size = name ~= "" and vim.fn.getfsize(name) or 0
+  return {
+    ft = ft,
+    name = name,
+    icon = ft_icons[ft:lower()] or DEFAULT_ICON,
+    modified = vim.bo[bufnr].modified,
+    readonly = vim.bo[bufnr].readonly or not vim.bo[bufnr].modifiable,
+    size = math.max(0, size),
+    lines = vim.api.nvim_buf_line_count(bufnr),
+    enc = (vim.bo[bufnr].fileencoding ~= "" and vim.bo[bufnr].fileencoding) or vim.o.encoding or "utf-8",
+    ff = vim.bo[bufnr].fileformat,
+  }
+end
+
+local function flags(d)
+  return (d.modified and (hl("StatusLineModified") .. "●" .. hl("StatusLine")) or "")
+    .. (d.readonly and (hl("StatusLineReadonly") .. "󰌾" .. hl("StatusLine")) or "")
+end
+
+local function fileformat_label(ff)
+  return ff == "unix" and "LF" or ff == "dos" and "CRLF" or "CR"
+end
+
+function M.variants(ctx)
+  local win_width = ctx.width or 100
+  local bufnr = ctx.bufnr
+  local d = data(bufnr)
+  local icon = hl("StatusLineFileIcon") .. d.icon .. hl("StatusLine")
+  local state = flags(d)
+  local full_path = hl("StatusLineFilePath")
+    .. smart_path(d.name, math.max(18, math.floor(win_width * 0.32)))
+    .. hl("StatusLine")
+  local mid_path = hl("StatusLineFilePath")
+    .. smart_path(d.name, math.max(14, math.floor(win_width * 0.23)))
+    .. hl("StatusLine")
+  local short_path = hl("StatusLineFilePath") .. smart_path(d.name, 18) .. hl("StatusLine")
+  local name_only = hl("StatusLineFilePath")
+    .. smart_path(vim.fn.fnamemodify(d.name, ":t"), 14)
+    .. hl("StatusLine")
+  local ft = d.ft ~= "" and (hl("StatusLineChipMuted") .. " " .. d.ft .. " " .. hl("StatusLine")) or ""
+  local size = hl("StatusLineFileSize") .. fmt_size(d.size) .. hl("StatusLine")
+  local lines = hl("StatusLineLineCount") .. "󰦕 " .. d.lines .. "L" .. hl("StatusLine")
+  local enc = hl("StatusLineEncoding") .. d.enc:upper() .. hl("StatusLine")
+  local ff = hl("StatusLineEncoding") .. fileformat_label(d.ff) .. hl("StatusLine")
+
+  return {
+    { name = "full", text = utils.join({ icon, full_path, state, size, lines, ft, enc, ff }, " ") },
+    { name = "medium", text = utils.join({ icon, mid_path, state, lines, ft }, " ") },
+    { name = "compact", text = utils.join({ icon, short_path, state }, " ") },
+    { name = "minimal", text = utils.join({ icon, name_only, state }, " ") },
+  }
+end
+
 -- ---------------------------------------------------------------------------
 -- Build the rendered string (called once per cache miss)
 -- ---------------------------------------------------------------------------
