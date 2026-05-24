@@ -573,7 +573,7 @@ msgs.show_msg = function(tgt, kind, content, replace_last, append, id)
 end
 
 msgs.msg_show = function(kind, content, replace_last, history, append, id, trigger)
-  if state.flushing then
+  if state.flushing or vim.g.custom_cmdline_busy then
     return originals.msg_show(kind, content, replace_last, history, append, id, trigger)
   end
 
@@ -599,6 +599,10 @@ msgs.msg_show = function(kind, content, replace_last, history, append, id, trigg
 end
 
 vim.notify = function(msg, level, opts)
+  if vim.g.custom_cmdline_busy then
+    return originals.notify(msg, level, opts)
+  end
+
   opts = opts or {}
   local severity_name = severity_from_level(level, opts)
   local severity = SEVERITY[severity_name] or SEVERITY.info

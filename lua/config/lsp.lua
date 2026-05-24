@@ -129,14 +129,7 @@ local function setup_attach()
 
       -- [0.12-new] Code lens
       if client:supports_method("textDocument/codeLens") then
-        vim.lsp.codelens.enable(true, { bufnr = buf })
-        vim.b[buf].codelens_enabled = true
-        vim.keymap.set("n", "<leader>ci", function()
-          local next = not vim.b[buf].codelens_enabled
-          vim.lsp.codelens.enable(next, { bufnr = buf })
-          vim.b[buf].codelens_enabled = next
-          vim.notify("CodeLens " .. (next and "enabled" or "disabled"), vim.log.levels.INFO)
-        end, opts("Toggle CodeLens"))
+        require("custom.codelens").on_attach(client, buf)
       end
 
       -- [0.12-new] Workspace diagnostics
@@ -296,6 +289,11 @@ function M.setup()
   setup_diagnostics()
   setup_attach()
   setup_commands()
+
+  -- Initialize custom LSP enhancements
+  pcall(function()
+    require("custom.codelens").setup()
+  end)
 end
 
 return M
