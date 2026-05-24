@@ -1,25 +1,17 @@
 -- tabline/buffers.lua
 -- Owns all buffer-related state:
---   • A custom-ordered list of buffer numbers (so users can reorder tabs)
+--   • A custom-ordered list of buffer numbers
+--   • Version-based O(1) buffer list caching
 --   • Utility functions: sync, move, close, deduplicated display names
---
--- DESIGN NOTES
--- ─────────────
--- • `state.order` is the single source of truth for tab order.
---   It is kept in sync lazily: any call that needs the list calls sync()
---   first, which removes deleted/unlisted buffers and appends new ones.
--- • Buffer deletion uses vim.api.nvim_buf_delete() (force=true) which is a
---   clean Lua API call with proper error propagation — unlike pcall around
---   "silent! bwipeout!" which always returns ok=true and never lets the
---   fallback branch run (FIX #5).
--- • Before deleting, every window that shows the target buffer is redirected
---   to the focus target, not just the current window (FIX #6).
 
 local M = {}
 
 --- Internal mutable state.
 local state = {
-  order = {}, ---@type integer[]  ordered list of bufnrs
+  order = {},          ---@type integer[]  ordered list of bufnrs
+  cached_bufs = nil,   ---@type integer[]|nil cached listed buffer sequence
+  version = 1,         ---@type integer incremented on list changes
+  cached_version = 0,  ---@type integer synced version
 }
 
 -- ─── helpers ──────────────────────────────────────────────────────────────
@@ -49,9 +41,19 @@ end
 
 -- ─── core ─────────────────────────────────────────────────────────────────
 
+--- Invalidate the internal sync cache, forcing a scan on the next lookup.
+function M.invalidate_cache()
+  state.version = state.version + 1
+end
+
 --- Synchronise state.order with the live buffer list.
+--- Uses a version counter to ensure this is an O(1) return during hot redraw frames.
 ---@return integer[]
 function M.sync()
+  if state.cached_bufs and state.version == state.cached_version then
+    return state.cached_bufs
+  end
+
   local all = vim.api.nvim_list_bufs()
   local live_set = {}
   local live_list = {}
@@ -80,6 +82,9 @@ function M.sync()
   end
 
   state.order = new_order
+  state.cached_bufs = new_order
+  state.cached_version = state.version
+
   return new_order
 end
 
@@ -93,7 +98,9 @@ end
 ---@param bufnr integer
 ---@return integer|nil
 function M.get_index(bufnr)
-  for i, b in ipairs(state.order) do
+  -- Ensure state is synced
+  local bufs = M.sync()
+  for i, b in ipairs(bufs) do
     if b == bufnr then
       return i
     end
@@ -104,8 +111,7 @@ end
 -- ─── reorder ──────────────────────────────────────────────────────────────
 
 --- Rebuild the custom buffer order from a list of file paths.
---- Any listed buffers not present in `paths` are appended so restore metadata
---- can be stale without losing live buffers.
+--- Any listed buffers not present in `paths` are appended.
 ---@param paths string[]
 ---@return integer[]
 function M.restore_order(paths)
@@ -143,6 +149,8 @@ function M.restore_order(paths)
   end
 
   state.order = reordered
+  state.cached_bufs = reordered
+  M.invalidate_cache()
   return reordered
 end
 
@@ -153,6 +161,9 @@ function M.move_left(bufnr)
   local idx = M.get_index(bufnr)
   if idx and idx > 1 then
     bufs[idx], bufs[idx - 1] = bufs[idx - 1], bufs[idx]
+    state.order = bufs
+    state.cached_bufs = bufs
+    M.invalidate_cache()
   end
 end
 
@@ -163,6 +174,9 @@ function M.move_right(bufnr)
   local idx = M.get_index(bufnr)
   if idx and idx < #bufs then
     bufs[idx], bufs[idx + 1] = bufs[idx + 1], bufs[idx]
+    state.order = bufs
+    state.cached_bufs = bufs
+    M.invalidate_cache()
   end
 end
 
@@ -200,10 +214,6 @@ local function pick_focus_target(bufnr, bufs, focus)
 end
 
 --- Safely delete a buffer via the Neovim API.
---- FIX #5: The old implementation used pcall(vim.cmd, "silent! bwipeout! N").
---- `silent!` suppresses Vimscript errors so pcall always gets ok=true —
---- meaning the "fallback" bdelete branch never ran.
---- nvim_buf_delete with force=true is the correct, error-surfacing API call.
 ---@param bufnr integer
 local function delete_buf(bufnr)
   if not vim.api.nvim_buf_is_valid(bufnr) then
@@ -211,15 +221,12 @@ local function delete_buf(bufnr)
   end
   local ok, err = pcall(vim.api.nvim_buf_delete, bufnr, { force = true })
   if not ok then
-    -- Surface the error as a non-fatal notification rather than swallowing it.
     vim.notify("tabline: could not delete buffer " .. bufnr .. ": " .. tostring(err), vim.log.levels.WARN)
   end
+  M.invalidate_cache()
 end
 
 --- Close bufnr, switching away all windows that currently show it.
---- FIX #6: Previously only the *current* window was redirected. Any split
---- or floating window also showing the buffer was left pointing at a
---- deleted buffer, which causes Neovim to display "[No Name]" or error.
 ---@param bufnr  integer
 ---@param focus  string  "left"|"right"|"previous"
 function M.close(bufnr, focus)
@@ -253,11 +260,9 @@ function M.close(bufnr, focus)
   local target = pick_focus_target(bufnr, bufs, focus or "left")
 
   if target then
-    -- FIX #6: Redirect every window that shows `bufnr`, not just the
-    -- current one.  nvim_list_wins() returns all windows in all tabs.
+    -- Redirect every window in all tabpages showing this buffer
     for _, win in ipairs(vim.api.nvim_list_wins()) do
       if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == bufnr then
-        -- pcall because the window could close during iteration
         pcall(vim.api.nvim_win_set_buf, win, target)
       end
     end
@@ -289,11 +294,6 @@ local function raw_label(b)
 end
 
 --- Compute unique, short display names for a list of buffers.
---- Strategy:
---   1. Use just the tail (filename).
---   2. If two files share the same tail, prepend successive parent
---      directory components until they are unique (or run out of path).
---   3. Truncate to max_len with a trailing ellipsis if needed.
 ---@param bufs    integer[]
 ---@param max_len integer   0 = no limit
 ---@return table<integer, string>
@@ -336,7 +336,6 @@ function M.get_display_names(bufs, max_len)
       local b = conflict_bufs[1]
       names[b] = vim.fn.fnamemodify(raw[b], ":t")
     else
-      -- Build a list-of-path-parts for each buffer in the conflict group
       local displays = {}
       for _, b in ipairs(conflict_bufs) do
         local parts = {}
@@ -346,8 +345,7 @@ function M.get_display_names(bufs, max_len)
         displays[b] = { parts = parts, depth = 1 }
       end
 
-      for _ = 1, 8 do -- max 8 path components deep
-        -- Compute current display string for each buffer
+      for _ = 1, 8 do
         local cur = {}
         for _, b in ipairs(conflict_bufs) do
           local d = displays[b]
@@ -360,7 +358,6 @@ function M.get_display_names(bufs, max_len)
           cur[b] = table.concat(seg, "/")
         end
 
-        -- Check uniqueness
         local seen = {}
         local all_unique = true
         for _, b in ipairs(conflict_bufs) do
@@ -378,7 +375,6 @@ function M.get_display_names(bufs, max_len)
           break
         end
 
-        -- Extend depth for still-conflicting buffers
         local still = {}
         for s, _ in pairs(seen) do
           local cnt = 0
@@ -408,7 +404,6 @@ function M.get_display_names(bufs, max_len)
         end
 
         if not extended then
-          -- Ran out of path components; assign whatever we have
           for _, b in ipairs(conflict_bufs) do
             if not names[b] then
               names[b] = cur[b]
@@ -418,7 +413,6 @@ function M.get_display_names(bufs, max_len)
         end
       end
 
-      -- Safety fallback
       for _, b in ipairs(conflict_bufs) do
         if not names[b] then
           names[b] = vim.fn.fnamemodify(raw[b], ":t")
@@ -427,14 +421,12 @@ function M.get_display_names(bufs, max_len)
     end
   end
 
-  -- Final fallback: every buf must have a name
   for _, b in ipairs(bufs) do
     if not names[b] then
       names[b] = raw[b]
     end
   end
 
-  -- Truncate long names
   if max_len and max_len > 0 then
     for _, b in ipairs(bufs) do
       names[b] = truncate_display(names[b], max_len)

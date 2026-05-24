@@ -1,6 +1,5 @@
 -- tabline/config.lua
 -- Holds default configuration and the apply() merge helper.
--- Nothing here has side-effects; it is a pure data module.
 
 local M = {}
 
@@ -11,6 +10,8 @@ local M = {}
 ---@field close_icon       string   Close button character
 ---@field separator        string   Character between tabs (empty string = none)
 ---@field show_close       boolean  Whether to show the close button
+---@field show_bufnr       boolean  Whether to show the buffer number in tabs
+---@field show_readonly    boolean  Whether to show a lock icon for readonly buffers
 ---@field focus_on_close   string   Which buffer to focus after closing: "left"|"right"|"previous"
 ---@field keymaps          table    Keymap strings; set a key to false to disable
 
@@ -18,22 +19,29 @@ M.defaults = {
   max_buffers = 20,
   max_name_length = 24,
   padding = 1,
+  -- Premium Close Icon options (copy/paste into close_icon below):
+  --   "✘" (Standard bold cross)
+  --   "󰅖" (Nerd Font square cross)
+  --   "󰅶" (Nerd Font circle cross)
+  --   "󰅱" (Nerd Font cancel button)
+  --   "" (Nerd Font thin cross)
+  --   "" (Nerd Font minus/remove circle)
+  --   "" (Nerd Font diagonal cross)
   close_icon = "✘",
-  separator = "", -- between tabs; "" = none, "│" = thin bar, etc.
+  separator = "", -- space between tabs
   show_close = true,
+  show_bufnr = false, -- Default to false (buffer numbers removed as requested)
+  show_readonly = true,
   focus_on_close = "left", -- "left" | "right" | "previous"
 
   keymaps = {
     next = "<Tab>",
     prev = "<S-Tab>",
     close = "<A-c>",
-    -- move_left = "<leader>b<",
-    -- move_right = "<leader>b>",
   },
 }
 
 --- Deep-merge user config over defaults.
---- Users only need to supply keys they want to override.
 ---@param user_config table|nil
 ---@return TablineConfig
 function M.apply(user_config)

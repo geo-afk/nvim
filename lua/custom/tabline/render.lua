@@ -1,38 +1,75 @@
 -- tabline/render.lua
--- Builds the tabline string that Neovim evaluates on every redraw.
---
--- PERFORMANCE DESIGN
--- ──────────────────
--- • All string building uses a pre-allocated `parts` table + table.concat()
---   at the end.  Intermediate `..` concatenation is never used in the hot
---   loop — each `..` would allocate a new string object in Lua.
--- • vim.bo[b].* is accessed via the Lua API (hash-table lookup) rather than
---   vim.fn.getbufvar() which has Vimscript call overhead.
--- • Cached strings (padding, close button) are precomputed in setup() so
---   the hot loop performs zero string allocations for them.
--- • The name-cache fingerprint includes both bufnr AND buffer name so that
---   a rename (e.g. :e file, :saveas) correctly busts the cache.
--- • The visibility window is arithmetic-only before the render loop so the
---   loop body is branchless for the common (no-truncation) case.
--- • Every buffer access inside the loop is guarded: a buffer can be deleted
---   between get_buffers() and the loop body (async events, autocmds).
+-- High-performance visual renderer that implements slanted tabs,
+-- project-accented underlines, mini.icons, buffer numbers, lock indicators,
+-- precomputed zero-allocation string caches, and automatic responsive collapse.
 
 local M = {}
-local buffers_mod = nil -- lazy-require to avoid circular deps at load time
+
+local buffers_mod = nil
+local projects_mod = nil
+local highlights_mod = nil
 
 local _config = nil
 
--- ─── precomputed per-config strings (set in M.setup) ──────────────────────
--- Recalculated only when setup() is called, not on every render.
-local _padding = " " -- padding string (spaces × config.padding)
-local _close_btn = "✘" -- close icon rendered without extra gap
+-- Delimiter characters for slanted active tab
+local SLANT_LEFT = ""  -- U+E0BE (solid left triangle)
+local SLANT_RIGHT = "" -- U+E0BC (solid right triangle)
 
--- ─── name-cache ───────────────────────────────────────────────────────────
--- Cache keyed on a fingerprint of (bufnr, name) pairs so that:
---   • Tab reordering  → different bufnr sequence → cache miss ✓
---   • Buffer rename   → same bufnr, different name → cache miss ✓  (BUG FIX #1)
---   • Normal BufEnter → same sequence + names → cache hit ✓
+-- ─── JIT Precomputed Click Directives ──────────────────────────────────────
+local click_cache = {}
+local close_cache = {}
 
+local function get_click_str(b)
+  local s = click_cache[b]
+  if not s then
+    s = "%" .. b .. "@v:lua.TablineHandleClick@"
+    click_cache[b] = s
+  end
+  return s
+end
+
+local function get_close_str(b)
+  local s = close_cache[b]
+  if not s then
+    s = "%" .. b .. "@v:lua.TablineHandleClose@"
+    close_cache[b] = s
+  end
+  return s
+end
+
+-- ─── Dynamic Icon highlight cache ──────────────────────────────────────────
+local active_icon_hl_cache = {}
+
+local function get_active_icon_highlight(proj_color, icon_hl)
+  local key = proj_color:gsub("#", "") .. "_" .. icon_hl
+  local hl_name = "TabLineActiveIcon_" .. key
+  if active_icon_hl_cache[key] then
+    return hl_name
+  end
+
+  vim.api.nvim_set_hl(0, hl_name, {
+    bg = proj_color,
+    fg = "#11111b",
+    bold = true,
+  })
+
+  active_icon_hl_cache[key] = true
+  return hl_name
+end
+
+-- ─── Responsive Filename Compressor ──────────────────────────────────────
+local function shrink_name(name)
+  local tail = vim.fn.fnamemodify(name, ":t")
+  local ext = vim.fn.fnamemodify(name, ":e")
+  if ext ~= "" then
+    local base = vim.fn.fnamemodify(name, ":t:r")
+    return base:sub(1, 1) .. "." .. ext
+  else
+    return tail:sub(1, 1)
+  end
+end
+
+-- ─── Display Name Cache ───────────────────────────────────────────────────
 local name_cache = {
   fingerprint = nil,
   names = {},
@@ -42,33 +79,20 @@ local function is_valid_buf(bufnr)
   return type(bufnr) == "number" and vim.api.nvim_buf_is_valid(bufnr)
 end
 
---- Compute a fingerprint that captures both ordering AND names.
---- Format: "id1:name1|id2:name2|..."
---- FIX #1: Previously only used bufnrs, so renaming a buffer (`:e file`,
---- `:saveas`) would not invalidate the cache and the old name stayed shown.
----@param bufs integer[]
----@return string
 local function fingerprint(bufs)
   local t = {}
   for _, b in ipairs(bufs) do
     if is_valid_buf(b) then
-      -- nvim_buf_get_name is cheap (C string copy); using it here is correct
-      -- because the cache is only re-keyed, not displayed directly.
       t[#t + 1] = b .. ":" .. vim.api.nvim_buf_get_name(b)
     end
   end
   return table.concat(t, "|")
 end
 
---- Explicitly bust the name cache (called from init.lua on BufReadPost etc.)
 function M.invalidate_name_cache()
   name_cache.fingerprint = nil
 end
 
---- Get display names, using cache when possible.
----@param bufs    integer[]
----@param max_len integer
----@return table<integer, string>
 local function get_names(bufs, max_len)
   local valid_bufs = {}
   for _, b in ipairs(bufs) do
@@ -81,8 +105,9 @@ local function get_names(bufs, max_len)
   if name_cache.fingerprint == fp then
     return name_cache.names
   end
+
   local names = {}
-  if buffers_mod ~= nil then
+  if buffers_mod then
     names = buffers_mod.get_display_names(valid_bufs, max_len)
   end
   name_cache.fingerprint = fp
@@ -90,12 +115,7 @@ local function get_names(bufs, max_len)
   return names
 end
 
--- ─── visibility window ────────────────────────────────────────────────────
-
----@param n_bufs     integer
----@param cur_idx    integer  1-based
----@param max_shown  integer  0 = unlimited
----@return integer start, integer stop, boolean trunc_left, boolean trunc_right
+-- ─── Visibility Window ────────────────────────────────────────────────────
 local function compute_window(n_bufs, cur_idx, max_shown)
   if max_shown <= 0 or n_bufs <= max_shown then
     return 1, n_bufs, false, false
@@ -110,53 +130,32 @@ local function compute_window(n_bufs, cur_idx, max_shown)
   return start, stop, (start > 1), (stop < n_bufs)
 end
 
--- ─── highlight tokens (module-level constants) ────────────────────────────
-
-local HL = {
-  sel = "%#TabLineSel#",
-  normal = "%#TabLine#",
-  fill = "%#TabLineFill#",
-  cls_sel = "%#TabLineCloseSel#",
-  cls_nor = "%#TabLineClose#",
-  trunc = "%#TabLineTrunc#",
-  sep = "%#TabLineSep#",
-}
-
--- ─── public ───────────────────────────────────────────────────────────────
-
+-- ─── setup ────────────────────────────────────────────────────────────────
 function M.setup(config)
   _config = config
   buffers_mod = require("custom.tabline.buffers")
+  projects_mod = require("custom.tabline.projects")
+  highlights_mod = require("custom.tabline.highlights")
 
-  -- FIX #4: Precompute strings that were previously built on every render.
-  _padding = string.rep(" ", math.max(0, config.padding))
-  _close_btn = config.close_icon
-
-  -- Bust cache so any leftover state from a previous setup() call is dropped.
   name_cache.fingerprint = nil
   name_cache.names = {}
+  active_icon_hl_cache = {}
 end
 
---- Build and return the full tabline string.
---- Called by Neovim via:  vim.o.tabline = "%!v:lua.require'tabline'.render()"
----@return string
+-- ─── render ───────────────────────────────────────────────────────────────
 function M.render()
   if not _config then
     return ""
   end
-  if not buffers_mod then
-    buffers_mod = require("custom.tabline.buffers")
-  end
 
   local bufs = buffers_mod.get_buffers()
   if #bufs == 0 then
-    return HL.fill
+    return "%#TabLineFill#"
   end
 
   local current = vim.api.nvim_get_current_buf()
-  local max_bufs = _config.max_buffers
 
-  -- Locate current buffer's position in the ordered list
+  -- Find active buffer position
   local cur_idx = 1
   for i, b in ipairs(bufs) do
     if b == current then
@@ -165,10 +164,9 @@ function M.render()
     end
   end
 
-  -- Compute the visible slice
-  local si, ei, trunc_l, trunc_r = compute_window(#bufs, cur_idx, max_bufs)
+  -- Slicing window calculation
+  local si, ei, trunc_l, trunc_r = compute_window(#bufs, cur_idx, _config.max_buffers)
 
-  -- Build visible-slice list for name lookup (only the shown subset)
   local visible = {}
   for i = si, ei do
     visible[#visible + 1] = bufs[i]
@@ -176,7 +174,21 @@ function M.render()
 
   local names = get_names(visible, _config.max_name_length)
 
-  -- ── string build ──────────────────────────────────────────────────────
+  -- Estimate visual layout width for responsive triggers
+  local total_cols = vim.o.columns
+  local estimated_width = 0
+  for _, b in ipairs(visible) do
+    if is_valid_buf(b) then
+      local n = names[b] or "[?]"
+      -- Est. buffer number (3) + DevIcon (3) + name (len) + readonly (2) + close (2) + padding
+      estimated_width = estimated_width + #n + 12
+    end
+  end
+
+  -- Trigger smart collapse if spacing is restricted
+  local collapse = (estimated_width > total_cols - 10) or (#bufs > 8)
+
+  -- Render elements array
   local parts = {}
   local n = 0
   local function P(s)
@@ -184,56 +196,153 @@ function M.render()
     parts[n] = s
   end
 
+  -- Left truncation symbol
   if trunc_l then
-    P(HL.trunc)
-    P(" < ")
+    P("%#TabLineTrunc#")
+    P("  ")
   end
 
+  local ok_mini, mini_icons = pcall(require, "mini.icons")
+
+  -- Render visible buffers
   for i = si, ei do
     local b = bufs[i]
 
-    -- FIX #3: Guard every per-buffer access. A buffer can be wiped between
-    -- get_buffers() and here by an async event or a fast autocmd chain.
     if is_valid_buf(b) then
       local is_cur = (b == current)
+      local is_ro = vim.bo[b].readonly or not vim.bo[b].modifiable
 
-      local hl_tab = is_cur and HL.sel or HL.normal
-      local hl_cls = is_cur and HL.cls_sel or HL.cls_nor
+      -- 1. Project details & dynamic highlight generation
+      local proj = projects_mod.detect(b)
+      local sel_hl, edge_hl, close_hl, ro_hl
 
-      if _config.separator ~= "" and i > si then
-        P(HL.sep)
-        P(_config.separator)
+      if is_cur then
+        sel_hl, edge_hl, close_hl, ro_hl = highlights_mod.get_project_highlights(proj.color)
       end
 
-      -- Label click region (left = switch, middle = close)
-      P(hl_tab)
-      P("%" .. b .. "@v:lua.TablineHandleClick@")
-      P(_padding)
+      -- 2. DevIcon from mini.icons
+      local icon, icon_hl = "󰈙", "TabLine"
+      if ok_mini then
+        local name = vim.api.nvim_buf_get_name(b)
+        if name ~= "" then
+          local file_icon, file_hl = mini_icons.get("file", name)
+          if file_icon then
+            icon = file_icon
+            icon_hl = file_hl
+          end
+        end
+      end
 
-      -- FIX #2: Escape literal `%` in filenames so Neovim doesn't interpret
-      -- them as tabline format directives (e.g. "100%_done.lua" → crash/garble).
+      -- In inactive tabs under collapse pressure, we hide the icon
+      local show_icon = not (collapse and not is_cur)
+
+      -- 3. File name (shrink if inactive under collapse pressure)
       local raw_name = names[b] or "[?]"
-      P(raw_name:gsub("%%", "%%%%"))
-
-      P(_padding)
-      P("%X") -- end label click region
-
-      if _config.show_close then
-        P(hl_cls)
-        P("%" .. b .. "@v:lua.TablineHandleClose@")
-        P(_close_btn) -- FIX #4: precomputed, no allocation here
-        P("%X")
-        P(" ")
+      if collapse and not is_cur then
+        raw_name = shrink_name(raw_name)
       end
-    end -- nvim_buf_is_valid
+      local clean_name = raw_name:gsub("%%", "%%%%")
+
+      -- ─── Tab Rendering ───
+
+      -- Tab Separator between inactive tabs
+      if i > si and not is_cur and bufs[i - 1] ~= current then
+        P("%#TabLineSep#")
+        P("│")
+      end
+
+      if is_cur then
+        -- Active slanted tab start
+        P("%#" .. edge_hl .. "#")
+        P(SLANT_LEFT)
+
+        -- Active container body
+        P("%#" .. sel_hl .. "#")
+        P(get_click_str(b))
+
+        -- Optional Buffer Number
+        if _config.show_bufnr then
+          P(" " .. b .. " ")
+        else
+          P(" ")
+        end
+
+        -- DevIcon with native colors and project active background matching
+        local active_icon_hl = get_active_icon_highlight(proj.color, icon_hl)
+        P("%#" .. active_icon_hl .. "#")
+        P(icon)
+
+        -- Buffer Name
+        P("%#" .. sel_hl .. "#")
+        P(" " .. clean_name)
+
+        -- Readonly status lock
+        if is_ro then
+          P(" %#" .. ro_hl .. "#󰌾%#" .. sel_hl .. "#")
+        end
+
+        -- Close icon
+        if _config.show_close then
+          P(" %#" .. close_hl .. "#")
+          P(get_close_str(b))
+          P(_config.close_icon)
+          P("%X")
+        end
+
+        P(" ")
+        P("%X") -- End click target
+
+        -- Active slanted tab end
+        P("%#" .. edge_hl .. "#")
+        P(SLANT_RIGHT)
+      else
+        -- Inactive tab body
+        P("%#TabLine#")
+        P(get_click_str(b))
+
+        -- Optional Buffer Number
+        if _config.show_bufnr then
+          P("  " .. b .. " ")
+        else
+          P("  ")
+        end
+
+        -- Inactive Icon (rendered in its standard highlight, if not collapsed)
+        if show_icon then
+          P("%#" .. icon_hl .. "#")
+          P(icon)
+          P("%#TabLine#")
+        end
+
+        -- Filename
+        P(" " .. clean_name)
+
+        -- Readonly status lock
+        if is_ro then
+          P(" %#TabLineReadOnly#󰌾%#TabLine#")
+        end
+
+        -- Close icon (hidden on inactive tabs under collapse pressure)
+        if _config.show_close and not (collapse and not is_cur) then
+          P(" %#TabLineClose#")
+          P(get_close_str(b))
+          P(_config.close_icon)
+          P("%X")
+        end
+
+        P(" ")
+        P("%X") -- End click target
+      end
+    end
   end
 
+  -- Right truncation symbol
   if trunc_r then
-    P(HL.trunc)
-    P(" > ")
+    P("%#TabLineTrunc#")
+    P("  ")
   end
 
-  P(HL.fill)
+  P("%#TabLineFill#")
   return table.concat(parts)
 end
 

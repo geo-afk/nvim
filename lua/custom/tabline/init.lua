@@ -1,16 +1,6 @@
 -- tabline/init.lua
--- Public API and entry point.
---
--- Users call:
---   require("custom.tabline").setup({ ... })
---
--- Public functions (usable in keymaps or commands):
---   require("custom.tabline").next_buffer()
---   require("custom.tabline").prev_buffer()
---   require("custom.tabline").close_buffer()
---   require("custom.tabline").move_buffer_left()
---   require("custom.tabline").move_buffer_right()
---
+-- Public API, entry point, autocmd coordination, and debounced event queues.
+
 local M = {}
 local nvim_utils = require("utils.nvim")
 
@@ -20,10 +10,26 @@ local _render = nil ---@type table|nil
 local _highlights = nil ---@type table|nil
 local _mouse = nil ---@type table|nil
 
+-- Debounce timer to prevent micro-stuttering
+local redraw_timer = nil
+
+local function debounced_redraw()
+  if redraw_timer then
+    return
+  end
+  redraw_timer = vim.uv.new_timer()
+  redraw_timer:start(8, 0, vim.schedule_wrap(function()
+    vim.cmd("redrawtabline")
+    if redraw_timer then
+      redraw_timer:close()
+      redraw_timer = nil
+    end
+  end))
+end
+
 -- ─── tabline entry point ──────────────────────────────────────────────────
 
---- Called by Neovim on every tabline redraw via:
----   vim.o.tabline = "%!v:lua.require'tabline'.render()"
+--- Called by Neovim on every tabline redraw
 ---@return string
 function M.render()
   if not _render then
@@ -89,8 +95,6 @@ function M.prev_buffer()
     return
   end
   local current = vim.api.nvim_get_current_buf()
-  -- FIX #8: Default to idx=1 when current is not in the list so that
-  -- ((1-2) % n)+1 = n correctly wraps to the last buffer.
   local idx = _buffers.get_index(current) or 1
   local prev_b = bufs[((idx - 2) % #bufs) + 1]
   if prev_b and prev_b ~= current then
@@ -106,6 +110,8 @@ function M.close_buffer(bufnr)
   end
   local target = bufnr or vim.api.nvim_get_current_buf()
   _buffers.close(target, _config.focus_on_close)
+  M.invalidate_all_caches(target)
+  debounced_redraw()
 end
 
 function M.move_buffer_left(bufnr)
@@ -114,7 +120,7 @@ function M.move_buffer_left(bufnr)
   end
   local target = bufnr or vim.api.nvim_get_current_buf()
   _buffers.move_left(target)
-  vim.cmd("redrawtabline")
+  debounced_redraw()
 end
 
 function M.move_buffer_right(bufnr)
@@ -123,7 +129,27 @@ function M.move_buffer_right(bufnr)
   end
   local target = bufnr or vim.api.nvim_get_current_buf()
   _buffers.move_right(target)
-  vim.cmd("redrawtabline")
+  debounced_redraw()
+end
+
+-- ─── cache invalidation coordination ──────────────────────────────────────
+
+--- Bust all caches for a specific buffer or the entire system
+---@param bufnr integer|nil
+function M.invalidate_all_caches(bufnr)
+  -- 1. Invalidate name cache
+  if _render then
+    _render.invalidate_name_cache()
+  end
+  -- 2. Invalidate buffer sync cache
+  if _buffers then
+    _buffers.invalidate_cache()
+  end
+  -- 3. Invalidate project detection cache
+  local ok_proj, proj = pcall(require, "custom.tabline.projects")
+  if ok_proj then
+    proj.invalidate_cache(bufnr)
+  end
 end
 
 -- ─── autocmds ─────────────────────────────────────────────────────────────
@@ -131,47 +157,42 @@ end
 local function setup_autocmds()
   local grp = nvim_utils.augroup("TablinePlugin")
 
-  -- Standard redraw events
+  -- Core buffer addition and deletion triggers cache busting
   nvim_utils.autocmd({
     "BufAdd",
     "BufDelete",
-    "BufEnter",
-    "BufModifiedSet",
-    "TabClosed",
-  }, {
-    group = grp,
-    callback = function()
-      vim.schedule(function()
-        vim.cmd("redrawtabline")
-      end)
-    end,
-  })
-
-  -- FIX #9: BufReadPost / BufNewFile / BufFilePost must bust the name cache
-  -- synchronously, then schedule the visual redraw.
-  nvim_utils.autocmd({
+    "BufFilePost",
     "BufReadPost",
     "BufNewFile",
-    "BufFilePost",
+    "TabClosed",
+    "TermOpen",
   }, {
     group = grp,
-    callback = function()
-      if _render then
-        _render.invalidate_name_cache()
-      end
-      vim.schedule(function()
-        vim.cmd("redrawtabline")
-      end)
+    callback = function(event)
+      M.invalidate_all_caches(event.buf)
+      debounced_redraw()
     end,
   })
 
-  -- Re-apply highlights whenever the colorscheme changes.
+  -- Redraw visual states safely on user triggers
+  nvim_utils.autocmd({
+    "BufEnter",
+    "BufModifiedSet",
+  }, {
+    group = grp,
+    callback = function()
+      debounced_redraw()
+    end,
+  })
+
+  -- Re-apply highlights whenever the colorscheme changes
   nvim_utils.autocmd("ColorScheme", {
     group = grp,
     callback = function()
       if _highlights then
         _highlights.setup()
       end
+      debounced_redraw()
     end,
   })
 end
@@ -179,8 +200,6 @@ end
 -- ─── user commands ────────────────────────────────────────────────────────
 
 local function setup_commands()
-  -- FIX #10: force=true so re-calling setup() does not raise
-  -- "command already exists" errors.
   local opts = { force = true }
 
   nvim_utils.command("TablineNext", M.next_buffer, vim.tbl_extend("force", opts, { desc = "TabLine: next buffer" }))
@@ -227,19 +246,26 @@ function M.setup(user_config)
   vim.o.showtabline = 2
   vim.o.tabline = "%!v:lua.require'custom.tabline'.render()"
 
+  -- Apply premium keymaps
   local map = vim.keymap.set
-  map("n", "<Tab>", function()
-    M.next_buffer()
-  end, { desc = "Next buffer" })
-  map("n", "<S-Tab>", function()
-    M.prev_buffer()
-  end, { desc = "Prev buffer" })
-  map("n", "<A-c>", function()
-    M.close_buffer()
-  end, { desc = "Close buffer" })
+  if _config.keymaps.next then
+    map("n", _config.keymaps.next, function()
+      M.next_buffer()
+    end, { desc = "Tabline: next buffer" })
+  end
+  if _config.keymaps.prev then
+    map("n", _config.keymaps.prev, function()
+      M.prev_buffer()
+    end, { desc = "Tabline: prev buffer" })
+  end
+  if _config.keymaps.close then
+    map("n", _config.keymaps.close, function()
+      M.close_buffer()
+    end, { desc = "Tabline: close buffer" })
+  end
 
-  setup_autocmds() -- augroup is cleared then recreated → idempotent
-  setup_commands() -- force=true → idempotent
+  setup_autocmds()
+  setup_commands()
 end
 
 --- Allow overriding individual highlight groups after setup.
