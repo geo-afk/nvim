@@ -798,7 +798,10 @@ local function execute(buf, mode)
       -- cmdline-mode context has set redir_off=true (Neovim issue #35321).
       -- vim.fn.execute() explicitly resets redir_off before running the command,
       -- so it reliably captures output from :echo, :messages, :lua print(), etc.
+      vim.g.custom_cmdline_busy = true
       local ok, result = pcall(vim.fn.execute, input)
+      vim.g.custom_cmdline_busy = false
+
       local out, is_error
       if ok then
         out = type(result) == "string" and result or ""
