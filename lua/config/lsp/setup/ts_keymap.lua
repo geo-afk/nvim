@@ -25,11 +25,12 @@ local function current_file(bufnr)
 end
 
 local function run_source_action(client, bufnr, kind)
-  local params = vim.lsp.util.make_range_params(0, client.offset_encoding)
-  params.context = {
-    only = { kind },
-    diagnostics = {},
-  }
+  local params = vim.tbl_extend("force", vim.lsp.util.make_range_params(0, client.offset_encoding), {
+    context = {
+      only = { kind },
+      diagnostics = {},
+    },
+  })
 
   client:request("textDocument/codeAction", params, function(err, actions)
     if err then
