@@ -76,13 +76,6 @@ loader.register({
     end,
   },
   {
-    mod = "custom.codelens",
-    event = "LspAttach",
-    config = function(codelens)
-      codelens.setup()
-    end,
-  },
-  {
     mod = "custom.lsp_keymapper",
     event = "LspAttach",
     config = function(keymapper)
