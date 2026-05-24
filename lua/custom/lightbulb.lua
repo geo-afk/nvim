@@ -124,11 +124,11 @@ function M.refresh()
   end
 
   -- Prepare LSP Parameters
-  local params = vim.lsp.util.make_range_params(0, active_client.offset_encoding)
-  -- Include diagnostics in context so servers can return specific fixes
-  params.context = {
-    diagnostics = vim.diagnostic.get(bufnr, { lnum = line }),
-  }
+  local params = vim.tbl_extend("force", vim.lsp.util.make_range_params(0, active_client.offset_encoding), {
+    context = {
+      diagnostics = vim.diagnostic.get(bufnr, { lnum = line }),
+    },
+  })
 
   -- Send asynchronous request to all supporting clients
   vim.lsp.buf_request(bufnr, "textDocument/codeAction", params, function(err, result, _)
@@ -152,7 +152,7 @@ function M.refresh()
   end)
 end
 
--- ── Setup ────────────────────────────────────────────────────────────────────
+---── Setup ────────────────────────────────────────────────────────────────────
 
 function M.setup(opts)
   M.config = vim.tbl_deep_extend("force", M.config, opts or {})
