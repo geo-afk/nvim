@@ -8,10 +8,15 @@ M.defaults = {
     interval = 45,
     steps = 5,
   },
+  -- separators = {
+  --   wide = " ║ ",
+  --   compact = " ",
+  --   sharp = "▐",
+  -- },
   separators = {
-    wide = " │ ",
+    wide = " ┇ ",
     compact = " ",
-    sharp = "▌",
+    sharp = "●",
   },
   density = {
     target_padding = 2,
