@@ -245,7 +245,7 @@ end
 ---@param client table
 ---@param bufnr integer
 function M.on_attach(client, bufnr)
-  if not client.supports_method(METHOD_CODELENS) then
+  if not client:supports_method(METHOD_CODELENS) then
     return
   end
 
@@ -278,6 +278,11 @@ function M.run_action()
   local cursor_pos = vim.api.nvim_win_get_cursor(0)
   local cursor_line = cursor_pos[1] - 1
   local lenses = vim.lsp.codelens.get({ bufnr = bufnr })
+
+  -- Filter out invalid lenses that might be missing range data (e.g. malformed server response)
+  lenses = vim.tbl_filter(function(l)
+    return l and l.range and l.range.start and l.range.start.line
+  end, lenses or {})
 
   if not lenses or #lenses == 0 then
     vim.notify("No CodeLens found", vim.log.levels.INFO, { title = "CodeLens" })
