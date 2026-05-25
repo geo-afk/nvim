@@ -101,7 +101,7 @@ loader.register({
   },
   {
     mod = "custom.autoclose",
-    event = "BufReadPost",
+    event = { "BufReadPost", "BufNewFile", "InsertEnter" },
     keys = {
       "<leader>aa",
       "<leader>ad",
