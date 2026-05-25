@@ -5,22 +5,15 @@ if not ok then
   vim.notify("[angularls] utils.angular_location not found; using default cmd.", vim.log.levels.WARN)
 end
 
--- Store resolved cmd; updated per-connection in before_init
-local _base_cmd = { "ngserver", "--stdio" }
-
 return {
-  before_init = function(_, config)
-    -- FIX #2: resolve cmd with root_dir here, not in cmd function
-    if ok and type(angular_location.build_cmd) == "function" then
-      local built = angular_location.build_cmd(config.root_dir)
-      if type(built) == "table" and #built > 0 then
-        _base_cmd = built
-      end
-    end
-  end,
-
   cmd = function(dispatchers)
-    return vim.lsp.rpc.start(_base_cmd, dispatchers)
+    local cmd = { "ngserver", "--stdio" }
+    if ok and type(angular_location.build_cmd) == "function" then
+      local bufname = vim.api.nvim_buf_get_name(0)
+      local root = ok_utils and utils.find_angular_root(bufname) or vim.fn.getcwd()
+      cmd = angular_location.build_cmd(root)
+    end
+    return vim.lsp.rpc.start(cmd, dispatchers)
   end,
 
   root_dir = function(bufnr, on_dir)
@@ -38,7 +31,7 @@ return {
   filetypes = { "html", "htmlangular", "typescript" },
 
   settings = {
-    angular = { -- FIX #21: namespace should be 'angular'
+    angular = {
       experimental = {
         templateDiagnostics = true,
         templateCodeLens = true,
