@@ -57,9 +57,15 @@ function M.setup(opts)
 
   -- Bind closing delimiters for skip-over behavior
   for closer, _ in pairs(closers) do
+    if pairs_map[closer] == closer then
+      goto continue
+    end
+
     vim.keymap.set("i", closer, function()
       return handlers.handle_close(closer)
     end, { expr = true, desc = "Smart skip: " .. closer })
+
+    ::continue::
   end
 
   -- Bind tag closing

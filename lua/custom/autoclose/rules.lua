@@ -78,6 +78,11 @@ function M.can_close(open, close)
     return false
   end
 
+  -- Identical pairs, such as quotes, should skip over an existing closer.
+  if open == close and next_char == close then
+    return false
+  end
+
   -- Don't pair if we are right after an escape backslash (e.g. typing '(' after '\' -> '\(')
   if prev_char == "\\" then
     return false
