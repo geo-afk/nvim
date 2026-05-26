@@ -239,9 +239,7 @@ function M.variants(ctx)
     .. smart_path(d.name, math.max(14, math.floor(win_width * 0.23)))
     .. hl("StatusLine")
   local short_path = hl("StatusLineFilePath") .. smart_path(d.name, 18) .. hl("StatusLine")
-  local name_only = hl("StatusLineFilePath")
-    .. smart_path(vim.fn.fnamemodify(d.name, ":t"), 14)
-    .. hl("StatusLine")
+  local name_only = hl("StatusLineFilePath") .. smart_path(vim.fn.fnamemodify(d.name, ":t"), 14) .. hl("StatusLine")
   local ft = d.ft ~= "" and (hl("StatusLineChipMuted") .. " " .. d.ft .. " " .. hl("StatusLine")) or ""
   local size = hl("StatusLineFileSize") .. fmt_size(d.size) .. hl("StatusLine")
   local lines = hl("StatusLineLineCount") .. "󰦕 " .. d.lines .. "L" .. hl("StatusLine")
@@ -259,7 +257,7 @@ end
 -- ---------------------------------------------------------------------------
 -- Build the rendered string (called once per cache miss)
 -- ---------------------------------------------------------------------------
-local function build(winid, bufnr, active, win_width)
+local function build(bufnr, win_width)
   local tier = width_bucket(win_width)
 
   local ft = vim.bo[bufnr].filetype or ""
@@ -345,7 +343,7 @@ function M.render(winid, bufnr, active, width)
   if _cache[key] then
     return _cache[key]
   end
-  local s = build(winid, bufnr, active, win_width)
+  local s = build(bufnr, win_width)
   _cache[key] = s
   return s
 end

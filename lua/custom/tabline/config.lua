@@ -16,18 +16,17 @@ local M = {}
 ---@field keymaps          table    Keymap strings; set a key to false to disable
 
 M.defaults = {
-  max_buffers = 20,
+  max_buffers = 10,
   max_name_length = 24,
   padding = 1,
   -- Premium Close Icon options (copy/paste into close_icon below):
-  --   "✘" (Standard bold cross)
   --   "󰅖" (Nerd Font square cross)
-  --   "󰅶" (Nerd Font circle cross)
   --   "󰅱" (Nerd Font cancel button)
   --   "" (Nerd Font thin cross)
   --   "" (Nerd Font minus/remove circle)
   --   "" (Nerd Font diagonal cross)
-  close_icon = "✘",
+  -- close_icon = "✘",
+  close_icon = "",
   separator = "", -- space between tabs
   show_close = true,
   show_bufnr = false, -- Default to false (buffer numbers removed as requested)
