@@ -11,6 +11,7 @@ local search = require("custom.explorer.search")
 local search_ui = require("custom.explorer.search_ui")
 local icons = require("custom.explorer.icons")
 local store = require("custom.explorer.project_store")
+local diag = require("custom.explorer.diagnostics")
 local nvim_utils = require("utils.nvim")
 
 local api = vim.api
@@ -286,6 +287,9 @@ function M.open(opts)
     store.push_recent(S.root)
     -- Clear open dirs when switching projects to avoid showing stale state
     S.open_dirs = {}
+    -- Invalidate git repo cache for the new root so git.fetch() re-checks
+    -- whether new_root is actually a git repository.
+    git.invalidate_repo_cache(new_root)
   end
 
   S.root = new_root
@@ -457,6 +461,10 @@ function M.setup(opts)
   local km = c.keymaps
   S.close_fn = M.close
 
+  -- Register the DiagnosticChanged autocmd for folder-level severity badges.
+  -- This is a global listener; apply() itself guards on S.buf validity.
+  diag.setup()
+
   nvim_utils.command("Explorer", function(a)
     M.toggle({ root = a.args ~= "" and a.args or nil })
   end, { nargs = "?", complete = "dir", desc = "Toggle file explorer" })
@@ -488,6 +496,10 @@ function M.setup(opts)
       win.reset_hl()
       win.ensure_hl()
       git.clear_sign_cache() -- glyph widths may differ across fonts/themes
+      -- The project-aware accent in ensure_hl() reads S.root; no additional
+      -- action needed here.  The repo-existence cache is root-keyed, so a
+      -- colorscheme change (which doesn't change root) doesn't need a cache
+      -- clear.
       S.icon_fn = icons.resolve()
       if S.buf and api.nvim_buf_is_valid(S.buf) then
         render._paint()

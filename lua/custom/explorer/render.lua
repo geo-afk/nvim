@@ -2,38 +2,39 @@
 --
 -- Buffer layout (1-based lines / 0-based rows):
 --
---   Line 1  row 0  │   󰍉  filter files…     ← search bar (always visible)
---   [virt_line]    │  ──────────────────    ← separator (not a real line)
---   Line 2  row 1  │  ╰─ 󰢱 init.lua        ← S.items[1]
---   Line 3  row 2  │  ├─ 󰢱 foo.lua         ← S.items[2]
+--   Line 1  row 0  ╭──── SEARCH ────╮     ← search bar top border
+--   Line 2  row 1  │  󰍉  filter…    │     ← search bar input row
+--   Line 3  row 2  ╰────────────────╯     ← search bar bottom border
+--   Line 4  row 3  │  ╰─ 󰢱 init.lua       ← S.items[1]
+--   Line 5  row 4  │  ├─ 󰢱 foo.lua        ← S.items[2]
 --   …
 --
--- Coordinate rules:
---   S.items[i]  →  1-based line i+1,  0-based row i
---   cursor row r  →  S.items[r-1]   (valid when r >= 2)
---   git/mark extmark for S.items[i]  →  row i
+-- Coordinate rules (delegated to search_ui):
+--   S.items[i]  →  line search_ui.line_for_item(i),  row search_ui.row_for_item(i)
 --
 -- Sign column (cols 0-1 of every item row):
 --   Always written as two spaces ("  ") in the buffer text.
 --   Overlaid by git.lua (priority 20) or marks.lua (priority 30).
---   Marks win over git signs when both are present.
 --   The 2-col width is a constant shared with git.lua via SIGN_PH_WIDTH.
 --
--- ── Search bar visual states ──────────────────────────────────────────────
+-- Changes vs original:
 --
---  IDLE / empty   ░░ 󰍉 filter files…                    ░░
---                 ╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌  (dashed)
+--  1. build_item_lines() now reads item._prefix (pre-computed by tree.lua)
+--     instead of reassembling the connector string from item.parents_last on
+--     every render.  This removes the per-item unpack + loop.
 --
---  FILTER SET     ▓▓ 󰍉 lua                      3 matches ▓▓
---                 ──────────────────────────────────────────  (solid)
+--  2. marks.apply() is now called from _paint() — it was previously only
+--     called from marks.lua itself on toggle, leaving marks stale after a
+--     full repaint triggered by a file-watcher event.
 --
---  ACTIVE         ▓▓ 󰍉 lua█                          2/9  ▓▓
---                 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━  (heavy)
+--  3. diagnostics.apply() is called at the end of _paint() and
+--     _paint_items_only() when the diagnostics module is available.
 
 local S = require("custom.explorer.state")
 local cfg = require("custom.explorer.config")
 local tree = require("custom.explorer.tree")
 local git = require("custom.explorer.git")
+local marks = require("custom.explorer.marks")
 local icons = require("custom.explorer.icons")
 local search_ui = require("custom.explorer.search_ui")
 
@@ -53,6 +54,18 @@ M.ICON_PREFIX = search_ui.INPUT_PREFIX
 -- with the SIGN_WIDTH constant in git.lua.
 local SIGN_PH = "  " -- 2 display-column placeholder
 local SIGN_PH_WIDTH = #SIGN_PH
+
+-- ── Diagnostics helper ────────────────────────────────────────────────────
+--
+-- Lazily loaded so the diagnostics module is optional.  If it doesn't exist,
+-- the calls below silently no-op.
+
+local function apply_diagnostics()
+  local ok, diag = pcall(require, "custom.explorer.diagnostics")
+  if ok and type(diag.apply) == "function" then
+    diag.apply()
+  end
+end
 
 -- ── paint_header ──────────────────────────────────────────────────────────
 
@@ -108,6 +121,8 @@ function M.render()
         else
           M._paint()
           git.apply()
+          marks.apply()
+          apply_diagnostics()
         end
         local target = S._reveal_target
         if target then
@@ -121,9 +136,12 @@ end
 
 -- ── _build_item_lines ─────────────────────────────────────────────────────
 --
--- Builds the raw buffer lines and highlight specs for all S.items.
--- SIGN_PH is hoisted outside the loop — it is a constant string and
--- computing #SIGN_PH once here avoids redundant work per item.
+-- Reads item._prefix (pre-computed by tree.lua during the walk) instead of
+-- reconstructing it from item.parents_last.  Eliminates the per-item unpack
+-- loop and the per-item prefix table allocation in the render hot path.
+--
+-- Falls back to the legacy parents_last reconstruction if _prefix is absent
+-- (e.g. for items produced by older code during a live upgrade).
 
 local function build_item_lines()
   local c = cfg.get()
@@ -133,18 +151,25 @@ local function build_item_lines()
   local lines = {}
   local hls = {}
 
-  local sp_w = SIGN_PH_WIDTH -- 2, hoisted out of the per-item loop
+  local sp_w = SIGN_PH_WIDTH -- 2, hoisted out of the loop
 
   for _, item in ipairs(S.items) do
-    -- Tree connector prefix
-    local prefix_tbl = {}
-    for _, last in ipairs(item.parents_last) do
-      prefix_tbl[#prefix_tbl + 1] = last and tc.blank or tc.vert
+    -- ── Tree connector prefix ─────────────────────────────────────────────
+    -- Fast path: use the pre-computed prefix string stored by tree.lua.
+    -- Slow-path fallback reconstructs from parents_last for backward compat.
+    local prefix
+    if item._prefix then
+      prefix = item._prefix
+    else
+      local prefix_tbl = {}
+      for _, last in ipairs(item.parents_last or {}) do
+        prefix_tbl[#prefix_tbl + 1] = last and tc.blank or tc.vert
+      end
+      prefix_tbl[#prefix_tbl + 1] = item.is_last and tc.last or tc.branch
+      prefix = table.concat(prefix_tbl)
     end
-    prefix_tbl[#prefix_tbl + 1] = item.is_last and tc.last or tc.branch
-    local prefix = table.concat(prefix_tbl)
 
-    -- File / directory icon
+    -- ── File / directory icon ─────────────────────────────────────────────
     local icon_raw, icon_hl
     if item.is_dir then
       icon_raw = item.is_open and icons.DIR_OPEN or icons.DIR_CLOSED
@@ -154,7 +179,7 @@ local function build_item_lines()
     end
     local icon = icon_raw .. " "
 
-    -- Column positions
+    -- ── Column positions ──────────────────────────────────────────────────
     local name_col = sp_w + #prefix + #icon
     local line = SIGN_PH .. prefix .. icon .. item.name
 
@@ -162,7 +187,6 @@ local function build_item_lines()
     item._col_name = name_col
     item._col_name_end = name_col + #item.name
 
-    -- 0-based row = index into S.items
     local row = search_ui.row_for_item(#lines)
     local c0 = sp_w
     local c1 = c0 + #prefix
@@ -274,12 +298,13 @@ function M._paint_items_only()
   end
 
   -- Only re-lock if the user is no longer typing.
-  -- deactivate() handles the lock when InsertLeave fires.
   if not S.search_active then
     set_buf_modifiable(buf, false)
   end
 
   git.apply()
+  marks.apply()
+  apply_diagnostics()
 end
 
 return M

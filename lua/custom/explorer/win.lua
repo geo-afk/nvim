@@ -84,6 +84,27 @@ function M.ensure_hl()
   local normal_fg = normal.fg or 0xcdd6f4
   local dim_fg = comment.fg or 0x585b70
   local accent = fg_of("Function", "@function", "Special", "Statement") or 0xcba6f7
+
+  -- ── Project-aware accent override ─────────────────────────────────────
+  -- Detect the project type from root marker files (3–5 synchronous fs_stat
+  -- calls on already-warm OS cache — negligible cost, < 0.1 ms).
+  -- Only overrides when a specific root file is found; otherwise the accent
+  -- stays as the colorscheme-derived value above.
+  do
+    local root = S.root or ""
+    local uv = vim.uv
+    if uv.fs_stat(root .. "/go.mod") then
+      accent = 0x00ADD8 -- Go: steel blue-cyan
+    elseif uv.fs_stat(root .. "/Cargo.toml") then
+      accent = 0xDEA584 -- Rust: warm orange
+    elseif uv.fs_stat(root .. "/package.json") then
+      accent = 0x61AFEF -- JS/TS: sky blue
+    elseif uv.fs_stat(root .. "/pyproject.toml") or uv.fs_stat(root .. "/requirements.txt") then
+      accent = 0x4B8BBE -- Python: CPython blue
+    elseif uv.fs_stat(root .. "/Gemfile") then
+      accent = 0xCC342D -- Ruby: red
+    end
+  end
   local dir_fg = fg_of("Directory", "@namespace", "Special") or 0x89b4fa
   local str_fg = fg_of("String", "@string", "Constant") or 0xa6e3a1
   local keyword_fg = fg_of("Keyword", "@keyword", "Statement") or 0xf38ba8
@@ -168,6 +189,28 @@ function M.ensure_hl()
   -- ── Git + marks ──────────────────────────────────────────────────────
   git.setup_hl()
   marks.setup_hl()
+
+  -- ── Popup / floating window groups ───────────────────────────────────
+  -- These were previously in ui.ensure_hl() with a separate guard.
+  -- Consolidating them here ensures they are always in sync with the sidebar
+  -- accent and background — both guards now point at "ExplorerNormal" via
+  -- the single entry check at the top of this function.
+  local float_bg = float_.bg or sidebar_bg
+  local float_fg = float_.fg or normal_fg
+  local border_hl = get("FloatBorder")
+  local title_hl = get("FloatTitle")
+  local border_fg = border_hl.fg or accent
+  local title_fg = title_hl.fg or accent
+  local muted = comment.fg or 0x6c7086
+
+  def("ExplorerPopupNormal", { bg = float_bg, fg = float_fg })
+  def("ExplorerPopupBorder", { bg = float_bg, fg = border_fg })
+  def("ExplorerPopupTitle", { bg = float_bg, fg = title_fg, bold = true })
+  def("ExplorerPopupFooter", { bg = float_bg, fg = muted, italic = true })
+  def("ExplorerPopupPrompt", { bg = float_bg, fg = muted })
+  def("ExplorerPopupValue", { bg = float_bg, fg = float_fg, bold = true })
+  def("ExplorerPopupDangerBorder", { bg = float_bg, fg = warn_fg })
+  def("ExplorerPopupDangerTitle", { bg = float_bg, fg = warn_fg, bold = true })
 end
 
 function M.reset_hl()
@@ -389,7 +432,9 @@ function M.setup_keymaps(buf)
   map(km.mark, A.toggle_mark)
   map(km.collapse_all, A.collapse_all)
   map(km.expand_all, function()
-    A.expand_all(1)
+    -- Use expand_all_depth from config (default 2) rather than a hardcoded 1.
+    -- Depth 1 only opens immediate children of root, which is rarely useful.
+    A.expand_all(cfg.get().expand_all_depth or 2)
   end)
   map(km.git_stage, A.git_stage)
   map(km.git_restore, A.git_restore)

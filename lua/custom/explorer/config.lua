@@ -34,29 +34,32 @@ M.defaults = {
   -- Override individual connector keys (nil = derive from tree_style)
   tree = nil,
 
+  -- ── expand_all depth ─────────────────────────────────────────────────────
+  --
+  -- Number of directory levels opened by the expand_all keymap (E by default).
+  -- 1 = immediate children of root only.
+  -- 2 = two levels deep (recommended default — covers most project layouts).
+  -- Increase carefully: very deep expansion on large repos will fan out many
+  -- async scandir calls.
+  expand_all_depth = 2,
+
   -- ── Git sign column ───────────────────────────────────────────────────
   --
   -- git_icons   — Nerd Font glyphs shown as the status icon (preferred).
-  --               Each glyph must render as ≤ 2 display columns; git.lua
-  --               pads automatically with strdisplaywidth() so the sign
-  --               column never shifts regardless of the font in use.
-  --
-  -- git_signs   — Plain-text fallback used when Nerd Fonts are not
-  --               available.  Set use_git_icons = false to force these.
-  --
+  -- git_signs   — Plain-text fallback used when Nerd Fonts are not available.
   -- use_git_icons — true  → use git_icons glyphs (default)
   --                 false → use git_signs text
   --
   use_git_icons = true,
 
   git_icons = {
-    modified = " ", -- nf-fa-pencil             (U+F040)
-    added = " ", -- nf-fa-plus               (U+F067)
-    deleted = " ", -- nf-fa-trash-o            (U+F014)
-    renamed = " ", -- nf-fa-arrow-right        (U+F061)
-    untracked = " ", -- nf-fa-question-circle    (U+F059)
-    conflict = " ", -- nf-fa-exclamation-circle (U+F06A)
-    ignored = " ", -- nf-fa-eye-slash          (U+F070)
+    modified = " ", -- nf-fa-pencil             (U+F040)
+    added = " ", -- nf-fa-plus               (U+F067)
+    deleted = " ", -- nf-fa-trash-o            (U+F014)
+    renamed = " ", -- nf-fa-arrow-right        (U+F061)
+    untracked = " ", -- nf-fa-question-circle    (U+F059)
+    conflict = " ", -- nf-fa-exclamation-circle (U+F06A)
+    ignored = " ", -- nf-fa-eye-slash          (U+F070)
   },
   -- Plain-text fallbacks (used when use_git_icons = false)
   git_signs = {

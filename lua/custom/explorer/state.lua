@@ -21,7 +21,12 @@ local S = {
   items = {},
   open_dirs = {},
 
+  -- git.lua: file path → git status character (M, A, D, R, ?, U, I)
   git = {},
+  -- git.lua: directory path → highest-priority child status character.
+  -- Pre-computed in git.fetch() to replace the O(n×m) loop in apply().
+  git_dirs = {},
+
   filter = nil,
   marks = {},
   recent_roots = {},
@@ -31,6 +36,8 @@ local S = {
   mark_ns = api.nvim_create_namespace("explorer_marks"),
   hdr_ns = api.nvim_create_namespace("explorer_header"),
   match_ns = api.nvim_create_namespace("explorer_match"),
+  -- diagnostics.lua uses its own local namespace ("explorer_diag"); no field
+  -- needed here because it is always applied via the module's own NS constant.
 
   icon_fn = nil,
   build_tok = 0,
