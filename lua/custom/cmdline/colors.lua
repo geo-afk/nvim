@@ -72,6 +72,9 @@ local P = {
   -- ── Live preview ──────────────────────────────────────────────────────────
   preview_del_bg = "#2c1a1a",
   preview_add_bg = "#122f1a",
+
+  -- ── Project Accents ──────────────────────────────────────────────────────
+  accent = "#58a6ff", -- Default
 }
 
 -- ---------------------------------------------------------------------------
@@ -80,6 +83,15 @@ local P = {
 
 function M.get_palette()
   return P
+end
+
+---Update the accent color based on project context.
+---@param color string?
+function M.update_accent(color)
+  if color then
+    P.accent = color
+  end
+  M.setup_highlights()
 end
 
 -- ---------------------------------------------------------------------------
@@ -96,20 +108,22 @@ end
 
 function M.setup_highlights()
   local c = P
+  local accent = c.accent
 
   -- ── Main cmdline float ────────────────────────────────────────────────────
   hl("NvimCmdlineNormal", { fg = c.fg, bg = c.bg })
-  hl("NvimCmdlineBorder", { fg = c.border_glow, bg = c.bg })
-  hl("NvimCmdlineFloatTitle", { fg = c.cyan, bg = c.bg, bold = true })
+  hl("NvimCmdlineBorder", { fg = accent, bg = c.bg })
+  hl("NvimCmdlineFloatTitle", { fg = accent, bg = c.bg, bold = true })
   hl("NvimCmdlineSearchBorder", { fg = c.amber, bg = c.bg })
   hl("NvimCmdlineSearchTitle", { fg = c.amber, bg = c.bg, bold = true })
 
   -- ── Mode badge icon (fg only — bg comes from the column strip below) ─────────
-  hl("NvimCmdlineBadge", { fg = c.cyan, bold = true })
+  hl("NvimCmdlineBadge", { fg = accent, bold = true })
   hl("NvimCmdlineBadgeSearch", { fg = c.amber, bold = true })
+  hl("NvimCmdlinePromptIcon", { fg = accent, bold = true })
 
   -- Vertical separator between badge column and typed text.
-  hl("NvimCmdlineSep", { fg = c.border_dim })
+  hl("NvimCmdlineSep", { fg = accent })
   hl("NvimCmdlineSepSearch", { fg = c.amber2 })
 
   -- ── Commander layout — solid left column (6 display cells = PROMPT_LEN) ──────
@@ -186,37 +200,37 @@ function M.setup_highlights()
   -- These highlights are ONLY passed to the floating-window title segment API
   -- (custom.ui.window / nvim_win_set_config title field).  They are never used
   -- as buffer extmark or winhighlight groups, so their bg cannot bleed.
-  hl("NvimCmdlineTitleIconCmd", { fg = c.cyan, bg = c.tbg_cmd, bold = true })
-  hl("NvimCmdlineTitleTextCmd", { fg = c.fg2, bg = c.tbg_cmd })
-  hl("NvimCmdlineTitleIconSearch", { fg = c.amber, bg = c.tbg_search, bold = true })
-  hl("NvimCmdlineTitleTextSearch", { fg = c.fg2, bg = c.tbg_search })
-  hl("NvimCmdlineTitleIconLua", { fg = c.lavender, bg = c.tbg_lua, bold = true })
-  hl("NvimCmdlineTitleTextLua", { fg = c.fg2, bg = c.tbg_lua })
-  hl("NvimCmdlineTitleIconShell", { fg = c.green, bg = c.tbg_shell, bold = true })
-  hl("NvimCmdlineTitleTextShell", { fg = c.fg2, bg = c.tbg_shell })
-  hl("NvimCmdlineTitleIconHelp", { fg = c.blue, bg = c.tbg_help, bold = true })
-  hl("NvimCmdlineTitleTextHelp", { fg = c.fg2, bg = c.tbg_help })
-  hl("NvimCmdlineTitleIconOpts", { fg = c.teal, bg = c.tbg_opts, bold = true })
-  hl("NvimCmdlineTitleTextOpts", { fg = c.fg2, bg = c.tbg_opts })
-  hl("NvimCmdlineTitleIconSubst", { fg = c.orange, bg = c.tbg_subst, bold = true })
-  hl("NvimCmdlineTitleTextSubst", { fg = c.fg2, bg = c.tbg_subst })
-  hl("NvimCmdlineTitleIconFilter", { fg = c.rose, bg = c.tbg_filter, bold = true })
-  hl("NvimCmdlineTitleTextFilter", { fg = c.fg2, bg = c.tbg_filter })
-  hl("NvimCmdlineTitleIconFile", { fg = c.lime, bg = c.tbg_file, bold = true })
-  hl("NvimCmdlineTitleTextFile", { fg = c.fg2, bg = c.tbg_file })
+  hl("NvimCmdlineTitleIconCmd", { fg = c.bg, bg = accent, bold = true })
+  hl("NvimCmdlineTitleTextCmd", { fg = accent, bg = c.tbg_cmd, bold = true })
+  hl("NvimCmdlineTitleIconSearch", { fg = c.bg, bg = c.amber, bold = true })
+  hl("NvimCmdlineTitleTextSearch", { fg = c.amber, bg = c.tbg_search, bold = true })
+  hl("NvimCmdlineTitleIconLua", { fg = c.bg, bg = accent, bold = true })
+  hl("NvimCmdlineTitleTextLua", { fg = accent, bg = c.tbg_lua, bold = true })
+  hl("NvimCmdlineTitleIconShell", { fg = c.bg, bg = accent, bold = true })
+  hl("NvimCmdlineTitleTextShell", { fg = accent, bg = c.tbg_shell, bold = true })
+  hl("NvimCmdlineTitleIconHelp", { fg = c.bg, bg = accent, bold = true })
+  hl("NvimCmdlineTitleTextHelp", { fg = accent, bg = c.tbg_help, bold = true })
+  hl("NvimCmdlineTitleIconOpts", { fg = c.bg, bg = accent, bold = true })
+  hl("NvimCmdlineTitleTextOpts", { fg = accent, bg = c.tbg_opts, bold = true })
+  hl("NvimCmdlineTitleIconSubst", { fg = c.bg, bg = accent, bold = true })
+  hl("NvimCmdlineTitleTextSubst", { fg = accent, bg = c.tbg_subst, bold = true })
+  hl("NvimCmdlineTitleIconFilter", { fg = c.bg, bg = accent, bold = true })
+  hl("NvimCmdlineTitleTextFilter", { fg = accent, bg = c.tbg_filter, bold = true })
+  hl("NvimCmdlineTitleIconFile", { fg = c.bg, bg = accent, bold = true })
+  hl("NvimCmdlineTitleTextFile", { fg = accent, bg = c.tbg_file, bold = true })
 
   -- ── Completion popup ──────────────────────────────────────────────────────
   hl("NvimCmdlineMenu", { fg = c.fg2, bg = c.popup_bg })
-  hl("NvimCmdlineMenuBorder", { fg = c.border_dim, bg = c.popup_bg })
-  hl("NvimCmdlineMenuSel", { fg = c.fg, bg = c.sel_bg, bold = true })
-  hl("NvimCmdlineMenuMatch", { fg = c.green2, bg = c.popup_bg, bold = true })
-  hl("NvimCmdlineMenuSelMatch", { fg = c.green, bg = c.sel_bg, bold = true })
+  hl("NvimCmdlineMenuBorder", { fg = accent, bg = c.popup_bg })
+  hl("NvimCmdlineMenuSel", { fg = c.bg, bg = accent, bold = true })
+  hl("NvimCmdlineMenuMatch", { fg = accent, bg = c.popup_bg, bold = true })
+  hl("NvimCmdlineMenuSelMatch", { fg = c.bg, bg = accent, bold = true, underline = true })
   hl("NvimCmdlineMenuHint", { fg = c.dim, bg = c.popup_bg, italic = true })
-  hl("NvimCmdlineMenuSelHint", { fg = c.cyan2, bg = c.sel_bg, italic = true })
-  hl("NvimCmdlineMenuIcon", { fg = c.cyan2, bg = c.popup_bg })
-  hl("NvimCmdlineMenuSelIcon", { fg = c.green, bg = c.sel_bg, bold = true })
-  hl("NvimCmdlineMenuMark", { fg = c.border_glow, bg = c.popup_bg, bold = true })
-  hl("NvimCmdlineMenuSelMark", { fg = c.green, bg = c.sel_bg, bold = true })
+  hl("NvimCmdlineMenuSelHint", { fg = c.bg, bg = accent, italic = true })
+  hl("NvimCmdlineMenuIcon", { fg = accent, bg = c.popup_bg })
+  hl("NvimCmdlineMenuSelIcon", { fg = c.bg, bg = accent, bold = true })
+  hl("NvimCmdlineMenuMark", { fg = accent, bg = c.popup_bg, bold = true })
+  hl("NvimCmdlineMenuSelMark", { fg = c.bg, bg = accent, bold = true })
 
   -- Kind badge fallback
   hl("NvimCmdlineKindBadge", { fg = c.cyan, bg = c.kind_bg, italic = true })

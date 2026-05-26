@@ -23,6 +23,8 @@ local debounce = require(_pkg .. ".debounce")
 local preview = require(_pkg .. ".preview")
 local output = require(_pkg .. ".output")
 
+local project = require(_pkg .. ".project")
+
 -- ---------------------------------------------------------------------------
 -- Namespaces
 -- ---------------------------------------------------------------------------
@@ -93,12 +95,8 @@ M.config = {
 -- ---------------------------------------------------------------------------
 -- Mode metadata
 -- ---------------------------------------------------------------------------
--- PROMPT_LEN = 7 ASCII spaces in the buffer.
--- The badge virt_text (overlay) occupies exactly those 7 visual cells:
---   nerd font:  "  " (2) + icon (2) + " " (1) + "│" (1) + " " (1) = 7 cells
---   ascii:      " " (1) + ascii (1) + "  " (2) + "│" (1) + " " (1) = skipped to 7
--- Keeping the byte count simple: all non-icon chars are ASCII (1 byte = 1 cell).
-local PROMPT_LEN = 7
+-- PROMPT_LEN is now 0 as we use inline virtual text for the badge.
+local PROMPT_LEN = 0
 
 ---@class ModeInfo
 ---@field icon        string  nerd-font glyph (2 display cells)
@@ -179,7 +177,17 @@ local get_title
 -- ---------------------------------------------------------------------------
 
 local function get_width()
-  local w = math.floor(vim.o.columns * M.config.width_ratio)
+  local columns = vim.o.columns
+  local ratio = M.config.width_ratio
+  
+  -- Adaptive ratio: narrower windows get a larger ratio
+  if columns < 80 then
+    ratio = math.min(0.95, ratio * 1.4)
+  elseif columns < 120 then
+    ratio = math.min(0.85, ratio * 1.2)
+  end
+  
+  local w = math.floor(columns * ratio)
   return math.max(M.config.min_width, math.min(M.config.max_width, w))
 end
 
@@ -379,7 +387,7 @@ local function read_input(buf)
   if not vim.api.nvim_buf_is_valid(buf) then
     return ""
   end
-  return (vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1] or ""):sub(PROMPT_LEN + 1)
+  return (vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1] or "")
 end
 
 local function write_input(buf, win, text)
@@ -394,10 +402,9 @@ local function write_input(buf, win, text)
   end
   state.in_write = true
   state.last_write_text = text
-  local full = string.rep(" ", PROMPT_LEN) .. text
-  pcall(vim.api.nvim_buf_set_lines, buf, 0, 1, false, { full })
+  pcall(vim.api.nvim_buf_set_lines, buf, 0, 1, false, { text })
   if vim.api.nvim_win_is_valid(win) then
-    pcall(vim.api.nvim_win_set_cursor, win, { 1, #full })
+    pcall(vim.api.nvim_win_set_cursor, win, { 1, #text })
   end
   state.in_write = false
 end
@@ -406,7 +413,7 @@ end
 -- Decorations
 -- ---------------------------------------------------------------------------
 
----Render the icon badge as a virt_text overlay on the prompt area.
+---Render the icon badge as a virt_text inline on the prompt area.
 ---Automatically uses nerd-font glyphs or ASCII depending on config.
 local function render_badge(buf, info, subtype)
   vim.api.nvim_buf_clear_namespace(buf, NS_BADGE, 0, -1)
@@ -415,20 +422,17 @@ local function render_badge(buf, info, subtype)
   local nf = use_nerd_font()
   local icon = (subtype and type(subtype.icon) == "string" and subtype.icon ~= "") and subtype.icon or info.icon
   local ascii_icon = (info.icon_ascii or " :  "):gsub("%s+", "")
-  local badge_text = nf and ("  " .. icon .. " ") or (" " .. truncate_label(ascii_icon, 4) .. " ")
+  local badge_text = nf and (" " .. icon) or (truncate_label(ascii_icon, 4))
+  local arrow_icon = "  "
+  
   pcall(require("custom.ui.render").set_extmark, buf, NS_BADGE, 0, 0, {
     virt_text = {
       { badge_text, info.badge_hl },
-      { "│ ", info.sep_hl },
+      { arrow_icon, "NvimCmdlinePromptIcon" },
     },
-    virt_text_pos = "overlay",
+    virt_text_pos = "inline",
+    right_gravity = false,
     priority = 60,
-  })
-
-  pcall(require("custom.ui.render").set_extmark, buf, NS_BADGE, 0, 0, {
-    end_col = PROMPT_LEN,
-    hl_group = col_hl,
-    priority = 40,
   })
 end
 
@@ -465,7 +469,10 @@ end
 ---Hint line below the input via virt_lines (Nvim 0.10+ only).
 local function render_hint(buf, info, subtype)
   vim.api.nvim_buf_clear_namespace(buf, NS_HINT, 0, -1)
-  if M.config.show_hint == false then
+  
+  -- Responsive check: hide hints if window is too narrow
+  local win_w = state.win and vim.api.nvim_win_get_width(state.win) or get_width()
+  if M.config.show_hint == false or win_w < 40 then
     return
   end
   local hint = info.hint
@@ -519,7 +526,6 @@ local function apply_syntax(buf, subtype)
   end
   local lang = (subtype and type(subtype.lang) == "string") and subtype.lang or "vim"
   modes.apply_syntax(buf, lang)
-  render_prompt_hl(buf)
 end
 
 -- ---------------------------------------------------------------------------
@@ -1002,7 +1008,7 @@ local function setup_keymaps(buf, win, mode, info)
 
   km_i(buf, kc.go_home, function()
     if vim.api.nvim_win_is_valid(win) then
-      pcall(vim.api.nvim_win_set_cursor, win, { 1, PROMPT_LEN })
+      pcall(vim.api.nvim_win_set_cursor, win, { 1, 0 })
     end
   end)
 
@@ -1018,7 +1024,7 @@ local function setup_keymaps(buf, win, mode, info)
       return
     end
     local pos = vim.api.nvim_win_get_cursor(win)
-    if pos[2] <= PROMPT_LEN then
+    if pos[2] <= 0 then
       return
     end
     pcall(vim.api.nvim_win_set_cursor, win, { 1, pos[2] - 1 })
@@ -1029,7 +1035,7 @@ local function setup_keymaps(buf, win, mode, info)
       return
     end
     local pos = vim.api.nvim_win_get_cursor(win)
-    if pos[2] <= PROMPT_LEN then
+    if pos[2] <= 0 then
       return
     end
     vim.api.nvim_feedkeys(vim.keycode("<BS>"), "n", false)
@@ -1097,21 +1103,13 @@ local function setup_autocmds(buf, win, mode, info)
       end
 
       local line = vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1] or ""
-      local prefix = string.rep(" ", PROMPT_LEN)
-
-      if line:sub(1, PROMPT_LEN) ~= prefix then
-        write_input(buf, win, line:sub(PROMPT_LEN + 1))
-        return
-      end
-
-      local input = line:sub(PROMPT_LEN + 1)
+      local input = line
 
       -- Tab-cycle guard: if buffer changed to what Tab wrote, skip completion
       if state.last_write_text ~= nil then
         local was_tab = (input == state.last_write_text)
         state.last_write_text = nil
         if was_tab then
-          render_prompt_hl(buf)
           render_badge(buf, info, state.current_subtype)
           return
         end
@@ -1133,7 +1131,6 @@ local function setup_autocmds(buf, win, mode, info)
         show_range_preview(input, win)
       end
 
-      render_prompt_hl(buf)
       debounced(input)
     end,
   })
@@ -1198,6 +1195,10 @@ function M.open(mode, opts)
   state.prev_win = (type(opts.prev_win) == "number" and vim.api.nvim_win_is_valid(opts.prev_win)) and opts.prev_win
     or vim.api.nvim_get_current_win()
 
+  -- Project context detection
+  local ctx = project.detect()
+  colors.update_accent(ctx.color)
+
   -- Save search state
   state.saved_search_reg = vim.fn.getreg("/")
   state.saved_hlsearch = vim.opt.hlsearch:get()
@@ -1229,7 +1230,7 @@ function M.open(mode, opts)
   pcall(vim.api.nvim_set_option_value, "omnifunc", "", { buf = buf })
   blink_set_enabled(false)
 
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { string.rep(" ", PROMPT_LEN) .. default })
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { default })
 
   -- ── Window ────────────────────────────────────────────────────────────────
   local start_row = M.config.animation.enabled and (target_row + M.config.animation.steps + 1) or target_row
@@ -1259,7 +1260,8 @@ function M.open(mode, opts)
   vim.api.nvim_set_option_value("wrap", false, { win = win })
   vim.api.nvim_set_option_value("cursorline", false, { win = win })
   vim.api.nvim_set_option_value("scrolloff", 0, { win = win })
-  -- NO winblend on the input window — 1-line float with transparency looks bad
+  -- Soft winblend for Modern look
+  pcall(vim.api.nvim_set_option_value, "winblend", 10, { win = win })
 
   -- ── State ─────────────────────────────────────────────────────────────────
   state.win = win
@@ -1270,7 +1272,6 @@ function M.open(mode, opts)
   state.cancel_complete = nil
 
   -- ── Decorations ───────────────────────────────────────────────────────────
-  render_prompt_hl(buf)
   render_badge(buf, info, subtype)
   render_hint(buf, info, subtype)
 
@@ -1286,7 +1287,7 @@ function M.open(mode, opts)
   apply_syntax(buf, subtype)
 
   -- ── Cursor + insert mode ──────────────────────────────────────────────────
-  pcall(vim.api.nvim_win_set_cursor, win, { 1, PROMPT_LEN + #default })
+  pcall(vim.api.nvim_win_set_cursor, win, { 1, #default })
   vim.cmd("startinsert!")
 
   -- ── Keymaps / autocmds ────────────────────────────────────────────────────

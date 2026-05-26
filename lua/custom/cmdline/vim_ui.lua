@@ -145,18 +145,13 @@ function M.input(opts, on_confirm)
   local prompt = tostring(raw_prompt):gsub("%s*[:：]%s*$", ""):gsub("%s+$", "")
   local title_label = #prompt > 0 and prompt or "Input"
 
-  -- The input buffer has exactly one line (the editable field).
-  -- We use a "space prefix" trick: we keep two real spaces at index 0
-  -- so the cursor can stay at index 2 (after the 2-cell icon).
   local inner_w =
     clamp_width(math.max(48, vim.api.nvim_strwidth(title_label) + 12, vim.api.nvim_strwidth(default) + 10))
   local height = 1
   local row, col = center_pos(inner_w + 2, height + 2) -- +2 for border
 
   local buf = make_buf()
-  -- We add leading spaces to act as a placeholder for the icon.
-  -- Using 2 spaces because the prompt "› " is 2 cells wide.
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "  " .. default })
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { default })
 
   local win = require("custom.ui.window").open_raw(buf, true, {
     relative = "editor",
@@ -166,7 +161,7 @@ function M.input(opts, on_confirm)
     height = height,
     style = "minimal",
     border = "rounded",
-    title = make_title("󰘥 ", title_label), -- replaced empty string with help icon
+    title = make_title("󰘥 ", title_label),
     title_pos = "center",
     zindex = 250,
     noautocmd = true,
@@ -178,83 +173,28 @@ function M.input(opts, on_confirm)
   vim.wo[win].cursorline = false
   vim.wo[win].scrolloff = 0
 
-  -- Disable blink.cmp (and most other completion plugins) for this buffer
+  -- Disable blink.cmp
   vim.bo[buf].complete = ""
-  vim.b[buf].completion = false -- blink.cmp respects this flag
-  vim.b[buf].blink_cmp_enabled = false -- explicit blink guard
+  vim.b[buf].completion = false
+  vim.b[buf].blink_cmp_enabled = false
 
-  -- Inline "› " prompt decoration (overlay the leading space)
-  apply_prompt_virt(buf, 0)
+  -- Inline "› " prompt decoration
+  vim.api.nvim_buf_clear_namespace(buf, NS_DEC, 0, -1)
+  require("custom.ui.render").set_extmark(buf, NS_DEC, 0, 0, {
+    virt_text = { { " › ", "NvimCmdlineUiPrompt" } },
+    virt_text_pos = "inline",
+    right_gravity = false,
+    priority = 10,
+  })
 
-  -- Place cursor at end of text (adjust for leading spaces)
-  pcall(vim.api.nvim_win_set_cursor, win, { 1, #default + 2 })
+  -- Place cursor at end of text
+  pcall(vim.api.nvim_win_set_cursor, win, { 1, #default })
 
   local ag = vim.api.nvim_create_augroup("NvimCmdlineUiInput" .. buf, { clear = true })
 
-  -- Guard: prevent cursor from going before the 2-space prefix.
-  local function at_start()
-    -- col 1,2 are leading spaces; col 3 is the first char of actual input.
-    return vim.fn.col(".") <= 3
-  end
-
-  local guard_opts = { buffer = buf, noremap = true, silent = true, nowait = true, expr = true }
-  vim.keymap.set("i", "<BS>", function()
-    return at_start() and "" or "<BS>"
-  end, guard_opts)
-  vim.keymap.set("i", "<C-h>", function()
-    return at_start() and "" or "<C-h>"
-  end, guard_opts)
-  vim.keymap.set("i", "<Del>", function()
-    -- Forward delete is fine unless the line is empty (just the spaces)
-    local line = vim.api.nvim_get_current_line()
-    return #line <= 2 and "" or "<Del>"
-  end, guard_opts)
-
-  vim.api.nvim_create_autocmd({ "CursorMovedI", "CursorMoved" }, {
-    buffer = buf,
-    group = ag,
-    callback = function()
-      if not vim.api.nvim_win_is_valid(win) then
-        return
-      end
-      local cur = vim.api.nvim_win_get_cursor(win)
-      local r, c = cur[1], cur[2]
-      local changed = false
-
-      -- Left guard: prevent going to column 0 or 1 (where the icon overlays the spaces)
-      if c < 2 then
-        c = 2
-        changed = true
-      end
-
-      if changed then
-        pcall(vim.api.nvim_win_set_cursor, win, { r, c })
-      end
-    end,
-  })
-
-  -- Safety: ensure the leading spaces are never deleted
-  vim.api.nvim_create_autocmd({ "TextChangedI", "TextChanged" }, {
-    buffer = buf,
-    group = ag,
-    callback = function()
-      local line = vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1] or ""
-      if not line:match("^  ") then
-        local needed = 2 - #(line:match("^%s*") or "")
-        if needed > 0 then
-          vim.api.nvim_buf_set_text(buf, 0, 0, 0, 0, { string.rep(" ", needed) })
-          local cur = vim.api.nvim_win_get_cursor(win)
-          pcall(vim.api.nvim_win_set_cursor, win, { cur[1], cur[2] + needed })
-        end
-      end
-    end,
-  })
-
   local function confirm()
     local lines = vim.api.nvim_buf_get_lines(buf, 0, 1, false)
-    local value = lines[1] or "  "
-    -- Strip the 2-space trick
-    value = value:sub(3)
+    local value = lines[1] or ""
     close_win(win)
     del_aug(ag)
     vim.schedule(function()

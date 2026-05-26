@@ -44,17 +44,21 @@ local function run(steps, interval, on_step, on_done)
     return
   end
 
+  -- Target 60fps (approx 16ms per frame) if requested interval is very low
+  local actual_interval = math.max(16, interval)
+  local actual_steps = math.max(1, math.floor((steps * interval) / actual_interval))
+
   timer:start(
     0,
-    interval,
+    actual_interval,
     vim.schedule_wrap(function()
       step = step + 1
 
       if on_step then
-        pcall(on_step, step, math.min(step / steps, 1.0))
+        pcall(on_step, step, math.min(step / actual_steps, 1.0))
       end
 
-      if step >= steps then
+      if step >= actual_steps then
         if not timer:is_closing() then
           timer:stop()
           timer:close()
