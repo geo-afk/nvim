@@ -20,6 +20,8 @@
 
 local M = {}
 
+local ACCENT_COLORS = require("custom.project_colors")
+
 -- ---------------------------------------------------------------------------
 -- Fallback palette — used only when the colorscheme omits a given color.
 -- These values match a generic dark-mode aesthetic.
@@ -112,21 +114,20 @@ local function first_color(group_list, attr)
 end
 
 local language_accents = {
-  lua = "#89b4fa",
-  rust = "#f38ba8",
-  go = "#94e2d5",
-  python = "#f9e2af",
-  javascript = "#f9e2af",
-  typescript = "#89b4fa",
-  tsx = "#89b4fa",
-  jsx = "#f9e2af",
-  html = "#fab387",
-  css = "#89dceb",
-  scss = "#f38ba8",
-  json = "#a6e3a1",
-  markdown = "#cba6f7",
+  lua = ACCENT_COLORS.lua,
+  rust = ACCENT_COLORS.rust,
+  go = ACCENT_COLORS.go,
+  python = ACCENT_COLORS.python,
+  javascript = ACCENT_COLORS.javascript,
+  typescript = ACCENT_COLORS.typescript,
+  tsx = ACCENT_COLORS.tsx,
+  jsx = ACCENT_COLORS.jsx,
+  html = ACCENT_COLORS.html,
+  css = ACCENT_COLORS.css,
+  scss = ACCENT_COLORS.scss,
+  json = ACCENT_COLORS.json,
+  markdown = ACCENT_COLORS.markdown,
 }
-
 local function hex_to_rgb(hex)
   hex = (hex or ""):gsub("#", "")
   if #hex ~= 6 then
@@ -136,7 +137,12 @@ local function hex_to_rgb(hex)
 end
 
 local function rgb_to_hex(r, g, b)
-  return string.format("#%02x%02x%02x", math.max(0, math.min(255, r)), math.max(0, math.min(255, g)), math.max(0, math.min(255, b)))
+  return string.format(
+    "#%02x%02x%02x",
+    math.max(0, math.min(255, r)),
+    math.max(0, math.min(255, g)),
+    math.max(0, math.min(255, b))
+  )
 end
 
 local function blend(fg, bg, alpha)

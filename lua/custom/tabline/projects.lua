@@ -4,6 +4,8 @@
 
 local M = {}
 
+local ACCENT_COLORS = require("custom.project_colors")
+
 ---@class ProjectInfo
 ---@field root  string   Absolute path to project root
 ---@field name  string   Base name of the project folder
@@ -12,15 +14,14 @@ local M = {}
 
 -- Curated harmonized accent colors
 local COLOR_PALETTE = {
-  rust    = "#DE5D26", -- Rust Orange
-  go      = "#00ADD8", -- Go Cyan
-  python  = "#3178C6", -- Python Blue (harmonized with yellow)
-  web     = "#764ABC", -- Web Purple
-  c_cpp   = "#A6E22E", -- C/C++ Lime Green
-  generic = "#33A1FD", -- Git / Generic Project Azure Blue
-  none    = "#888888", -- No Project / Inactive grey
+  rust = ACCENT_COLORS.rust,
+  go = ACCENT_COLORS.go,
+  python = ACCENT_COLORS.python,
+  web = "#cba6f7",
+  c_cpp = "#a6e3a1",
+  generic = ACCENT_COLORS.generic,
+  none = ACCENT_COLORS.none,
 }
-
 -- Caches resolved projects by bufnr
 local project_cache = {}
 

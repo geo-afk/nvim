@@ -7,14 +7,17 @@ local M = {}
 ---@field type  string  "go"|"rust"|"node"|"python"|"vim"|"generic"
 ---@field color string  hex color associated with the project type
 
+local ACCENT_COLORS = require("custom.project_colors")
+
+-- Project detection
 local PROJECT_TYPES = {
-  { file = "go.mod", type = "go", color = "#00ADD8" },
-  { file = "Cargo.toml", type = "rust", color = "#CE412B" },
-  { file = "package.json", type = "node", color = "#8CC84B" },
-  { file = "requirements.txt", type = "python", color = "#3776AB" },
-  { file = "pyproject.toml", type = "python", color = "#3776AB" },
-  { file = "init.lua", type = "vim", color = "#519ABA" },
-  { file = ".git", type = "generic", color = "#F05032" },
+  { file = "go.mod", type = "go", color = ACCENT_COLORS.go },
+  { file = "Cargo.toml", type = "rust", color = ACCENT_COLORS.rust },
+  { file = "package.json", type = "node", color = ACCENT_COLORS.javascript },
+  { file = "requirements.txt", type = "python", color = ACCENT_COLORS.python },
+  { file = "pyproject.toml", type = "python", color = ACCENT_COLORS.python },
+  { file = "init.lua", type = "lua", color = ACCENT_COLORS.lua },
+  { file = ".git", type = "generic", color = ACCENT_COLORS.generic },
 }
 
 local cache = {
