@@ -424,10 +424,11 @@ local function apply_hl(buf, row, item, query, kind)
     return
   end
 
+  local is_sel = (state.selected == row)
   local llen = #line
   local R = require("custom.ui.render")
   local base_hl = "NvimCmdlineMenu"
-  local match_hl = "NvimCmdlineMenuMatch"
+  local match_hl = is_sel and "NvimCmdlineMenuSelMatch" or "NvimCmdlineMenuMatch"
   local icon_hl = "NvimCmdlineMenuIcon"
   local sep_hl = "NvimCmdlineSep"
   local badge_hl = kind.hl or "NvimCmdlineKindBadge"
@@ -558,13 +559,40 @@ local function render_marker()
     return
   end
   vim.api.nvim_buf_clear_namespace(state.buf, NS_MARKER, 0, -1)
-  if state.selected >= 0 and state.selected < state.window_size then
-    require("custom.ui.render").set_extmark(state.buf, NS_MARKER, state.selected, 0, {
-      virt_text = { { "▸ ", "NvimCmdlineMenuSelMark" } },
-      virt_text_pos = "overlay",
-      priority = 100,
-    })
+  if state.selected < 0 or state.selected >= state.window_size then
+    return
   end
+
+  local R = require("custom.ui.render")
+  local row = state.selected
+
+  -- Selection background covers only the left side of the line — from col 0
+  -- up to (but NOT including) the " │ " separator.  When desc_budget > 0 the
+  -- separator starts at state.sep_byte_start; otherwise it runs to end-of-line.
+  local line = vim.api.nvim_buf_get_lines(state.buf, row, row + 1, false)[1] or ""
+  if #line > 0 then
+    -- Start after the marker pad + icon so the selection background covers
+    -- only the item text, not the icon or marker gutter.
+    local item = state.items[state.window_start + row + 1] or ""
+    local kind = get_kind(item:sub(1, MAX_ITEM_LEN))
+    local sel_start = MARK_W + #kind.icon -- byte col right after the icon
+    local sel_end = (state.desc_budget > 0 and state.sep_byte_start > 0) and state.sep_byte_start or #line
+    if sel_start < sel_end then
+      R.set_extmark(state.buf, NS_MARKER, row, sel_start, {
+        end_col = sel_end,
+        hl_group = "NvimCmdlineMenuSel",
+        priority = 15,
+      })
+    end
+  end
+
+  -- Selection marker glyph "▸ " overlaid on the marker-pad area at priority 100
+  -- (highest in NS_MARKER; sits above everything including the sel background).
+  R.set_extmark(state.buf, NS_MARKER, row, 0, {
+    virt_text = { { "▸ ", "NvimCmdlineMenuSelMark" } },
+    virt_text_pos = "overlay",
+    priority = 100,
+  })
 end
 
 -- ---------------------------------------------------------------------------
@@ -875,11 +903,12 @@ function M.open(parent_win, items, query, prefix, cmdline_row, gutter, mode)
 
   vim.api.nvim_set_option_value(
     "winhighlight",
-    "Normal:NvimCmdlineMenu,FloatBorder:NvimCmdlineMenuBorder,"
-      .. "EndOfBuffer:NvimCmdlineMenu,CursorLine:NvimCmdlineMenuSel",
+    "Normal:NvimCmdlineMenu,FloatBorder:NvimCmdlineMenuBorder,EndOfBuffer:NvimCmdlineMenu",
     { win = win }
   )
-  vim.api.nvim_set_option_value("cursorline", true, { win = win })
+  -- cursorline disabled: selection is drawn entirely via a full-line extmark
+  -- in NS_MARKER (priority 15) so it never overwrites sep/desc highlights.
+  vim.api.nvim_set_option_value("cursorline", false, { win = win })
   vim.api.nvim_set_option_value("wrap", false, { win = win })
   pcall(vim.api.nvim_set_option_value, "winblend", 10, { win = win })
 
