@@ -36,13 +36,15 @@ loader.register({
   -- General UI and key discovery.
   { mod = "plugins.which-key", defer = true },
   {
-    mod = "plugins.mini-session",
+    mod = "plugins.auto-session",
+    priority = "critical",
     keys = {
-      { "<leader>ks", desc = "Select session" },
-      { "<leader>kw", desc = "Write session" },
-      { "<leader>kl", desc = "Load latest" },
-      { "<leader>kd", desc = "Delete session" },
-      { "<leader>kr", desc = "Restart Neovim" },
+      { "<leader>k", group = "Session", icon = { icon = "󱂬 ", hl = "MiniIconsOrange" } },
+      { "<leader>kf", "<cmd>AutoSession load<CR>", desc = "Find session" },
+      { "<leader>ks", "<cmd>AutoSession save<CR>", desc = "Save session" },
+      { "<leader>kr", "<cmd>AutoSession restore<CR>", desc = "Restore session" },
+      { "<leader>kd", "<cmd>AutoSession delete<CR>", desc = "Delete session" },
+      { "<leader>ka", "<cmd>AutoSession toggle<CR>", desc = "Toggle autosave" },
     },
   },
   { mod = "plugins.tint-diagnostic", defer = true },
@@ -187,12 +189,12 @@ loader.register({
   {
     mod = "plugins.builtin_undotree",
     cmd = "Undotree",
-    keys = "<leader>uu",
+    keys = { { "<leader>uu", "<cmd>Undotree<CR>", desc = "Undotree" } },
   },
   {
     mod = "plugins.builtin_difftool",
     cmd = "DiffTool",
-    keys = "<leader>nd",
+    keys = { { "<leader>nd", "<cmd>DiffTool<CR>", desc = "DiffTool" } },
   },
   {
     mod = "plugins.builtin_tohtml",
@@ -200,10 +202,6 @@ loader.register({
   },
 })
 
-local map = vim.keymap.set
-map("n", "<leader>pu", function()
+vim.keymap.set("n", "<leader>pu", function()
   vim.pack.update()
 end, { desc = "Update plugins" })
-
-map("n", "<leader>uu", "<cmd>Undotree<CR>", { desc = "Undotree" })
-map("n", "<leader>nd", "<cmd>DiffTool<CR>", { desc = "DiffTool" })

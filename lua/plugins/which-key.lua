@@ -22,7 +22,7 @@ wk.setup({
     -- ── Groups ───────────────────────────────────────────────────────────────
     { "<leader>b", group = "Buffer", icon = { icon = "󰓩 ", hl = "MiniIconsCyan" } },
     { "<leader>c", group = "Code / LSP", icon = { icon = "󰘦 ", hl = "MiniIconsGreen" } },
-    { "<leader>d", group = "Diagnostics", icon = { icon = "󱖫 ", hl = "MiniIconsRed" } },
+    -- { "<leader>d", group = "Diagnostics", icon = { icon = "󱖫 ", hl = "MiniIconsRed" } },
     { "<leader>e", group = "Explorer", icon = { icon = "󰙅 ", hl = "MiniIconsBrown" } },
     -- { "<leader>f", group = "Format", icon = { icon = "󰉿 ", hl = "MiniIconsAzure" } },
     { "<leader>g", group = "Git", icon = { icon = "󰊢 ", hl = "MiniIconsOrange" } },
@@ -87,6 +87,14 @@ wk.setup({
     { "]", group = "Next", icon = { icon = "󰅶 ", hl = "MiniIconsGrey" } },
   },
 })
+
+local loader_ok, loader = pcall(require, "custom.loader")
+if loader_ok then
+  local spec = loader.which_key_specs()
+  if #spec > 0 then
+    wk.add(spec)
+  end
+end
 
 vim.keymap.set("n", "<leader>?", function()
   require("which-key").show({ global = false })
