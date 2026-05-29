@@ -25,6 +25,9 @@ M.load_order = {}
 -- autocmd IDs created by the event subsystem (for potential cleanup)
 M.autocmd_ids = {}
 
+-- which-key v3 metadata collected from module specs before which-key loads
+M.which_key_specs = {}
+
 -- guard: setup() called
 M.initialized = false
 

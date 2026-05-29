@@ -141,14 +141,19 @@ function M.bootstrap()
     if has_trigger then
       -- Wire autocmd / command / keymap triggers.
       M._wire_triggers(spec)
+    end
+
+    if spec.priority == "critical" then
+      -- Critical modules still load during bootstrap even when they expose
+      -- command/key stubs for metadata or replay.
+      critical[#critical + 1] = mod
+    elseif has_trigger then
+      -- Trigger-only modules load on demand.
     elseif spec.idle then
       idle[#idle + 1] = mod
     elseif spec.defer or spec.priority ~= "critical" then
       -- Default: defer non-critical modules so they don't block startup.
       deferred[#deferred + 1] = mod
-    else
-      -- priority == "critical": load synchronously during bootstrap.
-      critical[#critical + 1] = mod
     end
 
     ::continue::
@@ -256,6 +261,26 @@ function M._wire_triggers(spec)
     return opts
   end
 
+  local function del_keymap(mode, lhs, del_opts)
+    for _, m in ipairs(require("custom.loader.utils").to_list(mode)) do
+      pcall(vim.keymap.del, m, lhs, del_opts)
+    end
+  end
+
+  local function replay_rhs(rhs)
+    if type(rhs) == "function" then
+      rhs()
+      return
+    end
+
+    if type(rhs) ~= "string" then
+      return
+    end
+
+    local keys = vim.api.nvim_replace_termcodes(rhs, true, false, true)
+    vim.api.nvim_feedkeys(keys, "mt", false)
+  end
+
   -- Event triggers.
   if #spec.event > 0 then
     events.on_event(spec.event, { mod })
@@ -293,29 +318,36 @@ function M._wire_triggers(spec)
   -- Keymap stubs: feed the real key after loading so the bound action executes.
   for _, key_spec in ipairs(spec.keys) do
     local lhs = type(key_spec) == "table" and key_spec[1] or key_spec
+    local rhs = type(key_spec) == "table" and key_spec[2] or nil
     local mode = type(key_spec) == "table" and (key_spec.mode or "n") or "n"
     local opts = keymap_opts(key_spec)
     local del_opts = opts.buffer and { buffer = opts.buffer } or nil
 
-    local function create_key_stub()
-      vim.keymap.set(mode, lhs, function()
-        pcall(vim.keymap.del, mode, lhs, del_opts)
+    if not (type(key_spec) == "table" and key_spec.group and rhs == nil) then
+      local function create_key_stub()
+        vim.keymap.set(mode, lhs, function()
+          del_keymap(mode, lhs, del_opts)
 
-        local ok = core.load(mod, { trigger = "keys:" .. lhs })
-        if not ok then
-          create_key_stub()
-          return
-        end
+          local ok = core.load(mod, { trigger = "keys:" .. lhs })
+          if not ok then
+            create_key_stub()
+            return
+          end
 
-        -- Re-feed the key so the real mapping (if any) fires.
-        vim.schedule(function()
-          local key = vim.api.nvim_replace_termcodes(lhs, true, false, true)
-          vim.api.nvim_feedkeys(key, "mt", false)
-        end)
-      end, opts)
+          vim.schedule(function()
+            if rhs ~= nil then
+              replay_rhs(rhs)
+              return
+            end
+
+            -- Re-feed the key so the real mapping (if any) fires.
+            replay_rhs(lhs)
+          end)
+        end, opts)
+      end
+
+      create_key_stub()
     end
-
-    create_key_stub()
   end
 end
 
@@ -347,6 +379,10 @@ end
 ---@return boolean
 function M.is_loaded(mod)
   return require("custom.loader.modules").is_loaded(mod)
+end
+
+function M.which_key_specs()
+  return require("custom.loader.modules").get_which_key_specs()
 end
 
 return M

@@ -38,7 +38,7 @@ M.S = {
 ---   event     string|string[]  autocmd events
 ---   ft        string|string[]  filetypes
 ---   cmd       string|string[]  user-command stubs
----   keys      string|{string, mode?}[]  keymap stubs
+---   keys      string|{string, rhs?, mode?, desc?, icon?}[]  keymap stubs
 ---   deps      string|string[]  module names that must load first
 ---   cond      bool|function    false → skip entirely
 ---   config    function(module) called after successful load
@@ -62,6 +62,14 @@ function M.register(spec)
 
   state.registry[spec.mod] = spec
   state.load_state[spec.mod] = M.S.REGISTERED
+
+  for _, key_spec in ipairs(spec.keys) do
+    if type(key_spec) == "table" and (key_spec.group or key_spec.icon or key_spec.desc) then
+      local wk_spec = vim.deepcopy(key_spec)
+      wk_spec[2] = nil
+      state.which_key_specs[#state.which_key_specs + 1] = wk_spec
+    end
+  end
 
   utils.log("debug", "Registered: %s [%s]", spec.mod, spec.priority)
 end
@@ -103,6 +111,10 @@ end
 
 function M.get_load_order()
   return state.load_order
+end
+
+function M.get_which_key_specs()
+  return vim.deepcopy(state.which_key_specs)
 end
 
 -- ── Load-order index ──────────────────────────────────────────────────────────
