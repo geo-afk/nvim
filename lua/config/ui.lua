@@ -113,7 +113,7 @@ local POLICY = {
   max_msg_width_ratio = 0.46,
   max_msg_height = 6,
   max_deferred_preview = 3,
-  msg_winblend = 100,
+  msg_winblend = 0,
 }
 
 local IGNORED_KINDS = {
@@ -202,7 +202,7 @@ local function define_highlights()
   set(0, "CustomNotifyDebugBody", { fg = "#7f849c", bg = "NONE" })
 
   set(0, "CustomNotifyDim", { fg = "#565f89", bg = "NONE" })
-  set(0, "CustomNotifyFloat", { bg = "NONE" })
+  set(0, "CustomNotifyFloat", { bg = "#1a1b26" })
 end
 
 define_highlights()
@@ -468,8 +468,8 @@ local function style_win(win, target)
     "NormalNC:CustomNotifyFloat",
     "NormalFloat:CustomNotifyFloat",
     "EndOfBuffer:CustomNotifyFloat",
-    "FloatBorder:" .. state.border_hl,
-    "FloatTitle:" .. state.title_hl,
+    "FloatBorder:" .. (state.border_hl or "FloatBorder"),
+    "FloatTitle:" .. (state.title_hl or "FloatTitle"),
   }, ",")
   pcall(vim.api.nvim_set_option_value, "winhighlight", winhl, { scope = "local", win = win })
   pcall(vim.api.nvim_set_option_value, "winblend", POLICY.msg_winblend, { scope = "local", win = win })
@@ -477,7 +477,7 @@ local function style_win(win, target)
   local next_cfg = {
     border = target == "msg" and "rounded" or cfg.border,
     style = "minimal",
-    title = { { state.title, state.title_hl } },
+    title = { { state.title or " Notification ", state.title_hl or "FloatTitle" } },
     title_pos = "left",
   }
 

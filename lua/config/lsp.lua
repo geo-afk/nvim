@@ -133,12 +133,12 @@ local function setup_attach()
       end
 
       -- [0.12-new] Workspace diagnostics
-      if client:supports_method("workspace/diagnostic") then
-        vim.keymap.set("n", "<leader>dW", function()
-          vim.diagnostic.setqflist({ scope = "workspace" })
-          vim.cmd("copen")
-        end, opts("[0.12] Workspace diagnostics"))
-      end
+      -- if client:supports_method("workspace/diagnostic") then
+      --   vim.keymap.set("n", "<leader>dW", function()
+      --     vim.diagnostic.setqflist({ scope = "workspace" })
+      --     vim.cmd("copen")
+      --   end, opts("[0.12] Workspace diagnostics"))
+      -- end
 
       -- [0.12-new] Linked editing range
       if client:supports_method("textDocument/linkedEditingRange") then

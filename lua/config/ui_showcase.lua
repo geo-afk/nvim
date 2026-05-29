@@ -36,6 +36,9 @@ local function open_info_float()
     style = "minimal",
   })
 
+  vim.api.nvim_set_option_value("winhighlight", "Normal:CustomNotifyFloat,FloatBorder:CustomNotifyInfoBorder", { scope = "local", win = win })
+  vim.api.nvim_set_option_value("winblend", 0, { scope = "local", win = win })
+
   vim.wo[win].wrap = false
   vim.keymap.set("n", "q", function()
     vim.api.nvim_win_close(win, true)
