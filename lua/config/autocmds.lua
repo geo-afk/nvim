@@ -6,13 +6,16 @@ local QC = augroup("QuickClose", { clear = true })
 local RS = augroup("ResizeSplits", { clear = true })
 local AQ = augroup("AutoQuickfix", { clear = true })
 
--- ── Angular: toggle .ts ↔ .html ──────────────────────────────────────────────
+-- ── Angular: project setup ────────────────────────────────────────────────────
 autocmd("FileType", {
   pattern = { "typescript", "html" },
-  callback = function()
-    if not require("utils").is_angular_project() then
+  callback = function(ev)
+    local utils = require("utils")
+    if not utils.is_angular_project(ev.buf) then
       return
     end
+
+    -- Toggle .ts ↔ .html
     vim.keymap.set("n", "<leader>at", function()
       local name = vim.api.nvim_buf_get_name(0)
       if name:match("%.ts$") then
@@ -20,7 +23,12 @@ autocmd("FileType", {
       elseif name:match("%.html$") then
         vim.cmd("edit " .. name:gsub("%.html$", ".ts"))
       end
-    end, { buffer = true, desc = "Toggle Angular .ts ↔ .html" })
+    end, { buffer = ev.buf, desc = "Toggle Angular .ts ↔ .html" })
+
+    -- Start Treesitter for Angular templates
+    if ev.match == "html" and utils.should_use_angular_parser(vim.api.nvim_buf_get_name(ev.buf)) then
+      pcall(vim.treesitter.start, ev.buf, "angular")
+    end
   end,
 })
 

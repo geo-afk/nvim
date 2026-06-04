@@ -1,16 +1,6 @@
 local fn = vim.fn
 local opt = vim.opt
-
-local function ensure_writable_dir(path)
-  if fn.isdirectory(path) ~= 1 then
-    local ok = pcall(fn.mkdir, path, "p")
-    if not ok then
-      return false
-    end
-  end
-
-  return fn.filewritable(path) == 2
-end
+local utils = require("utils")
 
 vim.o.cmdheight = 0 -- Hide command line unless needed
 
@@ -89,14 +79,14 @@ local undo_dir = data_dir .. "/undo"
 opt.backup = false
 opt.writebackup = false
 opt.swapfile = false
-opt.undofile = ensure_writable_dir(undo_dir)
+opt.undofile = utils.ensure_writable_dir(undo_dir)
 opt.undodir = undo_dir
 opt.sessionoptions = "blank,buffers,curdir,folds,help,tabpages,winsize,terminal,localoptions,skiprtp"
 opt.autowriteall = true
 
 -- [0.12-changed] 'shada' default excludes /tmp etc.
 opt.shada = "!,'100,<50,s10,h,r/tmp,r/private"
-if not ensure_writable_dir(data_dir) then
+if not utils.ensure_writable_dir(data_dir) then
   opt.shadafile = "NONE"
 end
 
@@ -207,17 +197,9 @@ end
 
 vim.filetype.add({
   extension = {
-    env = "dotenv",
+    html = "html",
   },
-
-  filename = {
-    [".env"] = "dotenv",
-    ["env"] = "dotenv",
-  },
-
   pattern = {
-
     ["[jt]sconfig.*.json"] = "jsonc",
-    ["%.env%.[%w_.-]+"] = "dotenv",
   },
 })
