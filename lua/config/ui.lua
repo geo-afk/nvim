@@ -122,6 +122,14 @@ local IGNORED_KINDS = {
   bufwrite = true,
 }
 
+local SPECIAL_KINDS = {
+  search_count = true,
+  search_cmd = true,
+  confirm = true,
+  wildlist = true,
+  typed_cmd = true,
+}
+
 local SKIP_PATTERNS = {
   "%d+L, %d+B",
   "; after #%d+",
@@ -573,7 +581,7 @@ msgs.show_msg = function(tgt, kind, content, replace_last, append, id)
 end
 
 msgs.msg_show = function(kind, content, replace_last, history, append, id, trigger)
-  if state.flushing or vim.g.custom_cmdline_busy then
+  if state.flushing or vim.g.custom_cmdline_busy or SPECIAL_KINDS[kind] then
     return originals.msg_show(kind, content, replace_last, history, append, id, trigger)
   end
 
