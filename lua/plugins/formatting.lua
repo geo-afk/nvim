@@ -39,6 +39,7 @@ conform.setup({
     python = { "ruff_format" },
     sh = { "shfmt" },
     bash = { "shfmt" },
+    just = { "just" },
   },
 
   formatters = {
