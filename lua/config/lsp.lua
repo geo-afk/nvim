@@ -201,6 +201,7 @@ M.servers = {
   lua_ls = "lua_ls",
   codebook = "codebook",
   typos_lsp = "typos_lsp",
+  just_lsp = "just_lsp",
   vtsls = "vtsls",
   biome = "biome",
   angularls = "angularls",
