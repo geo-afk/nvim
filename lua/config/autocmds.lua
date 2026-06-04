@@ -224,6 +224,16 @@ autocmd("FileType", {
   end,
 })
 
+-- ── Environment Files (.env) ──────────────────────────────────────────────────
+autocmd({ "BufRead", "BufNewFile" }, {
+  group = G,
+  pattern = { ".env", ".env.*" },
+  callback = function(ev)
+    vim.bo[ev.buf].filetype = "dotenv"
+    vim.diagnostic.enable(false, { bufnr = ev.buf })
+  end,
+})
+
 -- ── Auto-open quickfix ────────────────────────────────────────────────────────
 autocmd("QuickFixCmdPost", {
   group = AQ,
