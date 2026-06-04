@@ -26,6 +26,7 @@ local lsp_to_mason = {
   codebook = "codebook",
   marksman = "marksman",
   jsonls = "json-lsp",
+  just_lsp = "just-lsp",
 }
 
 local mason_tools = {
@@ -98,6 +99,7 @@ if mlsp_ok then
           sqls = true,
           emmet_language_server = true,
           typos_lsp = true,
+          just_lsp = true,
         }
         if explicit[server_name] then
           return

@@ -89,7 +89,14 @@ loader.register({
   {
     mod = "plugins.markdown",
     ft = { "markdown", "html", "yaml", "latex", "typst" },
-    -- keys = { "<leader>m" },
+    keys = {
+      { "<leader>m", group = "Markview", icon = { icon = "󰽉 ", hl = "MiniIconsYellow" } },
+      { "<leader>mv", desc = "Toggle Markview" },
+      { "<leader>ms", desc = "Toggle split preview" },
+      { "<leader>mh", desc = "Toggle hybrid mode" },
+      { "<leader>me", desc = "Enable Markview" },
+      { "<leader>md", desc = "Disable Markview" },
+    },
   },
   -- LSP and completion stack.
   {
@@ -145,10 +152,25 @@ loader.register({
   {
     mod = "plugins.overseer",
     cond = function()
-      return vim.fs.root(0, { "go.mod", "package.json", "angular.json", ".git", "Makefile" }) ~= nil
+      return vim.fs.root(
+        0,
+        {
+          "go.mod",
+          "package.json",
+          "angular.json",
+          ".git",
+          "Makefile",
+          "justfile",
+          "Justfile",
+          ".justfile",
+          "Taskfile.yml",
+          "Taskfile.yaml",
+        }
+      ) ~= nil
     end,
     cmd = { "OverseerRun", "OverseerToggle", "OverseerBuild" },
     keys = {
+      { "<leader>o", group = "Tasks", icon = { icon = "󱗗 ", hl = "MiniIconsAzure" } },
       { "<leader>or", desc = "Run task" },
       { "<leader>ot", desc = "Toggle panel" },
       { "<leader>oo", desc = "Open output" },
@@ -162,10 +184,11 @@ loader.register({
   {
     mod = "plugins.dap",
     cond = function()
-      return vim.fs.root(0, { "go.mod", "package.json", "angular.json", ".git" }) ~= nil
+      return vim.fs.root(0, { "go.mod", "package.json", "angular.json", ".git", "Makefile", "justfile" }) ~= nil
     end,
     cmd = { "DapContinue", "DapToggleBreakpoint", "DapStepOver", "DapStepInto", "DapStepOut" },
     keys = {
+      { "<leader>d", group = "Debug", icon = { icon = "󰃤 ", hl = "MiniIconsRed" } },
       { "<leader>dc", desc = "Continue" },
       { "<leader>dC", desc = "Run to cursor" },
       { "<leader>dq", desc = "Terminate" },

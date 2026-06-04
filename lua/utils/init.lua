@@ -190,6 +190,21 @@ end
 -- Path Utilities
 -- ============================================================================
 
+--- Ensure a directory exists and is writable
+--- @param path string The path to check/create
+--- @return boolean True if directory exists and is writable
+function M.ensure_writable_dir(path)
+  local fn = vim.fn
+  if fn.isdirectory(path) ~= 1 then
+    local ok = pcall(fn.mkdir, path, "p")
+    if not ok then
+      return false
+    end
+  end
+
+  return fn.filewritable(path) == 2
+end
+
 --- Join path segments into a single path
 --- @param ... string Path segments to join
 --- @return string The joined path
@@ -319,10 +334,11 @@ function M.should_use_angular_parser(path)
   if not path or type(path) ~= "string" then
     return false
   end
-  if not path:match("/src/app/") then
+  local normalized = vim.fs.normalize(path)
+  if not normalized:match("/src/app/") then
     return false
   end
-  return M.is_angular_project()
+  return M.is_angular_project(path)
 end
 
 return M

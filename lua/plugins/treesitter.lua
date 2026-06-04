@@ -24,17 +24,22 @@ local parsers = {
   "query",
   "toml",
   "sql",
+  "bash",
+  "dotenv",
   "angular",
 }
 
 local ft_to_lang = {
   javascriptreact = "tsx",
   typescriptreact = "tsx",
+  dotenv = "bash",
 }
 
 local handled_filetypes = {
   angular = true,
+  bash = true,
   css = true,
+  dotenv = true,
   go = true,
   gomod = true,
   gowork = true,
@@ -49,6 +54,7 @@ local handled_filetypes = {
   query = true,
   regex = true,
   scss = true,
+  sh = true,
   sql = true,
   toml = true,
   typescript = true,
@@ -143,7 +149,9 @@ vim.api.nvim_create_autocmd("FileType", {
   group = group,
   pattern = {
     "angular",
+    "bash",
     "css",
+    "dotenv",
     "go",
     "gomod",
     "gowork",
@@ -158,6 +166,7 @@ vim.api.nvim_create_autocmd("FileType", {
     "query",
     "regex",
     "scss",
+    "sh",
     "sql",
     "toml",
     "typescript",
