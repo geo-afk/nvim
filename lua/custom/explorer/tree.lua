@@ -93,6 +93,9 @@ local function scan(path, show_hidden, cb)
         end
         if show_hidden or name:sub(1, 1) ~= "." then
           raw[#raw + 1] = { name = name, type = t, path = M.join(path, name) }
+        else
+          -- Count entries skipped because show_hidden is false
+          S.hidden_count = S.hidden_count + 1
         end
       end
 
@@ -307,6 +310,10 @@ end
 function M.build(tok, filter, done)
   -- Resolve tree connector style once per build so the walk closure has it.
   local tc = cfg.get().tree
+
+  -- Reset the hidden-entry counter.  scan() increments it whenever a dotfile
+  -- is skipped because show_hidden is false.
+  S.hidden_count = 0
 
   local result = {}
   walk(S.root, 0, {}, tok, result, filter, tc, function()

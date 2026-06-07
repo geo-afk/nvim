@@ -41,6 +41,11 @@ local search_ui = require("custom.explorer.search_ui")
 local api = vim.api
 local M = {}
 
+-- ── Namespaces ────────────────────────────────────────────────────────────
+-- Separate from S.ns so they can be cleared independently.
+local ACTIVE_NS = api.nvim_create_namespace("explorer_active")
+local HIDDEN_NS = api.nvim_create_namespace("explorer_hidden")
+
 local function set_buf_modifiable(buf, value)
   api.nvim_set_option_value("modifiable", value, { buf = buf })
 end
@@ -91,6 +96,14 @@ function M._reveal_cursor(path)
   end
 end
 
+-- ── Forward declarations ──────────────────────────────────────────────────
+-- apply_active_indicator and apply_hidden_badge are defined later in the file
+-- but referenced by M.render() and M._paint() closures.  Forward-declare so
+-- Lua can close over the upvalue correctly.
+
+local apply_active_indicator
+local apply_hidden_badge
+
 -- ── Debounced full render ─────────────────────────────────────────────────
 
 local _scheduled = false
@@ -122,6 +135,8 @@ function M.render()
           M._paint()
           git.apply()
           marks.apply()
+          apply_active_indicator()
+          apply_hidden_badge()
           apply_diagnostics()
         end
         local target = S._reveal_target
@@ -206,6 +221,90 @@ local function build_item_lines()
   return lines, hls
 end
 
+-- ── apply_active_indicator ────────────────────────────────────────────────
+--
+-- Highlights the row whose path matches S.active_buf_path with
+-- ExplorerActiveFile on the name column and a right-aligned glyph.
+-- Called from _paint() and _paint_items_only() after item lines are written.
+
+local ACTIVE_GLYPH = " " -- nf-fa-circle / nf-cod-circle-filled
+
+apply_active_indicator = function()
+  local buf = S.buf
+  if not (buf and api.nvim_buf_is_valid(buf)) then
+    return
+  end
+  api.nvim_buf_clear_namespace(buf, ACTIVE_NS, 0, -1)
+  local active = S.active_buf_path
+  if not active then
+    return
+  end
+  for i, item in ipairs(S.items) do
+    if item.path == active then
+      local row = search_ui.row_for_item(i)
+      local col_name = item._col_name or 0
+      local col_end = item._col_name_end or (col_name + #item.name)
+      -- Brighten the filename
+      pcall(require("custom.ui.render").set_extmark, buf, ACTIVE_NS, row, col_name, {
+        end_col = col_end,
+        hl_group = "ExplorerActiveFile",
+        priority = 12, -- above base (10), below git (20) / marks (30)
+      })
+      -- Right-aligned dot marker
+      pcall(require("custom.ui.render").set_extmark, buf, ACTIVE_NS, row, 0, {
+        virt_text = { { ACTIVE_GLYPH, "ExplorerActiveMark" } },
+        virt_text_pos = "right_align",
+        priority = 12,
+      })
+      break
+    end
+  end
+end
+-- Export so init.lua can call a lightweight repaint without a full rebuild.
+M.apply_active_indicator = apply_active_indicator
+
+-- ── apply_hidden_badge ────────────────────────────────────────────────────
+--
+-- Writes the hidden-file count as a real buffer line at the end of the item
+-- list.  Real content is guaranteed to render — virt_lines on a non-modifiable
+-- nofile buffer can silently fail depending on Neovim internals.
+--
+-- The cursor is never placed on this line because lock_tree_view() clamps
+-- navigation to [HEADER_LINES+1 … HEADER_LINES+#S.items].
+
+local HIDDEN_ICON = "󰘓 " -- nf-md-eye_off
+
+apply_hidden_badge = function()
+  local buf = S.buf
+  if not (buf and api.nvim_buf_is_valid(buf)) then
+    return
+  end
+  api.nvim_buf_clear_namespace(buf, HIDDEN_NS, 0, -1)
+
+  local c = cfg.get()
+  if c.show_hidden then
+    return
+  end
+  local n = S.hidden_count or 0
+  if n == 0 then
+    return
+  end
+
+  local label = "  " .. HIDDEN_ICON .. n .. (n == 1 and " hidden file" or " hidden files")
+
+  -- Append as a real line so it is always visible.
+  set_buf_modifiable(buf, true)
+  local line_count = api.nvim_buf_line_count(buf)
+  api.nvim_buf_set_lines(buf, line_count, line_count, false, { label })
+  -- Highlight the entire line with ExplorerHiddenCount
+  api.nvim_buf_set_extmark(buf, HIDDEN_NS, line_count, 0, {
+    end_col = #label,
+    hl_group = "ExplorerHiddenCount",
+    priority = 8,
+  })
+  set_buf_modifiable(buf, false)
+end
+
 -- ── _paint ────────────────────────────────────────────────────────────────
 
 function M._paint()
@@ -248,6 +347,9 @@ function M._paint()
 
   M.paint_header()
   search_ui.lock_tree_view()
+
+  -- ── Overlay layers (written after buffer text is locked) ──────────────
+  apply_active_indicator()
 
   -- Restore cursor to the same file, clamped to valid range
   if S.win and api.nvim_win_is_valid(S.win) then
@@ -304,6 +406,8 @@ function M._paint_items_only()
 
   git.apply()
   marks.apply()
+  apply_active_indicator()
+  apply_hidden_badge()
   apply_diagnostics()
 end
 

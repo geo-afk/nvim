@@ -290,9 +290,22 @@ function M.open(opts)
     -- Invalidate git repo cache for the new root so git.fetch() re-checks
     -- whether new_root is actually a git repository.
     git.invalidate_repo_cache(new_root)
+    -- Clear active path — it may belong to the old project.
+    S.active_buf_path = nil
   end
 
   S.root = new_root
+
+  -- Seed the active-buffer path so the indicator appears on first paint.
+  do
+    local p = api.nvim_buf_get_name(0)
+    if p and p ~= "" and not p:match("^explorer://") then
+      local np = tree.norm(fn.fnamemodify(p, ":p"))
+      if vim.startswith(np, new_root) then
+        S.active_buf_path = np
+      end
+    end
+  end
 
   if not (S.buf and api.nvim_buf_is_valid(S.buf)) then
     S.buf = win.make_buf()
@@ -594,7 +607,10 @@ function M.setup(opts)
         -- don't each trigger a separate tree scan/rebuild.
         _follow_timer = vim.defer_fn(function()
           _follow_timer = nil
-          M.reveal(path)
+          -- Track the active buffer path so render.lua can highlight it.
+          local norm_path = tree.norm(fn.fnamemodify(path, ":p"))
+          S.active_buf_path = norm_path
+          M.reveal(norm_path)
         end, 150)
       end,
     })
@@ -606,6 +622,21 @@ function M.setup(opts)
       local winid = api.nvim_get_current_win()
       if is_regular_edit_window(winid) then
         S.prev_win = winid
+        -- Keep active_buf_path in sync even when follow_file is off.
+        -- This is cheap (no rebuild) — render._paint() reads it on next repaint.
+        local p = api.nvim_buf_get_name(api.nvim_win_get_buf(winid))
+        if p and p ~= "" and S.root then
+          local np = tree.norm(fn.fnamemodify(p, ":p"))
+          if vim.startswith(np, S.root) then
+            if S.active_buf_path ~= np then
+              S.active_buf_path = np
+              -- Repaint the active layer without a full rebuild
+              if S.buf and api.nvim_buf_is_valid(S.buf) then
+                require("custom.explorer.render").apply_active_indicator()
+              end
+            end
+          end
+        end
       end
     end,
   })

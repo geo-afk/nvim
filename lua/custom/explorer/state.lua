@@ -26,6 +26,9 @@ local S = {
   -- git.lua: directory path → highest-priority child status character.
   -- Pre-computed in git.fetch() to replace the O(n×m) loop in apply().
   git_dirs = {},
+  -- git.lua: file path → { added = N, removed = M } from git diff --numstat.
+  -- Only populated for tracked files with a diff (M, R, A staged).
+  git_stats = {},
 
   filter = nil,
   marks = {},

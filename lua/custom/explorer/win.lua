@@ -190,6 +190,17 @@ function M.ensure_hl()
   git.setup_hl()
   marks.setup_hl()
 
+  -- ── Active file indicator ─────────────────────────────────────────────
+  -- File row whose path matches the currently open buffer.
+  def("ExplorerActiveFile", { fg = accent, bold = true })
+  -- Right-side glyph for the active row (subtler than the name itself).
+  def("ExplorerActiveMark", { fg = blend(accent, sidebar_bg, 0.55), bold = true })
+
+  -- ── Hidden-count badge ────────────────────────────────────────────────
+  -- Use Comment fg directly — it is already the theme's "muted but readable"
+  -- colour; no further blending so it is always visible.
+  def("ExplorerHiddenCount", { fg = dim_fg, italic = true })
+
   -- ── Popup / floating window groups ───────────────────────────────────
   -- These were previously in ui.ensure_hl() with a separate guard.
   -- Consolidating them here ensures they are always in sync with the sidebar
@@ -256,6 +267,11 @@ function M.reset_hl()
     "ExplorerGitConflict",
     "ExplorerGitIgnored",
     "ExplorerMark",
+    "ExplorerActiveFile",
+    "ExplorerActiveMark",
+    "ExplorerHiddenCount",
+    "ExplorerGitStatAdd",
+    "ExplorerGitStatDel",
   }
   vim.list_extend(names, icons.GROUPS)
   for _, name in ipairs(names) do
