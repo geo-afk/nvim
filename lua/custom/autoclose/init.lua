@@ -40,23 +40,27 @@ function M.setup(opts)
 
   -- Set up pairing keymaps
   for open, close in pairs(pairs_map) do
-    -- Bind opening delimiters
-    vim.keymap.set("i", open, function()
-      if rules.can_close(open, close) then
-        return open .. close .. "<Left>"
-      end
-
-      -- Identical quote triggers skip if typed at closing boundary
-      if open == close then
-        return handlers.handle_close(open)
-      end
-
-      return open
-    end, { expr = true, desc = "Smart close: " .. open })
+    if open == close then
+      -- Identical delimiters (quotes): use dedicated handler that properly
+      -- distinguishes skip-over vs pair-insert vs raw-insert
+      vim.keymap.set("i", open, function()
+        local can_pair = rules.can_close(open, close)
+        return handlers.handle_quote(open, can_pair)
+      end, { expr = true, desc = "Smart quote: " .. open })
+    else
+      -- Distinct open/close pairs (brackets)
+      vim.keymap.set("i", open, function()
+        if rules.can_close(open, close) then
+          return open .. close .. "<Left>"
+        end
+        return open
+      end, { expr = true, desc = "Smart close: " .. open })
+    end
   end
 
   -- Bind closing delimiters for skip-over behavior
   for closer, _ in pairs(closers) do
+    -- Skip identical pairs (already handled above)
     if pairs_map[closer] == closer then
       goto continue
     end

@@ -7,10 +7,22 @@ local config = require("custom.autoclose.config")
 
 local M = {}
 
+---Check if autoclose is active for the current buffer
+---@return boolean
+local function is_active()
+  if not config.get("enabled") then
+    return false
+  end
+  if vim.tbl_contains(config.get("disable_filetypes"), vim.bo.filetype) then
+    return false
+  end
+  return true
+end
+
 ---Smart backspace handler to delete matching pairs
 ---@return string
 function M.handle_backspace()
-  if not config.get("enabled") then
+  if not is_active() then
     return "<BS>"
   end
 
@@ -19,8 +31,8 @@ function M.handle_backspace()
   local char_before = col > 0 and line:sub(col, col) or ""
   local char_after = line:sub(col + 1, col + 1)
 
-  local pairs = config.get("pairs")
-  if pairs[char_before] == char_after then
+  local pairs_map = config.get("pairs")
+  if pairs_map[char_before] == char_after then
     return "<BS><Del>"
   end
 
@@ -30,7 +42,7 @@ end
 ---Smart carriage return expansion for open pairs (e.g. { | } or [ | ])
 ---@return string
 function M.handle_cr()
-  if not config.get("enabled") then
+  if not is_active() then
     return "<CR>"
   end
 
@@ -64,7 +76,7 @@ function M.handle_cr()
   if char_before == ">" and char_after == "<" then
     local prev_text = line:sub(1, col)
     local next_text = line:sub(col + 1)
-    if prev_text:match("<%w+>$") and next_text:match("^</%w+>") then
+    if prev_text:match("<(%w+)>$") and next_text:match("^</%w+>") then
       return "<CR><Esc>O"
     end
   end
@@ -72,11 +84,11 @@ function M.handle_cr()
   return "<CR>"
 end
 
----Smart skip-over handler for closing delimiters
+---Smart skip-over handler for closing delimiters (non-quote)
 ---@param char string The typed character
 ---@return string
 function M.handle_close(char)
-  if not config.get("enabled") then
+  if not is_active() then
     return char
   end
 
@@ -91,16 +103,50 @@ function M.handle_close(char)
   return char
 end
 
+---Smart handler for quote characters (where open == close)
+---Determines whether to: skip over existing closer, insert a pair, or insert raw
+---@param char string The quote character
+---@param can_pair boolean Whether rules.can_close approved pairing
+---@return string
+function M.handle_quote(char, can_pair)
+  if not is_active() then
+    return char
+  end
+
+  local line = vim.api.nvim_get_current_line()
+  local col = vim.api.nvim_win_get_cursor(0)[2]
+  local next_char = line:sub(col + 1, col + 1)
+
+  -- Priority 1: Skip over existing closing quote
+  if next_char == char then
+    return "<Right>"
+  end
+
+  -- Priority 2: Insert a pair if rules approved
+  if can_pair then
+    return char .. char .. "<Left>"
+  end
+
+  -- Priority 3: Insert raw character
+  return char
+end
+
 ---Smart tag autoclose handler
 ---@return string|nil
 function M.handle_tag_close()
-  if not config.get("enabled") then
+  if not is_active() then
     return ">"
   end
 
   local line = vim.api.nvim_get_current_line()
   local col = vim.api.nvim_win_get_cursor(0)[2]
   local before = line:sub(1, col)
+
+  -- Skip over existing > character
+  local next_char = line:sub(col + 1, col + 1)
+  if next_char == ">" then
+    return "<Right>"
+  end
 
   -- Match an opening tag like <div> but not a self-closing one like <img />
   local tag_name = before:match("<([%w%-]+)[^>]*$")

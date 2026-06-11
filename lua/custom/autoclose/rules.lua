@@ -15,23 +15,42 @@ local M = {}
 ---@return boolean
 local function is_balanced(line, open, close)
   if open == close then
-    -- For identical quotes, count parity
-    local _, count = line:gsub(open, "")
+    -- For identical quotes, count parity (excluding escaped ones)
+    local count = 0
+    local i = 1
+    while i <= #line do
+      local ch = line:sub(i, i)
+      if ch == "\\" then
+        -- Skip escaped character
+        i = i + 2
+      elseif ch == open then
+        count = count + 1
+        i = i + 1
+      else
+        i = i + 1
+      end
+    end
     return count % 2 == 0
   end
 
-  local open_count = 0
-  local close_count = 0
-  for i = 1, #line do
-    local char = line:sub(i, i)
-    if char == open then
-      open_count = open_count + 1
-    elseif char == close then
-      close_count = close_count + 1
+  local depth = 0
+  local i = 1
+  while i <= #line do
+    local ch = line:sub(i, i)
+    if ch == "\\" then
+      i = i + 2
+    elseif ch == open then
+      depth = depth + 1
+      i = i + 1
+    elseif ch == close then
+      depth = depth - 1
+      i = i + 1
+    else
+      i = i + 1
     end
   end
 
-  return open_count <= close_count
+  return depth <= 0
 end
 
 ---Validate if it is safe to autoclose given the context
@@ -60,8 +79,6 @@ function M.can_close(open, close)
   if open == close then
     local ignored_quote = config.get("ignored_quote_nodes")
     if ts.in_string(ignored_quote, node) then
-      -- Edge case: inside a TSX/JSX template or Lua multiline, pairing might be desired.
-      -- However, generally we do not double pair identical quotes inside strings.
       return false
     end
   end
@@ -78,29 +95,25 @@ function M.can_close(open, close)
     return false
   end
 
-  -- Identical pairs, such as quotes, should skip over an existing closer.
-  if open == close and next_char == close then
-    return false
-  end
-
   -- Don't pair if we are right after an escape backslash (e.g. typing '(' after '\' -> '\(')
   if prev_char == "\\" then
     return false
   end
 
+  -- For identical pairs (quotes): don't pair if the next char is the same quote
+  -- (the caller will handle skip-over separately)
+  if open == close and next_char == close then
+    return false
+  end
+
+  -- Don't pair quotes right after a word character (e.g. it's, don't)
+  if open == close and prev_char:match("[%w_]") then
+    return false
+  end
+
   -- 5. Line Balance Verification
-  -- If we're already balanced or have more closing delimiters, it's safe to close.
-  -- If there's already too many closing delimiters downstream, we avoid adding more.
-  if not is_balanced(line, open, close) and open ~= close then
-    -- Let's check if the downstream text actually contains the closing character.
-    -- If there's an unmatched close ahead, don't auto-close.
-    local remaining = line:sub(col + 1)
-    -- Escape special characters for gsub
-    local escaped_close = close:gsub("[%(%)%.%%%+%-%*%?%[%^%$]", "%%%1")
-    local _, close_matches = remaining:gsub(escaped_close, "")
-    if close_matches > 0 then
-      return false
-    end
+  if not is_balanced(line, open, close) then
+    return false
   end
 
   return true

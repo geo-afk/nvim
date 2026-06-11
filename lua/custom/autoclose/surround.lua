@@ -96,28 +96,30 @@ end
 ---Surrounds the current word under the cursor
 function M.word_surround()
   local cursor = vim.api.nvim_win_get_cursor(0)
-  local row, col = cursor[1] - 1, cursor[2]
+  local row = cursor[1] - 1 -- 0-indexed row for nvim API
+  local col = cursor[2] -- 0-indexed byte column
   local line = vim.api.nvim_get_current_line()
 
-  -- Scan for word boundary
   local cword = vim.fn.expand("<cword>")
   if cword == "" then
     vim.api.nvim_echo({ { "No word found under cursor", "WarningMsg" } }, false, {})
     return
   end
 
-  -- Find start column of the word under cursor
-  local start_col = col
-  -- Backtrack while on word characters
-  while start_col > 0 and line:sub(start_col, start_col):match("[%w_]") do
-    start_col = start_col - 1
-  end
-  -- If we're not at start of line, increment to point to the first word char
-  if start_col > 0 or not line:sub(1, 1):match("[%w_]") then
-    start_col = start_col + 1
+  -- Work in 1-indexed Lua positions for string operations
+  local lua_col = col + 1 -- 1-indexed cursor position
+
+  -- Find start of word (1-indexed)
+  local word_start = lua_col
+  while word_start > 1 and line:sub(word_start - 1, word_start - 1):match("[%w_]") do
+    word_start = word_start - 1
   end
 
-  local end_col = start_col + #cword - 1
+  -- Find end of word (1-indexed, inclusive)
+  local word_end = lua_col
+  while word_end < #line and line:sub(word_end + 1, word_end + 1):match("[%w_]") do
+    word_end = word_end + 1
+  end
 
   -- Prompt user for delimiter character
   vim.api.nvim_echo({ { "Delimiter to wrap word (or t for tag): ", "Question" } }, false, {})
@@ -131,16 +133,15 @@ function M.word_surround()
     return
   end
 
-  -- nvim_buf_set_text uses 0-indexed columns, end is exclusive
-  -- start_col-1 is the 0-indexed start.
-  local s_col = math.max(0, start_col - 1)
-  local e_col = s_col + #cword
+  -- Convert to 0-indexed for nvim_buf_set_text (end col is exclusive)
+  local s_col = word_start - 1
+  local e_col = word_end
 
-  local text = line:sub(start_col, start_col + #cword - 1)
+  local text = line:sub(word_start, word_end)
   local new_text = open_str .. text .. close_str
 
   vim.api.nvim_buf_set_text(0, row, s_col, row, e_col, { new_text })
-  -- Reposition cursor to remain inside the word
+  -- Reposition cursor to first char inside the surround
   vim.api.nvim_win_set_cursor(0, { row + 1, s_col + #open_str })
 end
 
