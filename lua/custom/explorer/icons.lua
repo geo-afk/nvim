@@ -261,15 +261,12 @@ M.SYMLINK = "󰉒"
 M.FILE_DEF = ""
 
 -- Built-in resolver (ONLY resolver now)
-local function builtin(path, is_dir)
+local function builtin(path, is_dir, is_link)
   if is_dir then
     return M.DIR_CLOSED, "ExplorerIconDir"
   end
 
-  local uv = vim.uv
-  local stat = uv.fs_lstat(path)
-
-  if stat and stat.type == "link" then
+  if is_link then
     return M.SYMLINK, "ExplorerIconLink"
   end
 

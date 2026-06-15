@@ -117,6 +117,7 @@ local function watch_start()
       if err then
         return
       end
+      S.scan_cache = {}
       if S.search_active then
         return
       end
@@ -287,6 +288,8 @@ function M.open(opts)
     store.push_recent(S.root)
     -- Clear open dirs when switching projects to avoid showing stale state
     S.open_dirs = {}
+    -- Clear the scan cache to avoid stale entries from the old project
+    S.scan_cache = {}
     -- Invalidate git repo cache for the new root so git.fetch() re-checks
     -- whether new_root is actually a git repository.
     git.invalidate_repo_cache(new_root)
@@ -426,6 +429,7 @@ function M.restore_session(snapshot)
   end
 
   S.root = root
+  S.scan_cache = {}
   S.open_dirs = list_to_open_dirs(snapshot.open_dirs)
   S.filter = nil
   S.search_active = false

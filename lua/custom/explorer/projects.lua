@@ -38,7 +38,6 @@ local ICON_PREFIX = "     " -- 5 spaces (same width as the icon overlay)
 local SEARCH_ICON = " 󰉋  " -- project-folder icon, 5-col overlay
 local PLACEHOLDER = "jump to project…"
 local EMPTY_GUIDE = "Add config.projects.dirs or config.projects.roots to populate this picker."
-local is_git
 
 local function fmt_relative_time(ts)
   if not ts or ts == 0 then
@@ -105,7 +104,7 @@ local function ensure_project(out, seen, path, source, metadata)
   item = {
     path = path,
     name = fn.fnamemodify(path, ":t"),
-    is_git = is_git(path),
+    is_git = false,
     pinned = source == "pinned",
     recent = source == "recent",
     discovered = source == "discovered",
@@ -225,10 +224,6 @@ local function match_project(p, filter_text)
 end
 
 -- ── Project discovery ─────────────────────────────────────────────────────
-is_git = function(path)
-  return uv.fs_stat(path .. "/.git") ~= nil
-end
-
 --- Scan `root_dir` one level deep for subdirectories and append to `out`.
 --- Calls `done()` when finished (async via uv.fs_scandir).
 local function scan_root(root_dir, out, seen, done)
@@ -239,24 +234,52 @@ local function scan_root(root_dir, out, seen, done)
         done()
         return
       end
-      local batch = {}
+
+      local candidates = {}
+      local unresolved = 0
+
       while true do
-        local name = uv.fs_scandir_next(handle)
+        local name, t = uv.fs_scandir_next(handle)
         if not name then
           break
         end
         if name:sub(1, 1) ~= "." then
           local abs = root_dir .. "/" .. name
-          local st = uv.fs_stat(abs) -- resolves symlinks
-          if st and st.type == "directory" then
-            batch[#batch + 1] = { name = name, path = abs }
+          if t == "directory" then
+            candidates[#candidates + 1] = { path = abs, is_dir = true }
+          elseif t == "link" or not t then
+            unresolved = unresolved + 1
+            candidates[#candidates + 1] = { path = abs, is_dir = false, check_link = true }
           end
         end
       end
-      for _, e in ipairs(batch) do
-        ensure_project(out, seen, e.path, "discovered")
+
+      local function maybe_done()
+        if unresolved ~= 0 then
+          return
+        end
+        for _, c in ipairs(candidates) do
+          if c.is_dir then
+            ensure_project(out, seen, c.path, "discovered")
+          end
+        end
+        done()
       end
-      done()
+
+      if unresolved == 0 then
+        maybe_done()
+        return
+      end
+
+      for _, c in ipairs(candidates) do
+        if c.check_link then
+          uv.fs_stat(c.path, vim.schedule_wrap(function(stat_err, stat)
+            c.is_dir = not stat_err and stat and stat.type == "directory"
+            unresolved = unresolved - 1
+            maybe_done()
+          end))
+        end
+      end
     end)
   )
 end
@@ -282,21 +305,43 @@ local function collect_projects(on_done)
     ensure_project(out, seen, item.path, "recent", item)
   end
 
+  local function resolve_git_and_done()
+    local pending_git = #out
+    if pending_git == 0 then
+      table.sort(out, compare_projects)
+      on_done(out)
+      return
+    end
+
+    local function check_done()
+      pending_git = pending_git - 1
+      if pending_git == 0 then
+        table.sort(out, compare_projects)
+        on_done(out)
+      end
+    end
+
+    for _, p in ipairs(out) do
+      uv.fs_stat(p.path .. "/.git", vim.schedule_wrap(function(err, stat)
+        p.is_git = not err and stat ~= nil
+        check_done()
+      end))
+    end
+  end
+
   -- 3. Scan configured root directories (one level deep, async)
   local roots = pc.roots or {}
-  local pending = #roots
-  if pending == 0 then
-    table.sort(out, compare_projects)
-    on_done(out)
+  local pending_scan = #roots
+  if pending_scan == 0 then
+    resolve_git_and_done()
     return
   end
 
   for _, raw in ipairs(roots) do
     scan_root(fn.expand(raw), out, seen, function()
-      pending = pending - 1
-      if pending == 0 then
-        table.sort(out, compare_projects)
-        on_done(out)
+      pending_scan = pending_scan - 1
+      if pending_scan == 0 then
+        resolve_git_and_done()
       end
     end)
   end
@@ -807,7 +852,11 @@ function M.open()
     vim.keymap.set("i", k, "<Nop>", bopts)
   end
 
-  -- ── Load projects then enter insert ─────────────────────────────────
+  paint_all()
+  pcall(api.nvim_win_set_cursor, P.win, { 1, #ICON_PREFIX })
+  vim.cmd("startinsert!")
+
+  -- ── Load projects in the background ─────────────────────────────────
   collect_projects(vim.schedule_wrap(function(projects)
     if not (P.buf and api.nvim_buf_is_valid(buf)) then
       return
@@ -816,7 +865,6 @@ function M.open()
     apply_filter()
     paint_all()
     pcall(api.nvim_win_set_cursor, P.win, { 1, #ICON_PREFIX })
-    vim.cmd("startinsert!")
   end))
 end
 

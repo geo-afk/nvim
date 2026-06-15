@@ -56,8 +56,16 @@ local function scan_dirs(root)
       break
     end
     local is_dir = entry_type == "directory"
+    local is_link = entry_type == "link"
+    local path = tree.join(root, name)
+    if is_link then
+      local stat = vim.uv.fs_stat(path)
+      if stat then
+        is_dir = stat.type == "directory"
+      end
+    end
     if cfg.get().show_hidden or name:sub(1, 1) ~= "." then
-      out[#out + 1] = { name = name, path = tree.join(root, name), is_dir = is_dir }
+      out[#out + 1] = { name = name, path = path, is_dir = is_dir, is_link = is_link }
     end
   end
   table.sort(out, function(a, b)
@@ -218,7 +226,7 @@ local function paint_items()
     for i, entry in ipairs(P.filtered) do
       lines[#lines + 1] = "     " .. entry.name
       local row = i
-      local icon, icon_hl = icon_fn(entry.name, entry.is_dir)
+      local icon, icon_hl = icon_fn(entry.path, entry.is_dir, entry.is_link)
       if not entry.is_dir then
         icon_hl = "Comment" -- Dim files in move picker
       end

@@ -170,19 +170,7 @@ local function build_item_lines()
 
   for _, item in ipairs(S.items) do
     -- ── Tree connector prefix ─────────────────────────────────────────────
-    -- Fast path: use the pre-computed prefix string stored by tree.lua.
-    -- Slow-path fallback reconstructs from parents_last for backward compat.
-    local prefix
-    if item._prefix then
-      prefix = item._prefix
-    else
-      local prefix_tbl = {}
-      for _, last in ipairs(item.parents_last or {}) do
-        prefix_tbl[#prefix_tbl + 1] = last and tc.blank or tc.vert
-      end
-      prefix_tbl[#prefix_tbl + 1] = item.is_last and tc.last or tc.branch
-      prefix = table.concat(prefix_tbl)
-    end
+    local prefix = item._prefix or ""
 
     -- ── File / directory icon ─────────────────────────────────────────────
     local icon_raw, icon_hl
@@ -190,7 +178,7 @@ local function build_item_lines()
       icon_raw = item.is_open and icons.DIR_OPEN or icons.DIR_CLOSED
       icon_hl = item.is_open and "ExplorerIconDirOpen" or "ExplorerIconDir"
     else
-      icon_raw, icon_hl = ifn(item.path, false)
+      icon_raw, icon_hl = ifn(item.path, false, item.is_link)
     end
     local icon = icon_raw .. " "
 

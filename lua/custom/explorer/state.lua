@@ -50,6 +50,9 @@ local S = {
   -- Path to move the cursor to after the next build completes.
   -- Set by M.reveal(); consumed and cleared by render._reveal_cursor().
   _reveal_target = nil,
+
+  -- Directory scan cache to avoid filesystem hits during search
+  scan_cache = {},
 }
 
 return S

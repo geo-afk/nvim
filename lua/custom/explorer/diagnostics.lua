@@ -54,10 +54,10 @@ local SEVERITY_PRIO = { [1] = 4, [2] = 3, [3] = 2, [4] = 1 }
 -- Nerd Font icons — fall back to plain text if use_nerd_icons is false in
 -- your config, but these are the same icons already used by your sign column.
 local SEVERITY_ICON = {
-  [1] = " ", -- ERROR  nf-fa-times_circle
-  [2] = " ", -- WARN   nf-fa-exclamation_triangle
-  [3] = " ", -- INFO   nf-fa-info_circle
-  [4] = " ", -- HINT   nf-cod-lightbulb
+  [1] = "", -- ERROR  nf-fa-times_circle
+  [2] = "", -- WARN   nf-fa-exclamation_triangle
+  [3] = "", -- INFO   nf-fa-info_circle
+  [4] = "󰌵", -- HINT   nf-cod-lightbulb
 }
 
 local SEVERITY_HL = {

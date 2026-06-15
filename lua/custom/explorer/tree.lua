@@ -65,6 +65,14 @@ local MAX_INFLIGHT = 16
 -- when all have returned.
 
 local function scan(path, show_hidden, cb)
+  local cache_key = path .. ":" .. tostring(show_hidden)
+  local cached = S.scan_cache and S.scan_cache[cache_key]
+  if cached then
+    S.hidden_count = S.hidden_count + (cached.hidden_count or 0)
+    cb(cached.entries or {})
+    return
+  end
+
   -- Gate: defer when too many handles are open
   if _inflight >= MAX_INFLIGHT then
     vim.defer_fn(function()
@@ -80,29 +88,35 @@ local function scan(path, show_hidden, cb)
       _inflight = _inflight - 1
 
       if err or not handle then
-        cb({})
+        local empty = {}
+        if S.scan_cache then
+          S.scan_cache[cache_key] = { entries = empty, hidden_count = 0 }
+        end
+        cb(empty)
         return
       end
 
       -- Collect raw entries first (synchronous iteration over the open handle is fine)
       local raw = {}
+      local hidden_count = 0
       while true do
         local name, t = uv.fs_scandir_next(handle)
         if not name then
           break
         end
         if show_hidden or name:sub(1, 1) ~= "." then
-          raw[#raw + 1] = { name = name, type = t, path = M.join(path, name) }
+          raw[#raw + 1] = { name = name, type = t, path = M.join(path, name), is_link = (t == "link") }
         else
           -- Count entries skipped because show_hidden is false
-          S.hidden_count = S.hidden_count + 1
+          hidden_count = hidden_count + 1
         end
       end
+      S.hidden_count = S.hidden_count + hidden_count
 
       -- Count how many symlinks need async resolution
       local unresolved = 0
       for _, e in ipairs(raw) do
-        if e.type == "link" then
+        if e.is_link then
           unresolved = unresolved + 1
         end
       end
@@ -124,6 +138,9 @@ local function scan(path, show_hidden, cb)
           end
           return a.name:lower() < b.name:lower()
         end)
+        if S.scan_cache then
+          S.scan_cache[cache_key] = { entries = entries, hidden_count = hidden_count }
+        end
         cb(entries)
       end
 
@@ -134,7 +151,7 @@ local function scan(path, show_hidden, cb)
 
       -- Async symlink resolution: uv.fs_stat follows the link to get the target type
       for _, e in ipairs(raw) do
-        if e.type == "link" then
+        if e.is_link then
           uv.fs_stat(
             e.path,
             vim.schedule_wrap(function(stat_err, stat)
@@ -234,11 +251,8 @@ local function walk(path, depth, parents_last, tok, result, filter, tc, on_done)
               is_dir = true,
               is_open = true,
               is_last = is_last,
+              is_link = e.is_link,
               _prefix = prefix,
-              -- Keep parents_last snapshot for render compatibility
-              -- (render.lua now reads _prefix, but keep field for callers
-              --  that may inspect nodes directly)
-              parents_last = { unpack(parents_last, 1, depth) },
             }
             walk(e.path, depth + 1, parents_last, tok, sub, filter, tc, function()
               -- ── Restore after async return ─────────────────────────────
@@ -264,8 +278,8 @@ local function walk(path, depth, parents_last, tok, result, filter, tc, on_done)
               is_dir = true,
               is_open = is_open,
               is_last = is_last,
+              is_link = e.is_link,
               _prefix = prefix,
-              parents_last = { unpack(parents_last, 1, depth) },
             }
             if is_open then
               walk(e.path, depth + 1, parents_last, tok, result, filter, tc, function()
@@ -291,8 +305,8 @@ local function walk(path, depth, parents_last, tok, result, filter, tc, on_done)
               is_dir = false,
               is_open = false,
               is_last = is_last,
+              is_link = e.is_link,
               _prefix = prefix,
-              parents_last = { unpack(parents_last, 1, depth) },
             }
           end
         end

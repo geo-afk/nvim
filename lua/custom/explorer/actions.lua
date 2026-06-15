@@ -74,83 +74,7 @@ local function rel_to_root(path)
   return path
 end
 
-local function copy_file(src, dest)
-  local parent = tree.parent(dest)
-  if parent and parent ~= "" then
-    fn.mkdir(parent, "p")
-  end
-  local ok, err = vim.uv.fs_copyfile(src, dest)
-  if ok then
-    return true
-  end
-  local in_f = io.open(src, "rb")
-  if not in_f then
-    return false, err or ("failed to open source: " .. src)
-  end
-  local data = in_f:read("*a")
-  in_f:close()
-  local out_f = io.open(dest, "wb")
-  if not out_f then
-    return false, "failed to open destination: " .. dest
-  end
-  out_f:write(data)
-  out_f:close()
-  return true
-end
-
-local function copy_dir_recursive(src, dest)
-  fn.mkdir(dest, "p")
-  local handle = vim.uv.fs_scandir(src)
-  if not handle then
-    return false, "failed to scan directory: " .. src
-  end
-  while true do
-    local name, entry_type = vim.uv.fs_scandir_next(handle)
-    if not name then
-      break
-    end
-    local from = tree.join(src, name)
-    local to = tree.join(dest, name)
-    if entry_type == "directory" then
-      local ok, err = copy_dir_recursive(from, to)
-      if not ok then
-        return false, err
-      end
-    else
-      local ok, err = copy_file(from, to)
-      if not ok then
-        return false, err
-      end
-    end
-  end
-  return true
-end
-
-local is_subpath
-
-local function copy_path(src, dest)
-  local stat = vim.uv.fs_stat(src)
-  if not stat then
-    return false, "missing source: " .. src
-  end
-  src = tree.norm(src)
-  dest = tree.norm(dest)
-  if dest == src then
-    return false, "destination is the same as source: " .. src
-  end
-  if vim.uv.fs_stat(dest) then
-    return false, "destination already exists: " .. dest
-  end
-  if stat.type == "directory" then
-    if is_subpath(dest, src) then
-      return false, "cannot copy a folder into itself: " .. src
-    end
-    return copy_dir_recursive(src, dest)
-  end
-  return copy_file(src, dest)
-end
-
-is_subpath = function(path, parent)
+local function is_subpath(path, parent)
   if not path or not parent then
     return false
   end
@@ -159,14 +83,112 @@ is_subpath = function(path, parent)
   return path == parent or vim.startswith(path, parent .. "/")
 end
 
-local function delete_path(path)
+local function remove_path_async(path, cb)
+  local stat = vim.uv.fs_stat(path)
+  if not stat then
+    cb(true)
+    return
+  end
+
+  local cmd
+  if fn.has("win32") == 1 then
+    cmd = {
+      "powershell",
+      "-NoProfile",
+      "-NonInteractive",
+      "-Command",
+      ("Remove-Item -LiteralPath %s -Recurse -Force"):format(shell_quote_pwsh(path)),
+    }
+  else
+    cmd = { "rm", "-rf", path }
+  end
+
+  vim.system(cmd, { text = true }, vim.schedule_wrap(function(out)
+    if out.code == 0 then
+      cb(true)
+    else
+      cb(false, (out.stderr and vim.trim(out.stderr) ~= "" and vim.trim(out.stderr)) or "failed to delete: " .. path)
+    end
+  end))
+end
+
+local function copy_path_async(src, dest, cb)
+  src = tree.norm(src)
+  dest = tree.norm(dest)
+  if dest == src then
+    cb(false, "destination is the same as source")
+    return
+  end
+  if path_exists(dest) then
+    cb(false, "destination already exists")
+    return
+  end
+
+  local stat = vim.uv.fs_stat(src)
+  if not stat then
+    cb(false, "source does not exist")
+    return
+  end
+
+  local is_dir = stat.type == "directory"
+  if is_dir and is_subpath(dest, src) then
+    cb(false, "cannot copy a folder into itself")
+    return
+  end
+
+  local parent = tree.parent(dest)
+  if parent and parent ~= "" then
+    fn.mkdir(parent, "p")
+  end
+
+  local cmd
+  if fn.has("win32") == 1 then
+    if is_dir then
+      cmd = { "robocopy", src, dest, "/e", "/ndl", "/nfl", "/njh", "/njs" }
+    else
+      cmd = {
+        "powershell",
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        ("Copy-Item -LiteralPath %s -Destination %s"):format(shell_quote_pwsh(src), shell_quote_pwsh(dest)),
+      }
+    end
+  else
+    if is_dir then
+      cmd = { "cp", "-r", src, dest }
+    else
+      cmd = { "cp", src, dest }
+    end
+  end
+
+  vim.system(cmd, { text = true }, vim.schedule_wrap(function(out)
+    local code = out.code or 0
+    local ok = false
+    if fn.has("win32") == 1 and is_dir then
+      ok = code < 8
+    else
+      ok = code == 0
+    end
+
+    if ok then
+      cb(true)
+    else
+      cb(false, (out.stderr and vim.trim(out.stderr) ~= "") and vim.trim(out.stderr) or "copy command failed")
+    end
+  end))
+end
+
+local function delete_path_async(path, cb)
   if not path_exists(path) then
-    return true
+    cb(true)
+    return
   end
 
   if cfg.get().delete_to_trash ~= false then
     if fn.has("win32") == 1 then
-      local is_dir = vim.uv.fs_stat(path).type == "directory"
+      local stat = vim.uv.fs_stat(path)
+      local is_dir = stat and stat.type == "directory"
       local cmd = is_dir
           and ([[Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory(%s, 'OnlyErrorDialogs', 'SendToRecycleBin')]]):format(
             shell_quote_pwsh(path)
@@ -174,37 +196,48 @@ local function delete_path(path)
         or ([[Add-Type -AssemblyName Microsoft.VisualBasic; [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile(%s, 'OnlyErrorDialogs', 'SendToRecycleBin')]]):format(
           shell_quote_pwsh(path)
         )
-      local out = vim.system({ "powershell", "-NoProfile", "-NonInteractive", "-Command", cmd }, { text = true }):wait()
-      if out.code == 0 then
-        return true
-      end
-      return false,
-        (out.stderr and vim.trim(out.stderr) ~= "" and vim.trim(out.stderr)) or "failed to move to recycle bin"
+      vim.system(
+        { "powershell", "-NoProfile", "-NonInteractive", "-Command", cmd },
+        { text = true },
+        vim.schedule_wrap(function(out)
+          if out.code == 0 then
+            cb(true)
+          else
+            cb(false, (out.stderr and vim.trim(out.stderr) ~= "" and vim.trim(out.stderr)) or "failed to recycle")
+          end
+        end)
+      )
+      return
     end
 
-    for _, cmd in ipairs({
-      { "gio", "trash", path },
-      { "trash-put", path },
-      { "trash", path },
-    }) do
-      if fn.executable(cmd[1]) == 1 then
-        local out = vim.system(cmd, { text = true }):wait()
-        if out.code == 0 then
-          return true
-        end
+    local trash_cmds = { "gio", "trash-put", "trash" }
+    local function try_trash(idx)
+      if idx > #trash_cmds then
+        remove_path_async(path, cb)
+        return
+      end
+      local cmd = trash_cmds[idx]
+      if fn.executable(cmd) == 1 then
+        vim.system(
+          { cmd, path },
+          { text = true },
+          vim.schedule_wrap(function(out)
+            if out.code == 0 then
+              cb(true)
+            else
+              try_trash(idx + 1)
+            end
+          end)
+        )
+      else
+        try_trash(idx + 1)
       end
     end
+    try_trash(1)
+    return
   end
 
-  local stat = vim.uv.fs_stat(path)
-  if not stat then
-    return true
-  end
-  local flags = stat.type == "directory" and "rf" or ""
-  if fn.delete(path, flags) == 0 then
-    return true
-  end
-  return false, "failed to delete: " .. path
+  remove_path_async(path, cb)
 end
 
 local function notify_lsp_rename(old_path, new_path)
@@ -384,6 +417,7 @@ function A.go_up()
   end
   local old = S.root
   S.root = up
+  S.scan_cache = {}
   S.open_dirs[old] = true
   render.render()
   git.fetch()
@@ -544,14 +578,27 @@ function A.delete()
     if not confirmed then
       return
     end
-    for _, p in ipairs(paths) do
-      local ok, err = delete_path(p)
-      if not ok then
-        vim.notify("[explorer] " .. tostring(err), vim.log.levels.ERROR)
+    local pending = #paths
+    local errors = {}
+    local function check_done()
+      pending = pending - 1
+      if pending == 0 then
+        if #errors > 0 then
+          vim.notify("[explorer] errors during deletion:\n" .. table.concat(errors, "\n"), vim.log.levels.ERROR)
+        end
+        marks.clear()
+        A.refresh()
       end
     end
-    marks.clear()
-    A.refresh()
+
+    for _, p in ipairs(paths) do
+      delete_path_async(p, function(ok, err)
+        if not ok then
+          errors[#errors + 1] = tostring(err or ("failed to delete " .. p))
+        end
+        check_done()
+      end)
+    end
   end)
 end
 
@@ -654,12 +701,13 @@ function A.copy()
         return
       end
       dest = tree.norm(dest)
-      local ok, err = copy_path(paths[1], dest)
-      if not ok then
-        vim.notify("[explorer] copy failed: " .. tostring(err), vim.log.levels.ERROR)
-        return
-      end
-      A.refresh()
+      copy_path_async(paths[1], dest, function(ok, err)
+        if not ok then
+          vim.notify("[explorer] copy failed: " .. tostring(err), vim.log.levels.ERROR)
+        else
+          A.refresh()
+        end
+      end)
     end)
   else
     ui.rooted_path_input({
@@ -673,16 +721,29 @@ function A.copy()
       end
       dest = tree.norm(dest)
       fn.mkdir(dest, "p")
-      for _, p in ipairs(paths) do
-        local target = tree.join(dest, fn.fnamemodify(p, ":t"))
-        local ok, err = copy_path(p, target)
-        if not ok then
-          vim.notify("[explorer] copy failed: " .. tostring(err), vim.log.levels.ERROR)
-          return
+
+      local pending = #paths
+      local errors = {}
+      local function check_done()
+        pending = pending - 1
+        if pending == 0 then
+          if #errors > 0 then
+            vim.notify("[explorer] copy errors:\n" .. table.concat(errors, "\n"), vim.log.levels.ERROR)
+          end
+          marks.clear()
+          A.refresh()
         end
       end
-      marks.clear()
-      A.refresh()
+
+      for _, p in ipairs(paths) do
+        local target = tree.join(dest, fn.fnamemodify(p, ":t"))
+        copy_path_async(p, target, function(ok, err)
+          if not ok then
+            errors[#errors + 1] = tostring(err or ("failed to copy " .. p))
+          end
+          check_done()
+        end)
+      end
     end)
   end
 end
@@ -719,7 +780,9 @@ local function git_op(item, args_fn, msg)
           vim.notify("[explorer] " .. msg, vim.log.levels.INFO)
         end
         marks.clear()
+        S.scan_cache = {}
         git.fetch()
+        render.render()
       end
     end)
   end)
@@ -763,6 +826,7 @@ function A.toggle_hidden()
   -- cfg.get() may return a shallow copy; write to the authoritative source
   local c = cfg.current or cfg.defaults
   c.show_hidden = not c.show_hidden
+  S.scan_cache = {}
   render.render()
 end
 
@@ -798,6 +862,7 @@ function A.copy_path()
 end
 
 function A.refresh()
+  S.scan_cache = {}
   marks.prune()
   git.fetch()
   render.render()

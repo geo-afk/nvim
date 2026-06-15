@@ -53,13 +53,13 @@ M.defaults = {
   use_git_icons = true,
 
   git_icons = {
-    modified = " ", -- nf-fa-pencil             (U+F040)
-    added = " ", -- nf-fa-plus               (U+F067)
-    deleted = " ", -- nf-fa-trash-o            (U+F014)
-    renamed = " ", -- nf-fa-arrow-right        (U+F061)
-    untracked = " ", -- nf-fa-question-circle    (U+F059)
-    conflict = " ", -- nf-fa-exclamation-circle (U+F06A)
-    ignored = " ", -- nf-fa-eye-slash          (U+F070)
+    modified = "󰏫", -- nf-md-pencil
+    added = "", -- nf-fa-plus
+    deleted = "", -- nf-md-delete
+    renamed = "", -- nf-fa-arrow_right
+    untracked = "", -- nf-fa-question
+    conflict = "", -- nf-fa-times_circle
+    ignored = "◌", -- nf-md-circle_outline
   },
   -- Plain-text fallbacks (used when use_git_icons = false)
   git_signs = {
