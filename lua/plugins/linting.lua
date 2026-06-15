@@ -83,7 +83,6 @@ lint.linters_by_ft = {
   typescript = { "biomejs" },
   javascript = { "biomejs" },
   python = { "ruff" },
-  go = { "staticcheck" },
 }
 
 -- ── Custom linter args ────────────────────────────────────────────────────────

@@ -28,7 +28,7 @@ conform.setup({
     typescript = { "prettierd" },
     typescriptreact = { "prettierd" },
     javascriptreact = { "prettierd" },
-    go = { "gofumpt", "goimports", "golines" },
+    go = { "goimports" },
     sql = { "sleek" },
     css = { "prettierd" },
     html = { "prettierd" },
