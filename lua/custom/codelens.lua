@@ -12,12 +12,12 @@ local state = {
   setup_done = false,
   config = {
     enabled = true,
-    mode = "virt_lines",
+    mode = "virt_text",
     focused_only = false,
     spacing = 2,
     virt_lines_above = true,
     align = "range",
-    debounce_ms = 180,
+    debounce_ms = 500,
     max_inline_width = 80,
     mouse = true,
     clickable = true,
@@ -53,6 +53,7 @@ local state = {
   },
 }
 
+local uv = vim.uv or vim.loop
 local METHODS = vim.lsp.protocol.Methods or {}
 local METHOD_CODELENS = METHODS.textDocument_codeLens or "textDocument/codeLens"
 local METHOD_CODELENS_RESOLVE = METHODS.codeLens_resolve or "codeLens/resolve"
@@ -130,6 +131,7 @@ local function ensure_cache(bufnr)
       extmarks = {},
       last_render_key = "",
       request_pending = false,
+      refresh_timer = nil,
     }
     state.cache[bufnr] = cache
   end
@@ -169,25 +171,31 @@ local function get_icon(lens)
   return state.config.icons[lens_kind(title, command)] or state.config.icons.default
 end
 
-local function normalize_lenses(result, client_id)
+local function normalize_lenses(result, client_id, filter_unresolved)
   local lenses = {}
   for _, item in ipairs(result or {}) do
     local lens = item.lens or item
-    if lens and lens.range and lens.range.start and type(lens.range.start.line) == "number" then
-      table.insert(lenses, {
-        client_id = item.client_id or client_id,
-        lens = lens,
-      })
+    -- Skip lenses that failed resolution or are invalid
+    local valid = lens and not lens.__invalid and lens.range and lens.range.start and type(lens.range.start.line) == "number"
+    if valid then
+      -- If filter_unresolved is true, only include lenses with a command (e.g. during initial refresh)
+      -- This hides "Resolving..." initially but keeps them stable during typing.
+      if not filter_unresolved or lens.command then
+        table.insert(lenses, {
+          client_id = item.client_id or client_id,
+          lens = lens,
+        })
+      end
     end
   end
   return lenses
 end
 
-local function rebuild_cache(bufnr)
+local function rebuild_cache(bufnr, filter_unresolved)
   local cache = ensure_cache(bufnr)
   local lenses = {}
   for client_id, client_lenses in pairs(cache.by_client) do
-    vim.list_extend(lenses, normalize_lenses(client_lenses, client_id))
+    vim.list_extend(lenses, normalize_lenses(client_lenses, client_id, filter_unresolved))
   end
   table.sort(lenses, function(a, b)
     local ar = a.lens.range.start
@@ -231,9 +239,31 @@ local function resolve_lens(bufnr, item, callback)
   end
 
   local tick = changedtick(bufnr)
+  local timer = uv.new_timer()
+  local done = false
+
+  local function finish(c, l)
+    if done then return end
+    done = true
+    if timer then
+      if timer:is_active() then timer:stop() end
+      if not timer:is_closing() then timer:close() end
+    end
+    callback(c, l)
+  end
+
+  timer:start(5000, 0, vim.schedule_wrap(function()
+    finish(client, nil)
+  end))
+
   client:request(METHOD_CODELENS_RESOLVE, lens, function(err, resolved)
-    if err or not resolved or not is_buf_valid(bufnr) or changedtick(bufnr) ~= tick then
-      callback(client, nil)
+    if not is_buf_valid(bufnr) or changedtick(bufnr) ~= tick then
+      finish(client, nil)
+      return
+    end
+
+    if err or not resolved then
+      finish(client, nil)
       return
     end
 
@@ -242,7 +272,8 @@ local function resolve_lens(bufnr, item, callback)
     local client_lenses = cache.by_client[item.client_id]
     if client_lenses then
       for i, cached in ipairs(client_lenses) do
-        if cached == lens then
+        local l_ref = cached.lens or cached
+        if l_ref == lens then
           client_lenses[i] = resolved
           break
         end
@@ -250,7 +281,7 @@ local function resolve_lens(bufnr, item, callback)
     end
     rebuild_cache(bufnr)
     M.render(bufnr)
-    callback(client, resolved)
+    finish(client, resolved)
   end, bufnr)
 end
 
@@ -367,6 +398,12 @@ function M.clear(bufnr)
   if cache then
     cache.extmarks = {}
     cache.last_render_key = ""
+    cache.request_pending = false
+    if cache.refresh_timer then
+      if cache.refresh_timer:is_active() then cache.refresh_timer:stop() end
+      if not cache.refresh_timer:is_closing() then cache.refresh_timer:close() end
+      cache.refresh_timer = nil
+    end
   end
 end
 
@@ -460,7 +497,7 @@ function M.render(bufnr, lenses)
     else
       opts = {
         virt_text = chunks,
-        virt_text_pos = "eol_right_align",
+        virt_text_pos = "eol",
         virt_text_hide = true,
         hl_mode = "combine",
         priority = 160,
@@ -500,51 +537,123 @@ function M.refresh(bufnr)
   end
 
   local cache = ensure_cache(bufnr)
+  
+  -- Cleanup previous refresh timer
+  if cache.refresh_timer then
+    if cache.refresh_timer:is_active() then cache.refresh_timer:stop() end
+    if not cache.refresh_timer:is_closing() then cache.refresh_timer:close() end
+    cache.refresh_timer = nil
+  end
+
   cache.seq = cache.seq + 1
   cache.tick = changedtick(bufnr)
   cache.request_pending = true
+  
   local seq = cache.seq
   local tick = cache.tick
   local pending = #clients
   local params = { textDocument = vim.lsp.util.make_text_document_params(bufnr) }
 
+  local function on_client_done()
+    pending = pending - 1
+    if pending <= 0 then
+      if cache.refresh_timer then
+        if cache.refresh_timer:is_active() then cache.refresh_timer:stop() end
+        if not cache.refresh_timer:is_closing() then cache.refresh_timer:close() end
+        cache.refresh_timer = nil
+      end
+      cache.request_pending = false
+      if is_buf_valid(bufnr) and cache.seq == seq then
+        rebuild_cache(bufnr, true)
+        M.render(bufnr)
+      end
+    end
+  end
+
+  -- Global refresh timeout to prevent stuck "Resolving..." state
+  cache.refresh_timer = uv.new_timer()
+  cache.refresh_timer:start(5000, 0, vim.schedule_wrap(function()
+    if cache.seq == seq and cache.request_pending then
+      pending = 0
+      on_client_done()
+    end
+  end))
+
   for _, client in ipairs(clients) do
     local ok = client:request(METHOD_CODELENS, params, function(err, result)
-      if not is_buf_valid(bufnr) then
+      if not is_buf_valid(bufnr) or cache.seq ~= seq then
         return
       end
 
-      local current = ensure_cache(bufnr)
-      if current.seq ~= seq then
-        return
-      end
-
-      pending = pending - 1
       if changedtick(bufnr) ~= tick then
-        current.request_pending = false
+        on_client_done()
         M.debounce_refresh(bufnr, 40)
         return
       end
 
-      if err then
-        current.by_client[client.id] = {}
-      else
-        current.by_client[client.id] = result or {}
+      if err or not result or #result == 0 then
+        cache.by_client[client.id] = {}
+        on_client_done()
+        return
       end
 
-      if pending <= 0 then
-        current.request_pending = false
-        rebuild_cache(bufnr)
-        M.render(bufnr)
+      -- Proactive resolution for "Resolving..." lenses to fix UI blocking
+      local to_resolve = {}
+      if supports_codelens_resolve(client, bufnr) then
+        for _, lens in ipairs(result) do
+          if not lens.command then table.insert(to_resolve, lens) end
+        end
+      end
+
+      if #to_resolve == 0 then
+        cache.by_client[client.id] = result
+        on_client_done()
+      else
+        local res_pending = #to_resolve
+        local res_done = false
+        local function on_resolve_done()
+          if res_done then return end
+          res_pending = res_pending - 1
+          if res_pending <= 0 then
+            res_done = true
+            cache.by_client[client.id] = result
+            on_client_done()
+          end
+        end
+
+        -- Sub-timeout for proactive resolution
+        vim.defer_fn(function()
+          if cache.seq == seq and not res_done then
+            res_pending = 0
+            on_resolve_done()
+          end
+        end, 2000)
+
+        for _, lens in ipairs(to_resolve) do
+          client:request(METHOD_CODELENS_RESOLVE, lens, function(res_err, resolved)
+            if not is_buf_valid(bufnr) or cache.seq ~= seq then
+              on_resolve_done()
+              return
+            end
+            if not res_err and resolved then
+              for k, v in pairs(resolved) do lens[k] = v end
+            else
+              -- Mark as invalid so it's hidden from UI
+              lens.__invalid = true
+            end
+            on_resolve_done()
+          end, bufnr)
+        end
       end
     end, bufnr)
 
     if not ok then
-      pending = pending - 1
-      cache.by_client[client.id] = nil
+      cache.by_client[client.id] = {}
+      on_client_done()
     end
   end
 
+  -- Edge case: if no requests were actually sent
   if pending <= 0 then
     cache.request_pending = false
     rebuild_cache(bufnr)
@@ -560,8 +669,8 @@ function M.debounce_refresh(bufnr, delay)
 
   local timer = state.timers[bufnr]
   if timer then
-    timer:stop()
-    timer:close()
+    if timer:is_active() then timer:stop() end
+    if not timer:is_closing() then timer:close() end
   end
 
   state.timers[bufnr] = vim.defer_fn(function()
@@ -623,7 +732,7 @@ local function setup_autocmds()
     group = state.augroup,
     callback = function(args)
       if buf_enabled(args.buf) and supports_codelens(args.buf) then
-        M.debounce_refresh(args.buf)
+        M.debounce_refresh(args.buf, 1000)
       end
     end,
   })
@@ -663,12 +772,13 @@ local function setup_autocmds()
     callback = function(args)
       local timer = state.timers[args.buf]
       if timer then
-        timer:stop()
-        timer:close()
+        if timer:is_active() then timer:stop() end
+        if not timer:is_closing() then timer:close() end
       end
       state.timers[args.buf] = nil
       state.enabled_buffers[args.buf] = nil
       state.attached_buffers[args.buf] = nil
+      M.clear(args.buf)
       state.cache[args.buf] = nil
     end,
   })

@@ -47,10 +47,7 @@ local _pending = false
 
 local function redraw_now()
   _last_redraw = uv.now()
-  local ok = pcall(vim.api.nvim__redraw, { statusline = true, flush = false })
-  if not ok then
-    vim.cmd("redrawstatus")
-  end
+  vim.cmd("redrawstatus")
 end
 
 local function schedule_redraw()

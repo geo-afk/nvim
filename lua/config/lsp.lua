@@ -113,7 +113,7 @@ local function setup_attach()
 
       -- Inlay hints toggle
       if client:supports_method("textDocument/inlayHint") then
-        vim.lsp.inlay_hint.enable(true, { bufnr = buf })
+        vim.lsp.inlay_hint.enable(false, { bufnr = buf })
         vim.keymap.set("n", "<leader>ch", function()
           local enabled = vim.lsp.inlay_hint.is_enabled({ bufnr = buf })
           vim.lsp.inlay_hint.enable(not enabled, { bufnr = buf })
