@@ -31,21 +31,21 @@ luasnip.config.setup({
 })
 
 -- ── Load snippet collections ──────────────────────────────────────────────────
-pcall(require("luasnip.loaders.from_vscode").load, {
+pcall(require("luasnip.loaders.from_vscode").lazy_load, {
   exclude = vim.g.vscode_snippets_exclude or {},
 })
 
 if vim.g.vscode_snippets_path and vim.g.vscode_snippets_path ~= "" then
-  pcall(require("luasnip.loaders.from_vscode").load, {
+  pcall(require("luasnip.loaders.from_vscode").lazy_load, {
     paths = vim.g.vscode_snippets_path,
   })
 end
 
-pcall(require("luasnip.loaders.from_snipmate").load, {
+pcall(require("luasnip.loaders.from_snipmate").lazy_load, {
   paths = vim.g.snipmate_snippets_path or "",
 })
 
-pcall(require("luasnip.loaders.from_lua").load, {
+pcall(require("luasnip.loaders.from_lua").lazy_load, {
   paths = vim.g.lua_snippets_path or "",
 })
 
