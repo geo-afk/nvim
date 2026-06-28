@@ -62,7 +62,7 @@ loader.register({
     mod = "config.lsp",
     defer = true,
     priority = "high",
-    deps = { "plugins.lsp" },
+    deps = { "plugins.lsp", "plugins.completion" },
     config = function(lsp)
       lsp.setup()
       lsp.setup_lsps()
