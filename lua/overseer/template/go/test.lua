@@ -39,8 +39,6 @@ local function make_test_task(cwd, pkg, extra_args, label)
       TERM = "dumb",
     },
     components = {
-      { "display_duration",   detail_level = 2 },
-      "on_output_summarize",
       "on_exit_set_status",
       { "on_complete_notify", system = "unfocused" },
       { "on_output_parse",    problem_matcher = test_problem_matcher },

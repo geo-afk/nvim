@@ -205,6 +205,7 @@ end
 blink.setup({
   keymap = {
     preset = "super-tab",
+    ["<C-k>"] = { "show_documentation", "hide_documentation", "fallback" },
     ["<Tab>"] = {
       function(cmp)
         if cmp.snippet_active() then

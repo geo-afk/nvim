@@ -20,15 +20,11 @@ return {
     local components
     if params.watch then
       components = {
-        { "display_duration",   detail_level = 2 },
-        "on_output_summarize",
         "on_exit_set_status",
         { "on_complete_notify", system = "unfocused" },
       }
     else
       components = {
-        { "display_duration",   detail_level = 2 },
-        "on_output_summarize",
         "on_exit_set_status",
         { "on_complete_notify", system = "unfocused" },
         {

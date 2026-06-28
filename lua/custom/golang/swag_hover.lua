@@ -313,6 +313,7 @@ function M.setup()
     callback = function()
       local opts = { buffer = true, silent = true }
       vim.keymap.set("n", "K", M.smart_hover, vim.tbl_extend("force", opts, { desc = "Swag: Smart Hover" }))
+      vim.keymap.set("n", "<C-k>", M.smart_hover, vim.tbl_extend("force", opts, { desc = "Go: Documentation" }))
       vim.keymap.set("n", "gd", M.smart_definition, vim.tbl_extend("force", opts, { desc = "Swag: Smart Definition" }))
     end,
   })

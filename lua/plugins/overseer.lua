@@ -35,7 +35,7 @@ overseer.setup({
     "toggleterm",
     -- Fallback to built-in terminal if toggleterm is not installed:
     -- "terminal",
-    direction = "horizontal",
+    direction = "float",
     auto_scroll = true,
     quit_on_exit = "never",
   },
@@ -88,10 +88,10 @@ overseer.setup({
 
   -- ── Floating task output window ───────────────────────────────────────────
   task_win = {
-    max_width = 0.9,
-    min_width = { 80, 0.5 },
-    max_height = 0.9,
-    min_height = { 10, 0.2 },
+    max_width = 0.7,
+    min_width = { 60, 0.4 },
+    max_height = 0.6,
+    min_height = { 8, 0.15 },
     padding = 2,
     border = "rounded", -- rounded borders everywhere
     win_opts = {
@@ -130,23 +130,17 @@ overseer.setup({
   component_aliases = {
     -- All tasks get these defaults automatically
     default = {
-      { "display_duration", detail_level = 2 },
-      "on_output_summarize",
       "on_exit_set_status",
       { "on_complete_notify", system = "unfocused" },
       "on_complete_dispose",
     },
     -- Long-running (persistent) tasks keep running and notify on crash
     default_persist = {
-      { "display_duration", detail_level = 2 },
-      "on_output_summarize",
       "on_exit_set_status",
       { "on_complete_notify", system = "unfocused" },
     },
     -- Tasks that should populate the quickfix list on completion
     default_quickfix = {
-      { "display_duration", detail_level = 2 },
-      "on_output_summarize",
       "on_exit_set_status",
       { "on_complete_notify", system = "unfocused" },
       "on_complete_dispose",
@@ -239,12 +233,19 @@ map("<leader>or", function()
   if has_telescope then
     vim.cmd("Telescope overseer")
   else
-    overseer.run_template()
+    overseer.run_task()
   end
 end, "Overseer: Run task")
 
 map("<leader>ot", "<cmd>OverseerToggle<CR>", "Overseer: Toggle panel")
-map("<leader>oo", "<cmd>OverseerQuickAction open<CR>", "Overseer: Open task output")
+map("<leader>oo", function()
+  local tasks = overseer.list_tasks({ recent_first = true })
+  if not vim.tbl_isempty(tasks) then
+    overseer.run_action(tasks[1], "open float")
+  else
+    vim.notify("No recent overseer task", vim.log.levels.INFO)
+  end
+end, "Overseer: Open task output")
 
 map("<leader>ol", function()
   local tasks = overseer.list_tasks({ recent_first = true })
@@ -262,7 +263,7 @@ map("<leader>oc", "<cmd>OverseerClose<CR>", "Overseer: Close panel")
 map("<leader>od", "<cmd>OverseerDeleteBundle<CR>", "Overseer: Delete bundle")
 map("<leader>os", "<cmd>OverseerSaveBundle<CR>", "Overseer: Save bundle")
 map("<leader>oL", "<cmd>OverseerLoadBundle<CR>", "Overseer: Load bundle")
-map("<leader>oq", "<cmd>OverseerQuickAction<CR>", "Overseer: Quick action")
+map("<leader>oq", "<cmd>OverseerTaskAction<CR>", "Overseer: Task action")
 map("<leader>oI", "<cmd>OverseerInfo<CR>", "Overseer: Info / debug")
 
 -- ── Quickfix integration ──────────────────────────────────────────────────

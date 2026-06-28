@@ -32,8 +32,6 @@ return {
       cwd  = cwd,
       -- Persistent: keep running, never auto-dispose
       components = {
-        { "display_duration", detail_level = 2 },
-        "on_output_summarize",
         "on_exit_set_status",
         -- Notify only if the server exits unexpectedly (not on manual stop)
         { "on_complete_notify", statuses = { "FAILURE" }, system = "unfocused" },
