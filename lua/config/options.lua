@@ -81,7 +81,7 @@ opt.writebackup = false
 opt.swapfile = false
 opt.undofile = utils.ensure_writable_dir(undo_dir)
 opt.undodir = undo_dir
-opt.sessionoptions = "blank,buffers,curdir,folds,help,tabpages,winsize,terminal,localoptions,skiprtp"
+opt.sessionoptions = "blank,buffers,curdir,folds,help,tabpages,winsize,localoptions,skiprtp"
 opt.autowriteall = true
 
 -- [0.12-changed] 'shada' default excludes /tmp etc.

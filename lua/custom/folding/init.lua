@@ -25,10 +25,10 @@ M.config = {
     close_recursive = "zC",
     open_all = "zR",
     close_all = "zM",
-    preview = "K",
+    preview = "zK",
     next_fold = "zj",
     prev_fold = "zk",
-  }
+  },
 }
 
 -- Default highlight definitions
@@ -44,22 +44,28 @@ end
 local function get_treesitter_hls(bufnr, lnum, line_len)
   local byte_hls = {}
   local ok, parser = pcall(vim.treesitter.get_parser, bufnr)
-  if not ok or not parser then return byte_hls end
+  if not ok or not parser then
+    return byte_hls
+  end
 
   local tstree = parser:parse()[1]
-  if not tstree then return byte_hls end
+  if not tstree then
+    return byte_hls
+  end
   local root = tstree:root()
   local lang = parser:lang()
 
   local query = vim.treesitter.query.get(lang, "highlights")
-  if not query then return byte_hls end
+  if not query then
+    return byte_hls
+  end
 
   local line_idx = lnum - 1
   for id, node, _ in query:iter_captures(root, bufnr, line_idx, line_idx + 1) do
     local name = query.captures[id]
     local hl_group = "@" .. name
     local start_row, start_col, end_row, end_col = node:range()
-    
+
     if start_row <= line_idx and end_row >= line_idx then
       local c_start = (start_row == line_idx) and start_col or 0
       local c_end = (end_row == line_idx) and end_col or line_len
@@ -75,7 +81,9 @@ end
 --- Retrieves syntax highlighting groups for each character of a line using Vim's syntax engine.
 local function get_syntax_hls(lnum, line_len)
   local byte_hls = {}
-  if vim.bo.syntax == "" then return byte_hls end
+  if vim.bo.syntax == "" then
+    return byte_hls
+  end
   for col = 1, line_len do
     local id = vim.fn.synID(lnum, col, 1)
     local name = vim.fn.synIDattr(id, "name")
@@ -94,10 +102,10 @@ local function modify_line_with_hls(line, byte_hls)
     if s_start and s_end and (s_end - s_start) > 2 then
       local before = line:sub(1, s_start - 1)
       local after = line:sub(s_end + 1)
-      
+
       local new_line = before .. "(...)" .. after
       local new_hls = {}
-      
+
       -- Copy highlights before parenthesis
       for i = 1, s_start - 1 do
         new_hls[i] = byte_hls[i]
@@ -112,7 +120,7 @@ local function modify_line_with_hls(line, byte_hls)
       for i = s_start + 5, #new_line do
         new_hls[i] = byte_hls[i + shift]
       end
-      
+
       line = new_line
       byte_hls = new_hls
     end
@@ -128,7 +136,7 @@ local function modify_line_with_hls(line, byte_hls)
     if not strip_start then
       strip_start, _ = line:find("%s+do%s*$")
     end
-    
+
     if strip_start then
       line = line:sub(1, strip_start - 1)
       -- truncate highlights
@@ -150,11 +158,11 @@ function M.foldtext()
   local bufnr = vim.api.nvim_get_current_buf()
   local lines = vim.api.nvim_buf_get_lines(bufnr, start_lnum - 1, start_lnum, false)
   local raw_line = lines[1] or ""
-  
+
   -- Extract leading indentation
   local indent_str = raw_line:match("^(%s*)") or ""
   local content_str = raw_line:sub(#indent_str + 1)
-  
+
   -- Gather syntax highlighting of the content part
   local content_len = #content_str
   local byte_hls = get_treesitter_hls(bufnr, start_lnum, #raw_line)
@@ -177,7 +185,7 @@ function M.foldtext()
 
   -- Build return structure (drawn like overlay virtual text)
   local result = {}
-  
+
   -- 1. Preserve original indentation
   if #indent_str > 0 then
     table.insert(result, { indent_str, "None" })
@@ -230,29 +238,51 @@ function M.toggle()
   end
 end
 
-function M.open() vim.cmd("normal! zo") end
-function M.close() vim.cmd("normal! zc") end
-function M.open_recursive() vim.cmd("normal! zO") end
-function M.close_recursive() vim.cmd("normal! zC") end
-function M.open_all() vim.cmd("normal! zR") end
-function M.close_all() vim.cmd("normal! zM") end
-function M.next() vim.cmd("normal! zj") end
-function M.prev() vim.cmd("normal! zk") end
-function M.preview() preview.show_preview() end
+function M.open()
+  vim.cmd("normal! zo")
+end
+function M.close()
+  vim.cmd("normal! zc")
+end
+function M.open_recursive()
+  vim.cmd("normal! zO")
+end
+function M.close_recursive()
+  vim.cmd("normal! zC")
+end
+function M.open_all()
+  vim.cmd("normal! zR")
+end
+function M.close_all()
+  vim.cmd("normal! zM")
+end
+function M.next()
+  vim.cmd("normal! zj")
+end
+function M.prev()
+  vim.cmd("normal! zk")
+end
+function M.preview()
+  preview.show_preview()
+end
 
 --- Configures options on a window for custom folding
 local function apply_win_options(win)
-  if not vim.api.nvim_win_is_valid(win) then return end
+  if not vim.api.nvim_win_is_valid(win) then
+    return
+  end
   local buf = vim.api.nvim_win_get_buf(win)
-  
+
   -- We don't apply folding options on special buffers
   local bt = vim.bo[buf].buftype
-  if bt ~= "" then return end
+  if bt ~= "" then
+    return
+  end
 
   vim.wo[win].foldmethod = "expr"
   vim.wo[win].foldexpr = "v:lua.custom_folding_expr()"
   vim.wo[win].foldtext = "v:lua.custom_folding_text()"
-  
+
   if M.config.statuscolumn.enabled then
     vim.wo[win].statuscolumn = "%{%v:lua.custom_folding_statuscolumn()%}"
   end
@@ -262,7 +292,7 @@ end
 function M.setup(opts)
   M.config = vim.tbl_deep_extend("force", M.config, opts or {})
   statuscolumn.config = vim.tbl_deep_extend("force", statuscolumn.config, M.config.statuscolumn or {})
-  
+
   init_highlights()
 
   -- Register global functions for Vimscript evaluation
@@ -274,16 +304,36 @@ function M.setup(opts)
   -- Setup keymaps
   if M.config.keymaps ~= false then
     local keymaps = M.config.keymaps
-    if keymaps.toggle then vim.keymap.set("n", keymaps.toggle, M.toggle, { desc = "Toggle fold" }) end
-    if keymaps.open then vim.keymap.set("n", keymaps.open, M.open, { desc = "Open fold" }) end
-    if keymaps.close then vim.keymap.set("n", keymaps.close, M.close, { desc = "Close fold" }) end
-    if keymaps.open_recursive then vim.keymap.set("n", keymaps.open_recursive, M.open_recursive, { desc = "Recursive open fold" }) end
-    if keymaps.close_recursive then vim.keymap.set("n", keymaps.close_recursive, M.close_recursive, { desc = "Recursive close fold" }) end
-    if keymaps.open_all then vim.keymap.set("n", keymaps.open_all, M.open_all, { desc = "Open all folds" }) end
-    if keymaps.close_all then vim.keymap.set("n", keymaps.close_all, M.close_all, { desc = "Close all folds" }) end
-    if keymaps.preview then vim.keymap.set("n", keymaps.preview, M.preview, { desc = "Preview fold" }) end
-    if keymaps.next_fold then vim.keymap.set("n", keymaps.next_fold, M.next, { desc = "Next fold" }) end
-    if keymaps.prev_fold then vim.keymap.set("n", keymaps.prev_fold, M.prev, { desc = "Previous fold" }) end
+    if keymaps.toggle then
+      vim.keymap.set("n", keymaps.toggle, M.toggle, { desc = "Toggle fold" })
+    end
+    if keymaps.open then
+      vim.keymap.set("n", keymaps.open, M.open, { desc = "Open fold" })
+    end
+    if keymaps.close then
+      vim.keymap.set("n", keymaps.close, M.close, { desc = "Close fold" })
+    end
+    if keymaps.open_recursive then
+      vim.keymap.set("n", keymaps.open_recursive, M.open_recursive, { desc = "Recursive open fold" })
+    end
+    if keymaps.close_recursive then
+      vim.keymap.set("n", keymaps.close_recursive, M.close_recursive, { desc = "Recursive close fold" })
+    end
+    if keymaps.open_all then
+      vim.keymap.set("n", keymaps.open_all, M.open_all, { desc = "Open all folds" })
+    end
+    if keymaps.close_all then
+      vim.keymap.set("n", keymaps.close_all, M.close_all, { desc = "Close all folds" })
+    end
+    if keymaps.preview then
+      vim.keymap.set("n", keymaps.preview, M.preview, { desc = "Preview fold" })
+    end
+    if keymaps.next_fold then
+      vim.keymap.set("n", keymaps.next_fold, M.next, { desc = "Next fold" })
+    end
+    if keymaps.prev_fold then
+      vim.keymap.set("n", keymaps.prev_fold, M.prev, { desc = "Previous fold" })
+    end
   end
 
   -- Apply to all existing windows
@@ -293,7 +343,7 @@ function M.setup(opts)
 
   -- Automatically manage buffer loading, changes, and window focus
   local group = vim.api.nvim_create_augroup("CustomFoldingSystem", { clear = true })
-  
+
   vim.api.nvim_create_autocmd({ "BufReadPost", "FileType", "LspAttach" }, {
     group = group,
     callback = function(ev)

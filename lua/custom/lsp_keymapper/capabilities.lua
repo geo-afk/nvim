@@ -24,7 +24,7 @@ M.registry = {
     handler = "vim.lsp.buf.hover()",
     fn = vim.lsp.buf.hover,
     modes = { "n" },
-    suggested = "K",
+    suggested = "<C-k>",
   },
   definitionProvider = {
     label = "Go to Definition",

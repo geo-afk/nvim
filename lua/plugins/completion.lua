@@ -205,7 +205,26 @@ end
 blink.setup({
   keymap = {
     preset = "super-tab",
-    ["<C-k>"] = { "show_documentation", "hide_documentation", "fallback" },
+    ["<C-k>"] = {
+      function(cmp)
+        if cmp.is_documentation_visible() then
+          return cmp.hide_documentation()
+        end
+
+        if cmp.is_menu_visible() then
+          return cmp.show_documentation()
+        end
+
+        return cmp.show({
+          initial_selected_item_idx = 1,
+          callback = function()
+            pcall(function()
+              require("blink.cmp").show_documentation()
+            end)
+          end,
+        })
+      end,
+    },
     ["<Tab>"] = {
       function(cmp)
         if cmp.snippet_active() then
