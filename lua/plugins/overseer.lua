@@ -12,7 +12,6 @@ vim.pack.add({
   { src = "https://github.com/stevearc/overseer.nvim" },
   -- Optional but recommended integrations (comment out if not needed)
   -- { src = "https://github.com/rcarriga/nvim-notify" }, -- rich notifications
-  -- { src = "https://github.com/nvim-telescope/telescope.nvim" }, -- telescope picker
   -- { src = "https://github.com/mfussenegger/nvim-dap" },         -- DAP integration
 })
 
@@ -30,26 +29,21 @@ end
 -- ---------------------------------------------------------------------------
 overseer.setup({
   -- ── Strategy ─────────────────────────────────────────────────────────────
-  -- "terminal" uses a real :terminal buffer (works great on Windows cmd/pwsh)
   strategy = {
     "toggleterm",
-    -- Fallback to built-in terminal if toggleterm is not installed:
-    -- "terminal",
     direction = "float",
     auto_scroll = true,
     quit_on_exit = "never",
   },
 
   -- ── Templates ─────────────────────────────────────────────────────────────
-  -- Built-in template providers + our custom ones (auto-discovered by dir)
   templates = {
-    "builtin", -- vscode tasks.json, make, cargo, tox, …
-    "user.go", -- lua/overseer/template/go/
-    "user.node", -- lua/overseer/template/node/
-    "user.angular", -- lua/overseer/template/angular/
+    "builtin",
+    "user.go",
+    "user.node",
+    "user.angular",
   },
 
-  -- ── Auto-detection ────────────────────────────────────────────────────────
   auto_detect_success_color = true,
 
   -- ── Task list UI ──────────────────────────────────────────────────────────
@@ -61,7 +55,7 @@ overseer.setup({
     max_height = { 15, 0.25 },
     min_height = 8,
     separator = "─",
-    direction = "bottom", -- panel sits at the bottom
+    direction = "bottom",
     bindings = {
       ["?"] = "ShowHelp",
       ["<CR>"] = "RunAction",
@@ -82,18 +76,19 @@ overseer.setup({
       ["}"] = "NextTask",
       ["<C-k>"] = "ScrollOutputUp",
       ["<C-j>"] = "ScrollOutputDown",
-      ["q"] = "Close",
+      ["q"] = "Close", -- already present, unchanged
     },
   },
 
   -- ── Floating task output window ───────────────────────────────────────────
   task_win = {
-    max_width = 0.7,
-    min_width = { 60, 0.4 },
+    -- ~50% width, ~60% height (fractions clamp to screen %)
+    max_width = 0.5,
+    min_width = { 40, 0.3 },
     max_height = 0.6,
     min_height = { 8, 0.15 },
     padding = 2,
-    border = "rounded", -- rounded borders everywhere
+    border = "rounded",
     win_opts = {
       winblend = 0,
       winhighlight = "Normal:NormalFloat,FloatBorder:FloatBorder",
@@ -120,26 +115,18 @@ overseer.setup({
     win_opts = { winblend = 0 },
   },
 
-  -- ── Status icons (Nerd Font) ──────────────────────────────────────────────
-  task_list_highlights = {
-    -- per-status row highlights – tweak to match your colourscheme
-  },
+  task_list_highlights = {},
 
-  -- ── Component aliases ─────────────────────────────────────────────────────
-  -- Short-hand names used inside template `components` tables.
   component_aliases = {
-    -- All tasks get these defaults automatically
     default = {
       "on_exit_set_status",
       { "on_complete_notify", system = "unfocused" },
       "on_complete_dispose",
     },
-    -- Long-running (persistent) tasks keep running and notify on crash
     default_persist = {
       "on_exit_set_status",
       { "on_complete_notify", system = "unfocused" },
     },
-    -- Tasks that should populate the quickfix list on completion
     default_quickfix = {
       "on_exit_set_status",
       { "on_complete_notify", system = "unfocused" },
@@ -148,23 +135,21 @@ overseer.setup({
     },
   },
 
-  -- ── Diagnostics ───────────────────────────────────────────────────────────
-  -- Populated automatically by templates that use on_output_parse +
-  -- on_output_quickfix with set_diagnostics = true.
+  dap = true,
 
-  -- ── DAP integration ───────────────────────────────────────────────────────
-  dap = true, -- enable DAP task provider when nvim-dap present
-
-  -- ── VSCode tasks.json ─────────────────────────────────────────────────────
-  -- Handled automatically by the "builtin" template provider above.
-
-  -- ── Log level ─────────────────────────────────────────────────────────────
   log = {
     { type = "echo", level = vim.log.levels.WARN },
     { type = "file", filename = "overseer.log", level = vim.log.levels.DEBUG },
   },
 })
 
+-- q to close the task_win float (task_win has no bindings config; do it via autocmd)
+vim.api.nvim_create_autocmd("FileType", {
+  pattern = "OverseerFloat",
+  callback = function(ev)
+    vim.keymap.set("n", "q", "<C-w>c", { buffer = ev.buf, silent = true })
+  end,
+})
 -- ---------------------------------------------------------------------------
 -- 5. Telescope integration (graceful – works when telescope is absent)
 -- ---------------------------------------------------------------------------
@@ -176,10 +161,6 @@ end
 -- ---------------------------------------------------------------------------
 -- 6. Persistent task list  (save/restore across sessions)
 -- ---------------------------------------------------------------------------
--- Overseer serialises tasks automatically via its session support.
--- Hook into VimLeavePre / VimEnter to persist.
-local session_file = vim.fn.stdpath("data") .. "/overseer_session.json"
-
 vim.api.nvim_create_autocmd("VimLeavePre", {
   group = vim.api.nvim_create_augroup("OverseerSession", { clear = true }),
   callback = function()
