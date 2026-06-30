@@ -263,8 +263,25 @@ function M.setup_lsps()
   end
 
   vim.schedule(function()
-    pcall(vim.cmd.doautoall, "nvim.lsp.enable FileType")
+    -- Re-trigger FileType into the nvim.lsp.enable group for buffers that
+    -- were already open before config.lsp deferred-loaded. Without this,
+    -- gopls never attaches when a .go file is open at startup.
+    -- NOTE: `buf` and `pattern` are mutually exclusive in nvim_exec_autocmds;
+    --       buf is sufficient — Neovim matches the buffer's own filetype.
+    for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_is_loaded(bufnr) then
+        local ft = vim.bo[bufnr].filetype
+        if ft and ft ~= "" then
+          vim.api.nvim_exec_autocmds("FileType", {
+            group = "nvim.lsp.enable",
+            buf = bufnr,
+            modeline = false,
+          })
+        end
+      end
+    end
   end)
+
 
   -- test_lsp()
 end

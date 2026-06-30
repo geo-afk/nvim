@@ -1,13 +1,10 @@
 -- =============================================================================
---  plugins/lsp.lua  ·  LSP plugin declarations + config/lsp wiring
+--  plugins/lsp.lua  ·  LSP keymap shims + compatibility commands
 --
---  This file adds nvim-lspconfig via vim.pack and then delegates all server
---  configuration to config/lsp.lua (the 0.12 vim.lsp.config/enable module).
+--  All server configuration is delegated to config/lsp.lua which uses
+--  the native 0.12 vim.lsp.config() / vim.lsp.enable() APIs.
+--  nvim-lspconfig is NOT used and NOT declared here.
 -- =============================================================================
-
-vim.pack.add({
-  { src = "https://github.com/neovim/nvim-lspconfig" },
-})
 
 local map = vim.keymap.set
 -- local diagnostic_jump_float = function(diagnostic, bufnr)

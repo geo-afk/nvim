@@ -185,7 +185,14 @@ loader.register({
       go_utils.setup()
     end,
   },
-  { mod = "custom.golang", ft = { "go", "gomod", "gowork", "gotmpl" }, deps = { "utils.go" } },
+  {
+    mod = "custom.golang",
+    ft = { "go", "gomod", "gowork", "gotmpl" },
+    deps = { "utils.go" },
+    config = function(golang)
+      golang.setup()
+    end,
+  },
 })
 
 -- Load the plugin registry before bootstrap so plugin-level event/cmd/key specs
