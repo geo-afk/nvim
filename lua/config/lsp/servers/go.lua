@@ -21,8 +21,8 @@ return {
       vulncheck = "Off",
       standaloneTags = { "ignore", "mage" },
       usePlaceholders = true,
-      completeUnimported = false,
-      completeFunctionCalls = false,
+      completeUnimported = true,
+      completeFunctionCalls = true,
       linksInHover = true,
       staticcheck = false,
       codelenses = {

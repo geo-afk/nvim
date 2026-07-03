@@ -85,6 +85,7 @@ loader.register({
     mod = "plugins.gotools",
     ft = { "go", "gomod", "gowork", "gotmpl" },
     keys = "<leader>i",
+    deps = { "plugins.which-key" },
   },
   {
     mod = "plugins.markdown",

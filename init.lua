@@ -60,8 +60,7 @@ loader.register({
   -- from the explorer does not pay the setup cost synchronously.
   {
     mod = "config.lsp",
-    defer = true,
-    priority = "high",
+    priority = "critical",
     deps = { "plugins.lsp", "plugins.completion" },
     config = function(lsp)
       lsp.setup()
