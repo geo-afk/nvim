@@ -184,7 +184,13 @@ end
 
 --- Open Glow TUI browser.
 function M.open_tui(dir)
-  local target = dir or vim.fn.expand("%:p:h")
+  local target
+  if type(dir) == "table" and dir.args then
+    target = dir.args ~= "" and dir.args or nil
+  elseif type(dir) == "string" then
+    target = dir
+  end
+  target = target or vim.fn.expand("%:p:h")
   run_glow({ "-t", target }, { title = "󱗞 Glow Browser" })
 end
 

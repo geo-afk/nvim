@@ -38,10 +38,23 @@ local function make_group(events, pattern)
   local group = { key = key, name = name, id = aug, mods = {} }
   _groups[key] = group
 
+  local is_filetype = false
+  for _, e in ipairs(events) do
+    if e == "FileType" then
+      is_filetype = true
+      break
+    end
+  end
+
   local ac_opts = {
     group = aug,
-    once = true,
+    once = not is_filetype,
     callback = function(ev)
+      -- Guard: only trigger on normal buffers for FileType events
+      if is_filetype and vim.bo[ev.buf].buftype ~= "" then
+        return
+      end
+
       -- Tear down the group before loading so modules can re-register if needed.
       pcall(vim.api.nvim_del_augroup_by_name, name)
       _groups[key] = nil

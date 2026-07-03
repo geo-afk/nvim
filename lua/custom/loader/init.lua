@@ -136,6 +136,23 @@ function M.bootstrap()
       goto continue
     end
 
+    -- Evaluate condition early during bootstrap.
+    local cond_ok = true
+    if spec.cond ~= nil then
+      if type(spec.cond) == "function" then
+        local ok, res = pcall(spec.cond)
+        cond_ok = ok and res == true
+      else
+        cond_ok = spec.cond == true
+      end
+    end
+
+    if not cond_ok then
+      modules.set_state(mod, modules.S.SKIPPED)
+      utils.log("debug", "condition false during bootstrap, skipped: %s", mod)
+      goto continue
+    end
+
     local has_trigger = #spec.event > 0 or #spec.ft > 0 or #spec.cmd > 0 or #spec.keys > 0
 
     if has_trigger then
@@ -291,62 +308,65 @@ function M._wire_triggers(spec)
     events.on_filetype(spec.ft, { mod })
   end
 
-  -- Command stubs: thin shims that load the real module on first call.
-  for _, cmd in ipairs(spec.cmd) do
-    if vim.fn.exists(":" .. cmd) ~= 2 then
-      local function create_command_stub()
-        vim.api.nvim_create_user_command(cmd, function(cmd_opts)
-          pcall(vim.api.nvim_del_user_command, cmd)
+  -- Command and keymap stubs: only register globally if the module is NOT filetype-specific.
+  if #spec.ft == 0 then
+    -- Command stubs: thin shims that load the real module on first call.
+    for _, cmd in ipairs(spec.cmd) do
+      if vim.fn.exists(":" .. cmd) ~= 2 then
+        local function create_command_stub()
+          vim.api.nvim_create_user_command(cmd, function(cmd_opts)
+            pcall(vim.api.nvim_del_user_command, cmd)
 
-          local ok = core.load(mod, { trigger = "cmd:" .. cmd })
-          if not ok then
-            create_command_stub()
-            return
-          end
-
-          -- Re-execute if the real command was registered by the module.
-          if vim.fn.exists(":" .. cmd) == 2 then
-            command_replay(cmd, cmd_opts)
-          end
-        end, { bang = true, nargs = "*", range = true, desc = "Load " .. mod })
-      end
-
-      create_command_stub()
-    end
-  end
-
-  -- Keymap stubs: feed the real key after loading so the bound action executes.
-  for _, key_spec in ipairs(spec.keys) do
-    local lhs = type(key_spec) == "table" and key_spec[1] or key_spec
-    local rhs = type(key_spec) == "table" and key_spec[2] or nil
-    local mode = type(key_spec) == "table" and (key_spec.mode or "n") or "n"
-    local opts = keymap_opts(key_spec)
-    local del_opts = opts.buffer and { buffer = opts.buffer } or nil
-
-    if not (type(key_spec) == "table" and key_spec.group and rhs == nil) then
-      local function create_key_stub()
-        vim.keymap.set(mode, lhs, function()
-          del_keymap(mode, lhs, del_opts)
-
-          local ok = core.load(mod, { trigger = "keys:" .. lhs })
-          if not ok then
-            create_key_stub()
-            return
-          end
-
-          vim.schedule(function()
-            if rhs ~= nil then
-              replay_rhs(rhs)
+            local ok = core.load(mod, { trigger = "cmd:" .. cmd })
+            if not ok then
+              create_command_stub()
               return
             end
 
-            -- Re-feed the key so the real mapping (if any) fires.
-            replay_rhs(lhs)
-          end)
-        end, opts)
-      end
+            -- Re-execute if the real command was registered by the module.
+            if vim.fn.exists(":" .. cmd) == 2 then
+              command_replay(cmd, cmd_opts)
+            end
+          end, { bang = true, nargs = "*", range = true, desc = "Load " .. mod })
+        end
 
-      create_key_stub()
+        create_command_stub()
+      end
+    end
+
+    -- Keymap stubs: feed the real key after loading so the bound action executes.
+    for _, key_spec in ipairs(spec.keys) do
+      local lhs = type(key_spec) == "table" and key_spec[1] or key_spec
+      local rhs = type(key_spec) == "table" and key_spec[2] or nil
+      local mode = type(key_spec) == "table" and (key_spec.mode or "n") or "n"
+      local opts = keymap_opts(key_spec)
+      local del_opts = opts.buffer and { buffer = opts.buffer } or nil
+
+      if not (type(key_spec) == "table" and key_spec.group and rhs == nil) then
+        local function create_key_stub()
+          vim.keymap.set(mode, lhs, function()
+            del_keymap(mode, lhs, del_opts)
+
+            local ok = core.load(mod, { trigger = "keys:" .. lhs })
+            if not ok then
+              create_key_stub()
+              return
+            end
+
+            vim.schedule(function()
+              if rhs ~= nil then
+                replay_rhs(rhs)
+                return
+              end
+
+              -- Re-feed the key so the real mapping (if any) fires.
+              replay_rhs(lhs)
+            end)
+          end, opts)
+        end
+
+        create_key_stub()
+      end
     end
   end
 end
