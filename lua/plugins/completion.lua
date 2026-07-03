@@ -6,7 +6,7 @@
 -- =============================================================================
 
 vim.pack.add({
-  { src = "https://github.com/saghen/blink.cmp" },
+  { src = "https://github.com/saghen/blink.cmp", version = vim.version.range("^1") },
   { src = "https://github.com/xzbdmw/colorful-menu.nvim" },
 })
 
@@ -205,16 +205,13 @@ end
 blink.setup({
   keymap = {
     preset = "super-tab",
+    -- Note: overrides the super-tab preset's default <C-k> (show_signature/hide_signature/fallback).
+    -- Manual signature-help toggling is unavailable; signature help still triggers automatically.
     ["<C-k>"] = {
+      "show",
+      "show_documentation",
+      "hide_documentation",
       function(cmp)
-        if cmp.is_documentation_visible() then
-          return cmp.hide_documentation()
-        end
-
-        if cmp.is_menu_visible() then
-          return cmp.show_documentation()
-        end
-
         return cmp.show({
           initial_selected_item_idx = 1,
           callback = function()
@@ -225,17 +222,7 @@ blink.setup({
         })
       end,
     },
-    ["<Tab>"] = {
-      function(cmp)
-        if cmp.snippet_active() then
-          return cmp.accept()
-        else
-          return cmp.select_and_accept()
-        end
-      end,
-      "snippet_forward",
-      "fallback",
-    },
+    -- <Tab> intentionally left to the super-tab preset (identical accept/select_and_accept logic).
   },
 
   appearance = {
@@ -289,10 +276,16 @@ blink.setup({
       if ok2 and node and vim.tbl_contains({ "comment", "line_comment", "block_comment" }, node:type()) then
         return { "buffer" }
       end
-      return { "lazydev", "lsp", "path", "buffer", "snippets" }
+      return { "lsp", "path", "buffer", "snippets" }
     end,
+    -- go/gomod/gowork/gotmpl entries reorder providers vs. the default() function output;
+    -- they don't add providers beyond what default() already returns for these filetypes.
     per_filetype = {
       lua = { inherit_defaults = true, "lazydev" },
+      go = { inherit_defaults = true, "lsp", "path", "snippets", "buffer" },
+      gomod = { inherit_defaults = true, "lsp", "path", "buffer" },
+      gowork = { inherit_defaults = true, "lsp", "path", "buffer" },
+      gotmpl = { inherit_defaults = true, "lsp", "path", "snippets", "buffer" },
     },
     providers = {
       buffer = { name = "buffer", max_items = 4, score_offset = -2 },

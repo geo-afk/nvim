@@ -132,6 +132,20 @@ loader.register({
 
   -- Project/Git, Explorer, Terminal.
   {
+    mod = "custom.tv",
+    cmd = "Tv",
+    keys = {
+      "<leader>tv",
+      "<leader>ta", "<leader>td", "<leader>tD", "<leader>t.",
+      "<leader>te", "<leader>tf", "<leader>tb", "<leader>tgd",
+      "<leader>tgl", "<leader>tgr", "<leader>tR", "<leader>tN",
+      "<leader>tP", "<leader>ts", "<leader>tT",
+    },
+    config = function(tv)
+      tv.setup()
+    end,
+  },
+  {
     mod = "custom.lazygit",
     keys = "<leader>gg",
     config = function(lazygit)
