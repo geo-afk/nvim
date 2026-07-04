@@ -37,7 +37,7 @@ local M = {
   {
     name = "dirs",
     label = "Directories",
-    icon = "",
+    icon = "",
     desc = "Jump to a directory",
     action = function(entries)
       local path = vim.trim(entries[1] or "")
@@ -59,7 +59,7 @@ local M = {
   {
     name = "dotfiles",
     label = "Dotfiles",
-    icon = "",
+    icon = "󰒓", -- settings/gear
     desc = "Open dotfile configs",
     action = a.open_as_files,
     keybinding = "<leader>t.",
@@ -67,15 +67,16 @@ local M = {
   {
     name = "env",
     label = "Environment Variables",
-    icon = "",
+    icon = "󱉯", -- terminal with variable
     desc = "Insert an env variable at cursor",
     action = a.insert_at_cursor,
     keybinding = "<leader>te",
   },
+
   {
     name = "files",
     label = "Files",
-    icon = "",
+    icon = "󰈙",
     desc = "Fuzzy find files",
     action = a.open_as_files,
     keybinding = "<leader>tf",
@@ -83,7 +84,7 @@ local M = {
   {
     name = "git-branch",
     label = "Git Branches",
-    icon = "",
+    icon = "󰊢",
     desc = "Checkout a git branch",
     action = a.git_checkout,
     keybinding = "<leader>tb",
@@ -91,7 +92,7 @@ local M = {
   {
     name = "git-diff",
     label = "Git Diff",
-    icon = "",
+    icon = "󰨝",
     desc = "Browse unstaged git changes",
     action = a.open_at_line,
     keybinding = "<leader>tgd",
@@ -107,7 +108,7 @@ local M = {
   {
     name = "git-reflog",
     label = "Git Reflog",
-    icon = "",
+    icon = "󰔜",
     desc = "Browse git reflog",
     action = a.git_copy_hash,
     keybinding = "<leader>tgr",
@@ -123,7 +124,7 @@ local M = {
   {
     name = "nu-history",
     label = "Nushell History",
-    icon = "",
+    icon = "󰝢",
     desc = "Re-run a nushell command",
     action = a.run_from_history,
     keybinding = "<leader>tN",
@@ -139,7 +140,7 @@ local M = {
   {
     name = "text",
     label = "Text Search",
-    icon = "",
+    icon = "󰞃",
     desc = "Ripgrep search in files",
     action = a.open_at_line,
     keybinding = "<leader>ts",

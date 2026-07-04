@@ -92,16 +92,6 @@ local function build_channel_map()
   end
 end
 
---- Determine effective window dimensions for the tv float.
----@return integer width, integer height
-local function float_dimensions()
-  local cols = vim.o.columns
-  local rows = vim.o.lines - vim.o.cmdheight - 1
-  local w = math.floor(cols * config.window.width_ratio)
-  local h = math.floor(rows * config.window.height_ratio)
-  return w, h
-end
-
 -- ─── Core: launch tv ─────────────────────────────────────────────────────────
 
 --- Launch the television TUI for the given channel, read its output, and
@@ -120,38 +110,35 @@ function M.open(channel_name, opts)
     return
   end
 
-  -- Look up channel definition; allow ad-hoc invocations without registration.
   local ch = channel_map[channel_name] or { name = channel_name }
   local action = opts.action or ch.action or function() end
   local title = opts.title or (ch.icon and (ch.icon .. "  " .. (ch.label or channel_name)) or channel_name)
 
-  -- Create a temp file for tv to write its selection output.
-  local tmpfile = vim.fn.tempname()
-
-  -- Build the command:  tv --output <tmpfile> <channel>
-  -- The --output flag makes tv write selected entries (newline-separated) to
-  -- the file instead of stdout, which is required for terminal embedding.
-  local cmd = { config.tv_binary, "--output", tmpfile, channel_name }
+  -- Build command without --output
+  local cmd = { config.tv_binary, channel_name }
 
   local term = get_term()
-  local w, h = float_dimensions()
-
-  -- Save current window to restore focus after tv closes.
   local origin_win = vim.api.nvim_get_current_win()
 
-  -- Configure the float_term for this invocation.
   term.setup({
     width_ratio = config.window.width_ratio,
     height_ratio = config.window.height_ratio,
-    border = nil, -- inherit vim.o.winborder
+    border = nil,
     title = " " .. title .. " ",
     zindex = 300,
   })
 
+  -- Store stdout data
+  local stdout_data = {}
+
   term.create_terminal(cmd, {
     title = " " .. title .. " ",
+    on_output = function(data)
+      if data then
+        stdout_data[#stdout_data + 1] = data
+      end
+    end,
     on_exit = function(exit_code)
-      -- Restore focus to origin window (tv stole it).
       vim.schedule(function()
         if vim.api.nvim_win_is_valid(origin_win) then
           vim.api.nvim_set_current_win(origin_win)
@@ -159,27 +146,15 @@ function M.open(channel_name, opts)
       end)
 
       if exit_code ~= 0 then
-        -- Non-zero means user aborted (Esc/q) or tv error. No-op.
-        pcall(vim.uv.fs_unlink, tmpfile)
         return
       end
 
       vim.schedule(function()
-        -- Read the temp file.
-        local fd = io.open(tmpfile, "r")
-        if not fd then
-          pcall(vim.uv.fs_unlink, tmpfile)
-          return
-        end
-        local raw = fd:read("*a")
-        fd:close()
-        pcall(vim.uv.fs_unlink, tmpfile)
-
-        if not raw or raw == "" then
+        local raw = table.concat(stdout_data, "")
+        if raw == "" then
           return
         end
 
-        -- Parse entries: each line is one selection.
         local entries = {}
         for line in raw:gmatch("[^\r\n]+") do
           if line ~= "" then
@@ -194,7 +169,6 @@ function M.open(channel_name, opts)
     end,
   })
 end
-
 -- ─── Channel picker ───────────────────────────────────────────────────────────
 
 --- Open a floating channel picker built with custom.ui.picker.
