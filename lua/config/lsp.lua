@@ -302,11 +302,35 @@ local function setup_commands()
   end, { desc = "[0.12] Show diagnostic status string" })
 end
 
+-- ── Handler Guards ────────────────────────────────────────────────────────────
+local function setup_handler_guards()
+  local guarded_methods = {
+    "textDocument/documentHighlight",
+    "textDocument/hover",
+    "textDocument/signatureHelp",
+    "textDocument/documentSymbol",
+  }
+
+  for _, method in ipairs(guarded_methods) do
+    local original_handler = vim.lsp.handlers[method]
+    if original_handler then
+      vim.lsp.handlers[method] = function(err, result, ctx, config)
+        local bufnr = ctx and ctx.bufnr
+        if bufnr and (not vim.api.nvim_buf_is_valid(bufnr) or not vim.api.nvim_buf_is_loaded(bufnr)) then
+          return
+        end
+        return original_handler(err, result, ctx, config)
+      end
+    end
+  end
+end
+
 -- ── Public entry point ────────────────────────────────────────────────────────
 function M.setup()
   setup_diagnostics()
   setup_attach()
   setup_commands()
+  setup_handler_guards()
 
   -- Initialize custom LSP enhancements
   pcall(function()
