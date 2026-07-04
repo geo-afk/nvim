@@ -143,21 +143,21 @@ overseer.setup({
   },
 })
 
--- q to close the task_win float (task_win has no bindings config; do it via autocmd)
+-- q or <Esc> to close the task_win float (task_win has no bindings config; do it via autocmd)
 vim.api.nvim_create_autocmd("FileType", {
   pattern = "OverseerFloat",
   callback = function(ev)
     vim.keymap.set("n", "q", "<C-w>c", { buffer = ev.buf, silent = true })
+    vim.keymap.set("n", "<Esc>", "<C-w>c", { buffer = ev.buf, silent = true })
   end,
 })
 -- ---------------------------------------------------------------------------
 -- 5. Telescope integration (graceful – works when telescope is absent)
 -- ---------------------------------------------------------------------------
-local has_telescope, _ = pcall(require, "telescope")
+local has_telescope, telescope = pcall(require, "telescope")
 if has_telescope then
-  pcall(require, "telescope").load_extension("overseer")
+  telescope.load_extension("overseer")
 end
-
 -- ---------------------------------------------------------------------------
 -- 6. Persistent task list  (save/restore across sessions)
 -- ---------------------------------------------------------------------------
@@ -214,7 +214,7 @@ map("<leader>or", function()
   if has_telescope then
     vim.cmd("Telescope overseer")
   else
-    overseer.run_task()
+    overseer.run_task({})
   end
 end, "Overseer: Run task")
 
@@ -282,18 +282,28 @@ end, { desc = "Stop all running overseer tasks" })
 
 --- :OverseerRunGo  – quick shortcut for Go template picker
 cmd("OverseerRunGo", function()
-  overseer.run_template({ tags = { "go" } })
-end, { desc = "Run an overseer Go task" })
+  overseer.run_task({
+    tags = { "go" },
+  })
+end, {
+  desc = "Run an overseer Go task",
+})
 
---- :OverseerRunNode  – quick shortcut for Node/TS template picker
 cmd("OverseerRunNode", function()
-  overseer.run_template({ tags = { "node" } })
-end, { desc = "Run an overseer Node/TS task" })
+  overseer.run_task({
+    tags = { "node" },
+  })
+end, {
+  desc = "Run an overseer Node/TS task",
+})
 
---- :OverseerRunAngular  – quick shortcut for Angular template picker
 cmd("OverseerRunAngular", function()
-  overseer.run_template({ tags = { "angular" } })
-end, { desc = "Run an overseer Angular task" })
+  overseer.run_task({
+    tags = { "angular" },
+  })
+end, {
+  desc = "Run an overseer Angular task",
+})
 
 --- :OverseerSaveSession  – manually save bundle as "session"
 cmd("OverseerSaveSession", function()
@@ -316,10 +326,4 @@ if wk_ok then
   })
 end
 
--- ---------------------------------------------------------------------------
--- 12. Status-line helper (expose for lualine / heirline etc.)
--- ---------------------------------------------------------------------------
--- Usage in lualine:
 --   { require("overseer").task_list.status_str, ... }
--- or the dedicated lualine component:
---   require("lualine").setup { sections = { lualine_x = { "overseer" } } }
