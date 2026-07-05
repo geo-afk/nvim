@@ -4,8 +4,10 @@
 -- Design principles:
 --   • One autocmd per distinct (events × pattern) pair -- never per module.
 --     Multiple modules that share the same trigger are batched under one autocmd.
---   • `once = true` everywhere: the autocmd fires, loads all subscribers, then
---     self-destructs.  Avoids the "100 autocmds that fire on every FileType" trap.
+--   • Teardown is manual, not once=true: the autocmd fires, loads all
+--     subscribers, and self-destructs only once none of them are still
+--     cond-skipped. Avoids the "100 autocmds that fire on every FileType"
+--     trap while still giving cond=false modules another chance next firing.
 --   • The autocmd group is named deterministically so re-registration is safe
 --     across hot-reloads.
 
@@ -48,20 +50,33 @@ local function make_group(events, pattern)
 
   local ac_opts = {
     group = aug,
-    once = not is_filetype,
+    -- Teardown is managed manually below, never by once=true: a module whose
+    -- `cond` is false on this firing must get another chance on a later one
+    -- instead of being permanently orphaned once the autocmd self-destructs.
+    once = false,
     callback = function(ev)
       -- Guard: only trigger on normal buffers for FileType events
       if is_filetype and vim.bo[ev.buf].buftype ~= "" then
         return
       end
 
-      -- Tear down the group before loading so modules can re-register if needed.
-      pcall(vim.api.nvim_del_augroup_by_name, name)
-      _groups[key] = nil
-
+      local modules = require("custom.loader.modules")
       local core = require("custom.loader.core")
+
+      -- Keep only mods still cond-skipped; loaded/failed mods are terminal
+      -- and drop out. Tear down only once nothing is left to retry.
+      local retry = {}
       for _, mod in ipairs(group.mods) do
         core.load(mod, { trigger = ev.event })
+        if modules.get_state(mod) == modules.S.SKIPPED then
+          retry[#retry + 1] = mod
+        end
+      end
+      group.mods = retry
+
+      if #group.mods == 0 then
+        pcall(vim.api.nvim_del_augroup_by_name, name)
+        _groups[key] = nil
       end
     end,
   }

@@ -19,6 +19,10 @@ local cache = require("custom.loader.cache")
 local profiler = require("custom.loader.profiler")
 local modules = require("custom.loader.modules")
 local deps_mod = require("custom.loader.dependencies")
+local state = require("custom.loader.state")
+
+-- Consecutive failure count per module, used to honour config.max_retries.
+local _fail_counts = {}
 
 -- ── Internal: single module require ──────────────────────────────────────────
 
@@ -32,13 +36,15 @@ local function do_require(mod)
 
   if not ok then
     modules.set_state(mod, modules.S.FAILED)
+    _fail_counts[mod] = (_fail_counts[mod] or 0) + 1
     local t = profiler.get(mod)
-    utils.log("error", "load failed: %s (%.2f ms)", mod, t and t.duration_ms or 0)
+    utils.log("error", "load failed: %s (%.2f ms): %s", mod, t and t.duration_ms or 0, result)
     return false, result
   end
 
   cache.mark_loaded(mod)
   modules.set_state(mod, modules.S.LOADED)
+  _fail_counts[mod] = nil
 
   local t = profiler.get(mod)
   utils.log("debug", "loaded: %s (%.2f ms)", mod, t and t.duration_ms or 0)
@@ -116,10 +122,13 @@ function M.load(mod, opts)
     return true
   end
 
-  -- Guard: previously failed (don't retry unless forced).
+  -- Guard: previously failed. Allow automatic retries up to config.max_retries
+  -- before permanently refusing (still overridable via opts.force).
   if modules.is_failed(mod) and not opts.force then
-    utils.log("debug", "skipping previously failed: %s", mod)
-    return false
+    if (_fail_counts[mod] or 0) > state.config.max_retries then
+      utils.log("debug", "skipping previously failed (retries exhausted): %s", mod)
+      return false
+    end
   end
 
   -- Circular dependency detection (DFS stack-based).
@@ -177,11 +186,10 @@ function M.load_batch(mod_list, opts)
   local sorted, cycles = deps_mod.topo_sort(mod_list)
 
   if #cycles > 0 then
-    utils.log("error", "circular deps detected, refusing batch load: %s", table.concat(cycles, ", "))
-    return false
+    utils.log("error", "circular deps, excluded from batch: %s", table.concat(cycles, ", "))
   end
 
-  local all_ok = true
+  local all_ok = #cycles == 0
   for _, mod in ipairs(sorted) do
     if not M.load(mod, opts) then
       all_ok = false

@@ -32,7 +32,7 @@ M.S = {
 ---   mod (string)  fully-qualified Lua module name
 ---
 --- Optional fields:
----   priority  "critical"|"normal"|"low"   default "normal"
+---   priority  "critical"|"high"|"normal"|"low"   default "normal"
 ---   defer     bool    load after VimEnter
 ---   idle      bool    load during CursorHold idle time
 ---   event     string|string[]  autocmd events

@@ -100,6 +100,10 @@ end
 --- Run `fn` during idle time (CursorHold).
 function M.schedule_idle(fn)
   _idle[#_idle + 1] = fn
+  -- Self-arming: safe to call any time, including after a previous idle
+  -- queue already drained and tore itself down (_setup_idle_loader no-ops
+  -- if already active).
+  M._setup_idle_loader()
 end
 
 --- Arm the deferred timer. Call this once from the VimEnter callback.

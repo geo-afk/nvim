@@ -6,6 +6,12 @@
 local M = {}
 local utils = require("custom.loader.utils")
 
+-- Deferred access to state to avoid import cycle at module init time
+-- (mirrors utils.lua's own cfg() pattern).
+local function cfg()
+  return require("custom.loader.state").config
+end
+
 -- Wall-clock reference: nanoseconds at the moment this file was first required.
 -- This approximates "Neovim startup origin" when loaded early.
 local _origin_ns = utils.hrtime()
@@ -17,12 +23,19 @@ local _records = {}
 local _active = {}
 
 -- ── Timer control ─────────────────────────────────────────────────────────────
+-- Gated on config.profile: disabled (the default) means zero overhead here.
 
 function M.start(mod)
+  if not cfg().profile then
+    return
+  end
   _active[mod] = utils.hrtime()
 end
 
 function M.stop(mod)
+  if not cfg().profile then
+    return
+  end
   local t0 = _active[mod]
   if not t0 then
     return

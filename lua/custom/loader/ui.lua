@@ -33,6 +33,7 @@ local function open_float(title, lines)
   local buf = vim.api.nvim_create_buf(false, true)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, lines)
   vim.api.nvim_set_option_value("buftype", "nofile", { buf = buf })
+  vim.api.nvim_set_option_value("bufhidden", "wipe", { buf = buf })
   vim.api.nvim_set_option_value("modifiable", false, { buf = buf })
   vim.api.nvim_set_option_value("filetype", "loader_report", { buf = buf })
 
@@ -88,6 +89,7 @@ local function cmd_stats()
     ("    ✓ loaded     : %d"):format(counts.loaded or 0),
     ("    ○ registered : %d"):format(counts.registered or 0),
     ("    ◌ pending    : %d"):format(counts.pending or 0),
+    ("    … loading    : %d"):format(counts.loading or 0),
     ("    ✗ failed     : %d"):format(counts.failed or 0),
     ("    ~ skipped    : %d"):format(counts.skipped or 0),
     "",

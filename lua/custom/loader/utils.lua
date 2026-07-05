@@ -46,10 +46,10 @@ end
 -- ── Safe require ──────────────────────────────────────────────────────────────
 
 --- Attempt require, returning (true, module) or (false, err_string).
+--- Does not log: the caller (core.do_require) logs once, with timing attached.
 function M.safe_require(mod)
   local ok, result = pcall(require, mod)
   if not ok then
-    M.log("error", "require('%s') failed: %s", mod, tostring(result))
     return false, tostring(result)
   end
   return true, result

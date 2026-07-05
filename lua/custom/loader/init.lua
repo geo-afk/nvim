@@ -31,13 +31,15 @@
 
 local M = {}
 
+-- Opts applied to the loader's own STUB keymap. Deliberately excludes
+-- expr/replace_keycodes: the stub is always a plain imperative callback
+-- (it never returns a key sequence), so those two would only break it if
+-- forwarded from the spec.
 local KEYMAP_SPEC_KEYS = {
   buffer = true,
   desc = true,
-  expr = true,
   nowait = true,
   remap = true,
-  replace_keycodes = true,
   script = true,
   silent = true,
   unique = true,
@@ -92,6 +94,8 @@ function M.register(specs)
 
   local modules = require("custom.loader.modules")
   local deps_mod = require("custom.loader.dependencies")
+  local utils = require("custom.loader.utils")
+  local state = require("custom.loader.state")
 
   -- Normalise: wrap single spec in a list.
   if type(specs) == "table" and type(specs.mod) == "string" then
@@ -101,10 +105,16 @@ function M.register(specs)
 
   for _, spec in ipairs(specs) do
     if type(spec.mod) ~= "string" then
-      require("custom.loader.utils").log("warn", "spec missing mod key, skipped")
+      utils.log("warn", "spec missing mod key, skipped")
+    elseif state.registry[spec.mod] then
+      -- modules.register() would no-op anyway; skip here too so a duplicate
+      -- registration can't add edges to the DAG for a spec that never
+      -- actually replaces the stored one (deps.lua and the registry would
+      -- otherwise disagree about this mod's dependencies).
+      utils.log("debug", "Already registered (skipped): %s", spec.mod)
     else
       -- Record dependency edges before registering the spec.
-      local dep_list = require("custom.loader.utils").to_list(spec.deps)
+      local dep_list = utils.to_list(spec.deps)
       if #dep_list > 0 then
         deps_mod.register(spec.mod, dep_list)
       end
@@ -165,7 +175,11 @@ function M.bootstrap()
       -- command/key stubs for metadata or replay.
       critical[#critical + 1] = mod
     elseif has_trigger then
-      -- Trigger-only modules load on demand.
+      -- Trigger-only modules load on demand. idle is not both/or: trigger
+      -- always wins, so flag it if a spec set both (likely a mistake).
+      if spec.idle then
+        utils.log("debug", "idle=true ignored (trigger takes precedence) for: %s", mod)
+      end
     elseif spec.idle then
       idle[#idle + 1] = mod
     elseif spec.defer or spec.priority ~= "critical" then
@@ -207,12 +221,11 @@ function M.bootstrap()
       if #idle > 0 then
         for _, mod in ipairs(idle) do
           local m = mod -- upvalue capture
+          -- schedule_idle arms the CursorHold loader itself; no separate
+          -- _setup_idle_loader() call needed here.
           scheduler.schedule_idle(function()
             core.load(m, { trigger = "idle" })
           end)
-        end
-        if #deferred == 0 then
-          scheduler._setup_idle_loader()
         end
       end
     end
@@ -239,6 +252,14 @@ function M._wire_triggers(spec)
   local mod = spec.mod
   local events = require("custom.loader.events")
   local core = require("custom.loader.core")
+  local modules = require("custom.loader.modules")
+  local utils = require("custom.loader.utils")
+
+  local function note_if_skipped(trigger_desc)
+    if modules.get_state(mod) == modules.S.SKIPPED then
+      utils.log("debug", "%s did nothing, condition not met: %s", trigger_desc, mod)
+    end
+  end
 
   local function command_replay(cmd_name, cmd_opts)
     local cmd_args = {
@@ -319,6 +340,7 @@ function M._wire_triggers(spec)
 
             local ok = core.load(mod, { trigger = "cmd:" .. cmd })
             if not ok then
+              note_if_skipped(":" .. cmd)
               create_command_stub()
               return
             end
@@ -349,6 +371,7 @@ function M._wire_triggers(spec)
 
             local ok = core.load(mod, { trigger = "keys:" .. lhs })
             if not ok then
+              note_if_skipped(lhs)
               create_key_stub()
               return
             end
