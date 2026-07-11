@@ -60,7 +60,7 @@ loader.register({
   -- from the explorer does not pay the setup cost synchronously.
   {
     mod = "config.lsp",
-    priority = "critical",
+    defer = true,
     deps = { "plugins.lsp", "plugins.completion" },
     config = function(lsp)
       lsp.setup()
@@ -135,22 +135,22 @@ loader.register({
     mod = "custom.tv",
     cmd = "Tv",
     keys = {
-      "<leader>tv",
-      "<leader>ta",
-      "<leader>td",
-      "<leader>tD",
-      "<leader>t.",
-      "<leader>te",
-      "<leader>tf",
-      "<leader>tb",
-      "<leader>tgd",
-      "<leader>tgl",
-      "<leader>tgr",
-      "<leader>tR",
-      "<leader>tN",
-      "<leader>tP",
-      "<leader>ts",
-      "<leader>tT",
+      { "<leader>tv", group = "Television", icon = { icon = "󰸍 ", hl = "MiniIconsGreen" } },
+      { "<leader>ta", "<cmd>Television alias<CR>", desc = "Shell aliases" },
+      { "<leader>td", "<cmd>Television dirs<CR>", desc = "Directories" },
+      { "<leader>tD", "<cmd>Television docker-images<CR>", desc = "Docker images" },
+      { "<leader>t.", "<cmd>Television dotfiles<CR>", desc = "Dotfiles" },
+      { "<leader>te", "<cmd>Television env<CR>", desc = "Environment variables" },
+      { "<leader>tf", "<cmd>Television files<CR>", desc = "Files" },
+      { "<leader>tb", "<cmd>Television git-branch<CR>", desc = "Git branches" },
+      { "<leader>tgd", "<cmd>Television git-diff<CR>", desc = "Git diff" },
+      { "<leader>tgl", "<cmd>Television git-log<CR>", desc = "Git log" },
+      { "<leader>tgr", "<cmd>Television git-reflog<CR>", desc = "Git reflog" },
+      { "<leader>tR", "<cmd>Television git-repos<CR>", desc = "Git repos" },
+      { "<leader>tN", "<cmd>Television nu-history<CR>", desc = "Nushell history" },
+      { "<leader>tP", "<cmd>Television pwsh-history<CR>", desc = "PowerShell history" },
+      { "<leader>ts", "<cmd>Television text<CR>", desc = "Text search" },
+      { "<leader>tT", "<cmd>Television tldr<CR>", desc = "TLDR pages" },
     },
     config = function(tv)
       tv.setup()
