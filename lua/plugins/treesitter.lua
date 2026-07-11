@@ -14,6 +14,7 @@ local parsers = {
   "json",
   -- "jsonc",
   "html",
+  "yaml",
   "css",
   "scss",
   "markdown",
@@ -37,6 +38,7 @@ local ft_to_lang = {
 
 local handled_filetypes = {
   angular = true,
+  yaml = true,
   bash = true,
   css = true,
   dotenv = true,

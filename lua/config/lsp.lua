@@ -209,6 +209,7 @@ M.servers = {
   typos_lsp = "typos_lsp",
   just_lsp = "just_lsp",
   vtsls = "vtsls",
+  yamlls = "yamlls",
   biome = "biome",
   angularls = "angularls",
   tailwindcss = "tailwindcss",

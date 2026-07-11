@@ -257,6 +257,8 @@ end
 -- Angular Project Utilities
 -- ============================================================================
 
+local angular_root_cache = {}
+
 --- Check if current directory is within an Angular project
 --- @param path? string|integer Optional file path or buffer number
 --- @return boolean True if angular.json exists in current or parent directories
@@ -268,18 +270,31 @@ end
 --- @param path? string|integer Optional file path or buffer number
 --- @return string|nil The project root path, or nil if not found
 function M.find_angular_root(path)
-  return find_upward(path, function(dir)
-    if path_exists(vim.fs.joinpath(dir, "angular.json")) then
+  local dir = resolve_start_dir(path)
+  if not dir then
+    return nil
+  end
+
+  local cached = angular_root_cache[dir]
+  if cached ~= nil then
+    return cached or nil
+  end
+
+  local root = find_upward(dir, function(p)
+    if path_exists(vim.fs.joinpath(p, "angular.json")) then
       return true
     end
 
-    local has_nx_root = path_exists(vim.fs.joinpath(dir, "nx.json"))
+    local has_nx_root = path_exists(vim.fs.joinpath(p, "nx.json"))
     if not has_nx_root then
       return false
     end
 
-    return has_angular_project_marker(dir)
+    return has_angular_project_marker(p)
   end)
+
+  angular_root_cache[dir] = root or false
+  return root
 end
 
 --- Get Angular core version from package.json

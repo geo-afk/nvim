@@ -740,9 +740,13 @@ local function setup_autocmds()
   vim.api.nvim_create_autocmd({ "CursorMoved", "WinResized" }, {
     group = state.augroup,
     callback = function(args)
-      if buf_enabled(args.buf) then
-        M.render(args.buf)
+      if not state.attached_buffers[args.buf] then
+        return
       end
+      if args.event == "CursorMoved" and not state.config.focused_only then
+        return
+      end
+      M.render(args.buf)
     end,
   })
 

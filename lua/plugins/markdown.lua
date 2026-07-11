@@ -454,9 +454,9 @@ markview.setup({
   -- CUSTOM RENDERERS
   ------------------------------------------------------------------------------
   renderers = {
-    markdown = {},
-    html = {},
-    latex = {},
+    markdown = function() end,
+    html = function() end,
+    latex = function() end,
   },
 })
 

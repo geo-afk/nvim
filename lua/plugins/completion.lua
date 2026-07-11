@@ -199,7 +199,7 @@ local components = {
 -- ── Setup ─────────────────────────────────────────────────────────────────────
 local ok, blink = pcall(require, "blink.cmp")
 if not ok then
-  return
+  error("blink.cmp binary/library not ready yet")
 end
 
 blink.setup({
