@@ -213,6 +213,9 @@ M.servers = {
   biome = "biome",
   angularls = "angularls",
   tailwindcss = "tailwindcss",
+
+  -- Add these two:
+  docker_language_server = "docker-language-server", -- Mason name
 }
 
 local function get_capabilities()

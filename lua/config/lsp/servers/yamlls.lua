@@ -27,9 +27,19 @@ return {
       },
       schemas = {
         ["https://json.schemastore.org/github-workflow.json"] = "/.github/workflows/*.{yml,yaml}",
+
         ["https://json.schemastore.org/github-action.json"] = "/action.{yml,yaml}",
-        ["https://json.schemastore.org/docker-compose.json"] = "docker-compose*.{yml,yaml}",
-        ["https://raw.githubusercontent.com/compose-spec/compose-spec/master/schema/compose-spec.json"] = "compose*.{yml,yaml}",
+
+        ["https://raw.githubusercontent.com/compose-spec/compose-spec/master/schema/compose-spec.json"] = {
+          "compose.yml",
+          "compose.yaml",
+          "compose.*.yml",
+          "compose.*.yaml",
+          "docker-compose.yml",
+          "docker-compose.yaml",
+          "docker-compose.*.yml",
+          "docker-compose.*.yaml",
+        },
       },
       disableSchemaDetection = false,
       maxItemsComputed = 5000,

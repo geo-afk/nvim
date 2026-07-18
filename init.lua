@@ -26,7 +26,7 @@ vim.g.maplocalleader = "\\"
 local loader = require("custom.loader")
 
 loader.setup({
-  profile = false,
+  profile = true,
   debug = false,
   defer_timeout = 100,
   idle_batch = 3,
