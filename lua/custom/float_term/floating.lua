@@ -157,6 +157,7 @@ function M.open(opts)
   -- Focusable windows (terminals, pickers) must be closed explicitly.
   if not opts.focusable then
     vim.api.nvim_create_autocmd("BufLeave", {
+      group = vim.api.nvim_create_augroup("FloatTerm_" .. buf, { clear = false }),
       buffer = buf,
       once = true,
       callback = function()

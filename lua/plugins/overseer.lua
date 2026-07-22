@@ -145,6 +145,7 @@ overseer.setup({
 
 -- q or <Esc> to close the task_win float (task_win has no bindings config; do it via autocmd)
 vim.api.nvim_create_autocmd("FileType", {
+  group = vim.api.nvim_create_augroup("OverseerFloatKeymaps", { clear = true }),
   pattern = "OverseerFloat",
   callback = function(ev)
     vim.keymap.set("n", "q", "<C-w>c", { buffer = ev.buf, silent = true })

@@ -89,8 +89,10 @@ function M.topo_sort(mod_list)
   end
 
   local sorted = {}
-  while #queue > 0 do
-    local m = table.remove(queue, 1)
+  local head = 1
+  while head <= #queue do
+    local m = queue[head]
+    head = head + 1
     sorted[#sorted + 1] = m
     for _, dependent in ipairs(rev_adj[m] or {}) do
       in_degree[dependent] = in_degree[dependent] - 1

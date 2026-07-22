@@ -18,7 +18,7 @@ local utils = require("custom.statusline.utils")
 -- OS detection — computed exactly once at module load
 -- ---------------------------------------------------------------------------
 local os_icon = (function()
-  local uname = (vim.uv or vim.loop).os_uname()
+  local uname = vim.uv.os_uname()
   local sysname = (uname.sysname or ""):lower()
   if sysname:find("darwin") then
     return "󰀵 "

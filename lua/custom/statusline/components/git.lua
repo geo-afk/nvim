@@ -22,7 +22,7 @@ M.redraw_fn = function() end
 M.cache = {}
 
 local REFRESH_THROTTLE_MS = 1500
-local uv = vim.uv or vim.loop
+local uv = vim.uv
 
 -- ---------------------------------------------------------------------------
 -- Async helpers

@@ -719,9 +719,11 @@ function M.open()
   }, ",")
 
   -- ── Autocmds ────────────────────────────────────────────────────────
+  local projects_group = api.nvim_create_augroup("ExplorerProjects_" .. buf, { clear = true })
 
   -- Prevent cursor from straying below row 0 while in insert mode
   api.nvim_create_autocmd("CursorMovedI", {
+    group = projects_group,
     buffer = buf,
     callback = function()
       if not (P.win and api.nvim_win_is_valid(P.win)) then
@@ -735,6 +737,7 @@ function M.open()
 
   -- Live-filter: rebuild on every keystroke
   api.nvim_create_autocmd("TextChangedI", {
+    group = projects_group,
     buffer = buf,
     callback = function()
       if not (P.win and api.nvim_win_is_valid(P.win)) then
@@ -765,7 +768,8 @@ function M.open()
 
   -- Cleanup when the window is closed by any means
   api.nvim_create_autocmd("WinClosed", {
-    buffer = buf,
+    group = projects_group,
+    pattern = tostring(win),
     once = true,
     callback = function()
       P.win = nil

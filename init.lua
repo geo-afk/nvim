@@ -106,7 +106,6 @@ loader.register({
       "<leader>ad",
       "<leader>ar",
       "<leader>an",
-      "<leader>aa",
     },
     config = function(autoclose)
       autoclose.setup()

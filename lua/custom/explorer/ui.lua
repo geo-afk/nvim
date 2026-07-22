@@ -157,6 +157,7 @@ local function prompt_float(opts)
 
   -- Dynamic Resize Strategy: Expand window width as user types to prevent prompt scrolling
   api.nvim_create_autocmd("TextChangedI", {
+    group = api.nvim_create_augroup("ExplorerInput_" .. buf, { clear = false }),
     buffer = buf,
     callback = function()
       if not api.nvim_win_is_valid(win) then

@@ -77,45 +77,19 @@ local function detect_python(dir)
     end
   end
 
-  -- poetry: check pyproject.toml with [tool.poetry] section
-  local pyproject = dir .. "/pyproject.toml"
-  if exists(pyproject) then
-    local out = vim.fn.systemlist("poetry env info --path 2>/dev/null")
-    if out and #out > 0 and out[1] ~= "" and not out[1]:match("^Error") then
-      local venv_path = vim.trim(out[1])
-      local bin = venv_path .. "/bin"
-      return {
-        type = "python_poetry",
-        name = "poetry",
-        path = venv_path,
-        activate_cmd = "source " .. bin .. "/activate",
-        env = {
-          VIRTUAL_ENV = venv_path,
-          PATH = bin .. ":" .. (os.getenv("PATH") or ""),
-        },
-        display = "🐍 poetry",
-      }
-    end
-  end
-
-  -- pipenv
-  if exists(dir .. "/Pipfile") then
-    local out = vim.fn.systemlist("pipenv --venv 2>/dev/null")
-    if out and #out > 0 and out[1] ~= "" and not out[1]:match("^Error") then
-      local venv_path = vim.trim(out[1])
-      local bin = venv_path .. "/bin"
-      return {
-        type = "python_pipenv",
-        name = "pipenv",
-        path = venv_path,
-        activate_cmd = "source " .. bin .. "/activate",
-        env = {
-          VIRTUAL_ENV = venv_path,
-          PATH = bin .. ":" .. (os.getenv("PATH") or ""),
-        },
-        display = "🐍 pipenv",
-      }
-    end
+  -- Poetry and Pipenv commonly expose the active environment through
+  -- VIRTUAL_ENV. Avoid blocking terminal creation with their CLI processes.
+  local active_venv = os.getenv("VIRTUAL_ENV")
+  if active_venv and active_venv ~= "" and is_dir(active_venv) then
+    local bin = active_venv .. (vim.fn.has("win32") == 1 and "/Scripts" or "/bin")
+    return {
+      type = os.getenv("POETRY_ACTIVE") and "python_poetry" or "python_virtualenv",
+      name = vim.fs.basename(active_venv),
+      path = active_venv,
+      activate_cmd = "source " .. bin .. "/activate",
+      env = { VIRTUAL_ENV = active_venv, PATH = bin .. ":" .. (os.getenv("PATH") or "") },
+      display = "🐍 " .. vim.fs.basename(active_venv),
+    }
   end
 
   -- conda: CONDA_DEFAULT_ENV in environment

@@ -1316,6 +1316,7 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
     vim.keymap.set("n", "q", cancel_filter, fopts)
 
     vim.api.nvim_create_autocmd("TextChangedI", {
+      group = vim.api.nvim_create_augroup("CodeActionWindow_" .. picker_buf, { clear = false }),
       buffer = filter_buf_ref,
       callback = function()
         if closed then
@@ -1433,6 +1434,7 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
   -- ── Autocmds ──────────────────────────────────────────────────────────────
 
   vim.api.nvim_create_autocmd("CursorMoved", {
+    group = vim.api.nvim_create_augroup("CodeActionWindow_" .. picker_buf, { clear = false }),
     buffer = picker_buf,
     callback = function()
       if closed then
@@ -1454,6 +1456,7 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
   })
 
   vim.api.nvim_create_autocmd("WinClosed", {
+    group = vim.api.nvim_create_augroup("CodeActionWindow_" .. picker_buf, { clear = false }),
     pattern = tostring(source_win),
     once = true,
     callback = function()
@@ -1464,6 +1467,7 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
   })
 
   vim.api.nvim_create_autocmd("BufWipeout", {
+    group = vim.api.nvim_create_augroup("CodeActionWindow_" .. picker_buf, { clear = false }),
     buffer = picker_buf,
     once = true,
     callback = function()
@@ -1475,6 +1479,7 @@ function M.open(items, source_win, source_buf, source_cursor, opts)
 
   -- Resize preview when the editor is resized.
   vim.api.nvim_create_autocmd("VimResized", {
+    group = vim.api.nvim_create_augroup("CodeActionWindow_" .. picker_buf, { clear = false }),
     callback = function()
       if closed then
         return

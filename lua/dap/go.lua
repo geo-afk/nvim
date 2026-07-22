@@ -41,7 +41,7 @@ dap.adapters.go = function(callback, config)
     return
   end
 
-  local uv = vim.uv or vim.loop
+  local uv = vim.uv
   local port   = config.port or math.random(38000, 39000)
   local stdout = uv.new_pipe(false)
   local handle

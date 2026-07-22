@@ -4,6 +4,7 @@ vim.opt_local.concealcursor = "nc"
 
 -- https://www.reddit.com/r/neovim/comments/10383z1/open_help_in_buffer_instead_of_split/
 vim.api.nvim_create_autocmd("BufWinEnter", {
+  group = vim.api.nvim_create_augroup("HelpListedBuffer", { clear = true }),
   pattern = "*",
   callback = function(event)
     if vim.bo[event.buf].filetype == "help" then

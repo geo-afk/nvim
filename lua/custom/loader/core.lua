@@ -112,6 +112,15 @@ end
 function M.load(mod, opts)
   opts = opts or {}
 
+  -- Check the active dependency stack before consulting module state. A module
+  -- in LOADING state may be a legitimate duplicate request, or it may be the
+  -- back-edge of A -> B -> A; only the DFS stack can distinguish the latter.
+  local visited = opts._visited or {}
+  if visited[mod] then
+    utils.log("warn", "circular dependency detected: %s", mod)
+    return false
+  end
+
   -- Guard: already loaded (skip unless forced).
   if modules.is_loaded(mod) and not opts.force then
     return true
@@ -129,13 +138,6 @@ function M.load(mod, opts)
       utils.log("debug", "skipping previously failed (retries exhausted): %s", mod)
       return false
     end
-  end
-
-  -- Circular dependency detection (DFS stack-based).
-  local visited = opts._visited or {}
-  if visited[mod] then
-    utils.log("warn", "circular dependency detected: %s", mod)
-    return false
   end
 
   -- Guard: module not yet registered → load it directly (ad-hoc require).

@@ -413,13 +413,16 @@ function M.open(opts)
   wo.cursorline = true
 
   -- ── Autocmds ─────────────────────────────────────────────────────────
+  local move_group = api.nvim_create_augroup("ExplorerMove_" .. buf, { clear = true })
 
   api.nvim_create_autocmd("CursorMoved", {
+    group = move_group,
     buffer = buf,
     callback = sync_cursor,
   })
 
   api.nvim_create_autocmd("TextChangedI", {
+    group = move_group,
     buffer = buf,
     callback = function()
       local line = api.nvim_buf_get_lines(buf, 2, 3, false)[1] or ""

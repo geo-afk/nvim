@@ -66,9 +66,10 @@ local function get_context_items()
     table.insert(items, "Format document")
   end
 
-  -- Git actions if in a repo
-  local git_check = vim.fn.system("git rev-parse --is-inside-work-tree 2>/dev/null")
-  local in_git = vim.trim(git_check) == "true"
+  -- Git actions if in a repo. vim.fs.root avoids spawning a blocking process
+  -- whenever the context menu is opened.
+  local path = vim.api.nvim_buf_get_name(0)
+  local in_git = vim.fs.root(path ~= "" and path or vim.uv.cwd(), ".git") ~= nil
   if in_git then
     table.insert(items, "Git blame")
     table.insert(items, "Git status")
@@ -95,8 +96,7 @@ end
 
 -- Helper function to open URLs
 local function open_url(url)
-  local uv = vim.uv or vim.loop
-  local sysname = uv.os_uname().sysname:lower()
+  local sysname = vim.uv.os_uname().sysname:lower()
   local cmd
 
   if sysname:match("darwin") then

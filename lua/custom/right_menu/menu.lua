@@ -143,6 +143,7 @@ function Menu:create_window()
 
   -- Auto-close on leave
   vim.api.nvim_create_autocmd("WinLeave", {
+    group = vim.api.nvim_create_augroup("RightMenu_" .. self.buf, { clear = false }),
     buffer = self.buf,
     once = true,
     callback = function()

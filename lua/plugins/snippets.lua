@@ -51,6 +51,7 @@ pcall(require("luasnip.loaders.from_lua").lazy_load, {
 
 -- ── Unlink snippet session on InsertLeave ────────────────────────────────────
 vim.api.nvim_create_autocmd("InsertLeave", {
+  group = vim.api.nvim_create_augroup("LuaSnipSession", { clear = true }),
   callback = function()
     local session = luasnip.session
     local bufnr = vim.api.nvim_get_current_buf()

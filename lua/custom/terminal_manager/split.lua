@@ -40,7 +40,7 @@ local function show_in_win(win, t)
     local profile = t.profile or {}
     local cmd = profiles.profile_cmd(profile)
     local env = profiles.profile_env(profile)
-    env = env_file.apply(env, vim.loop.cwd())
+    env = env_file.apply(env, vim.uv.cwd())
     -- Apply venv env if present
     if t.venv and t.venv.env then
       env = vim.tbl_extend("force", env, t.venv.env)

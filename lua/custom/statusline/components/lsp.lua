@@ -25,7 +25,7 @@ local M = {}
 local hl = require("custom.statusline.highlights").hl
 local utils = require("custom.statusline.utils")
 local diag = vim.diagnostic
-local uv = vim.uv or vim.loop
+local uv = vim.uv
 
 -- Injected by init.lua — the debounced, time-gated schedule_redraw().
 -- Default no-op until wired up.

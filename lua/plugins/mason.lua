@@ -82,34 +82,9 @@ vim.keymap.set("n", "<leader>pm", "<cmd>Mason<CR>", { desc = "Mason UI" })
 
 local mlsp_ok, mason_lspconfig = pcall(require, "mason-lspconfig")
 if mlsp_ok then
-  mason_lspconfig.setup({
-    handlers = {
-      function(server_name)
-        local explicit = {
-          lua_ls = true,
-          vtsls = true,
-          gopls = true,
-          pyright = true,
-          rust_analyzer = true,
-          cssls = true,
-          html = true,
-          jsonls = true,
-          angularls = true,
-          tailwindcss = true,
-          sqls = true,
-          emmet_language_server = true,
-          typos_lsp = true,
-          just_lsp = true,
-        }
-        if explicit[server_name] then
-          return
-        end
-
-        vim.lsp.config(server_name, { exit_timeout = 3000 })
-        vim.lsp.enable(server_name)
-      end,
-    },
-  })
+  -- Installation only. config.lsp is the single owner of runtime
+  -- vim.lsp.config()/vim.lsp.enable() calls.
+  mason_lspconfig.setup({ automatic_enable = false })
 end
 
 local mti_ok, mti = pcall(require, "mason-tool-installer")

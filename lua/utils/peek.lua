@@ -284,7 +284,9 @@ local function setup_popup_navigation(popup_win, bufnr, item_data, original_win,
   namespace_suffix = namespace_suffix or "popup_highlight"
   local current_highlighted_line = nil
   local original_bufnr = vim.api.nvim_win_get_buf(original_win)
+  local navigation_group = vim.api.nvim_create_augroup("PeekNavigation_" .. bufnr, { clear = true })
   vim.api.nvim_create_autocmd("CursorMoved", {
+    group = navigation_group,
     buffer = bufnr,
     callback = function()
       local cursor = vim.api.nvim_win_get_cursor(0)

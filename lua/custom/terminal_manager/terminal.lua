@@ -16,11 +16,7 @@ local function resolve_cwd(profile)
     return vim.fn.getcwd()
   end
   if cwd == "git_dir" then
-    local root = vim.fn.systemlist("git rev-parse --show-toplevel 2>/dev/null")[1]
-    if root and root ~= "" and not root:match("^fatal") then
-      return root
-    end
-    return vim.fn.getcwd()
+    return vim.fs.root(vim.api.nvim_buf_get_name(0), ".git") or vim.fn.getcwd()
   end
   return vim.fn.expand(cwd)
 end
@@ -34,7 +30,7 @@ local function spawn_in_win(t, win)
   local cmd = profiles.profile_cmd(profile)
   local env = profiles.profile_env(profile)
   local cwd = resolve_cwd(profile)
-  env = env_file.apply(env, vim.loop.cwd())
+  env = env_file.apply(env, vim.uv.cwd())
 
   -- Detect venv and inject its env.
   local venv = require("custom.terminal_manager.venv").detect(cwd)

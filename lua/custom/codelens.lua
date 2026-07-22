@@ -53,7 +53,7 @@ local state = {
   },
 }
 
-local uv = vim.uv or vim.loop
+local uv = vim.uv
 local METHODS = vim.lsp.protocol.Methods or {}
 local METHOD_CODELENS = METHODS.textDocument_codeLens or "textDocument/codeLens"
 local METHOD_CODELENS_RESOLVE = METHODS.codeLens_resolve or "codeLens/resolve"

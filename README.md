@@ -164,12 +164,11 @@ Inside Neovim:
 2. `plugins` (plugin registration)
 3. `config.keymaps`
 4. `config.autocmds`
-5. `custom.statusline`
-6. `custom.tabline`
-7. `custom.session`
-8. `config.lsp`
-9. `config.ui`
-10. custom modules (Explorer, LazyGit, Cmdline, etc.)
+5. `config.ui`
+6. `custom.statusline`
+7. `custom.tabline`
+8. deferred `config.lsp`
+9. trigger-loaded custom modules (Explorer, LazyGit, Cmdline, etc.)
 
 ## Tasks and Debugging
 
@@ -272,7 +271,7 @@ VS Code-style managed terminal panel with profiles, virtualenv detection, and si
 - `<leader>wa` save all (creating parent directories if needed)
 - `<leader>P` paste without replacing clipboard
 - `<C-h/j/k/l>` window navigation
-- `<leader>nr` restart Neovim (powered by `custom.session`)
+- `<leader>nr` restart Neovim with the native `:restart` command
 
 ### UI & Tools
 - `<leader>e` toggle file explorer

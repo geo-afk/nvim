@@ -266,21 +266,6 @@ function M.setup_lsps()
     end
   end
 
-  vim.schedule(function()
-    for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
-      if vim.api.nvim_buf_is_loaded(bufnr) then
-        local ft = vim.bo[bufnr].filetype
-        if ft and ft ~= "" then
-          vim.api.nvim_exec_autocmds("FileType", {
-            group = "nvim.lsp.enable",
-            buffer = bufnr, -- Use 'buffer' instead of 'buf'
-            modeline = false,
-          })
-        end
-      end
-    end
-  end)
-
   -- test_lsp()
 end
 -- ── Utility commands ──────────────────────────────────────────────────────────

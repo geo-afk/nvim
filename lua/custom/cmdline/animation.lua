@@ -1,6 +1,6 @@
 -- nvim-cmdline/animation.lua
 -- Slide-in / slide-out animations for floating windows via libuv timers.
--- vim.uv (Neovim 0.10+) preferred; falls back to vim.loop (0.9).
+-- Uses vim.uv; this config requires Neovim 0.12+.
 
 local M = {}
 

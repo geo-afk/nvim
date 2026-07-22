@@ -8,7 +8,7 @@ local M = {}
 local ENV_FILE = ".nvim_env"
 
 local function project_root()
-  return vim.loop.cwd() or vim.fn.getcwd()
+  return vim.uv.cwd() or vim.fn.getcwd()
 end
 
 local function env_file_path(root)
@@ -16,7 +16,7 @@ local function env_file_path(root)
 end
 
 local function read_env_lines(path)
-  local stat = vim.loop.fs_stat(path)
+  local stat = vim.uv.fs_stat(path)
   if not stat or stat.type ~= "file" then
     return nil
   end

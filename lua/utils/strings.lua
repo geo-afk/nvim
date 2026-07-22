@@ -103,9 +103,11 @@ M.replace_word_under_cursor = function()
 
   -- Create namespace for virtual text preview
   local ns_id = api.nvim_create_namespace("replace_preview")
+  local replace_group = api.nvim_create_augroup("ReplacePreview_" .. buf, { clear = true })
 
   -- Update title on text change
   api.nvim_create_autocmd({ "TextChanged", "TextChangedI" }, {
+    group = replace_group,
     buffer = buf,
     callback = function()
       local lines = api.nvim_buf_get_lines(buf, 0, -1, false)
@@ -153,6 +155,7 @@ M.replace_word_under_cursor = function()
 
   -- Cleanup autocmd when buffer is deleted
   api.nvim_create_autocmd("BufWipeout", {
+    group = replace_group,
     buffer = buf,
     callback = function()
       api.nvim_buf_clear_namespace(0, ns_id, 0, -1)

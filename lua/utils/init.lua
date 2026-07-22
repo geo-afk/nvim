@@ -42,7 +42,7 @@ M.devicons_override = {
   },
 }
 
-local uv = vim.uv or vim.loop
+local uv = vim.uv
 
 local function path_exists(path)
   return path and uv.fs_stat(path) ~= nil
@@ -228,7 +228,7 @@ function M.get_mason_pkg_path(pkg_name, rel)
       local install_path = vim.fn.stdpath("data") .. "/mason/packages/" .. pkg_name
       local final = install_path .. rel
 
-      if vim.loop.fs_stat(final) then
+      if vim.uv.fs_stat(final) then
         return vim.fs.normalize(final)
       end
       return vim.fs.normalize(install_path)
@@ -239,14 +239,14 @@ function M.get_mason_pkg_path(pkg_name, rel)
   local data_dir = vim.fn.stdpath("data")
   local candidate = join_path(data_dir, "mason", "packages", pkg_name) .. rel
 
-  if vim.loop.fs_stat(candidate) then
+  if vim.uv.fs_stat(candidate) then
     return vim.fs.normalize(candidate)
   end
 
   -- Some mason packages put node modules under the package dir
   local alt = join_path(data_dir, "mason", "packages", pkg_name, "node_modules") .. rel
 
-  if vim.loop.fs_stat(alt) then
+  if vim.uv.fs_stat(alt) then
     return vim.fs.normalize(alt)
   end
 

@@ -316,6 +316,7 @@ function M.open(opts)
   end
   if S.buf and api.nvim_buf_is_valid(S.buf) and not vim.b[S.buf]._explorer_tree_guard then
     api.nvim_create_autocmd("CursorMoved", {
+      group = api.nvim_create_augroup("ExplorerCursorGuard_" .. S.buf, { clear = true }),
       buffer = S.buf,
       callback = function()
         if S.search_active then

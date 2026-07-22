@@ -156,6 +156,7 @@ function M.open()
   vim.keymap.set("n", "<Esc>", close_help, ko)
   vim.keymap.set("n", "?", close_help, ko)
   vim.api.nvim_create_autocmd("WinLeave", {
+    group = vim.api.nvim_create_augroup("TerminalHelp_" .. hbuf, { clear = false }),
     buffer = hbuf,
     once = true,
     callback = close_help,

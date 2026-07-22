@@ -361,9 +361,11 @@ end
 
 function M.setup(buf)
   local bopts = { buffer = buf, silent = true, noremap = true }
+  local group = api.nvim_create_augroup("ExplorerSearch_" .. buf, { clear = true })
 
   -- Live filter: TextChangedI fires while user types in insert mode on line 2
   api.nvim_create_autocmd("TextChangedI", {
+    group = group,
     buffer = buf,
     callback = function()
       if not S.search_active then
@@ -389,6 +391,7 @@ function M.setup(buf)
 
   -- InsertLeave: commit or discard
   api.nvim_create_autocmd("InsertLeave", {
+    group = group,
     buffer = buf,
     callback = vim.schedule_wrap(function()
       if not S.search_active then

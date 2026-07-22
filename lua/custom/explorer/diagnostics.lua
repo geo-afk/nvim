@@ -178,6 +178,7 @@ end
 
 function M.setup()
   api.nvim_create_autocmd("DiagnosticChanged", {
+    group = api.nvim_create_augroup("ExplorerDiagnostics", { clear = true }),
     desc = "explorer: refresh diagnostic badges",
     callback = function()
       M.schedule_apply()

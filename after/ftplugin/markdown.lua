@@ -5,7 +5,7 @@ set.spell = true -- Enable spell checking
 set.linebreak = true
 
 -- Toggle Line Numbers (Visual Selection)
-function ToggleNumberVisualSelection()
+local function ToggleNumberVisualSelection()
   local start_line = vim.fn.line("'<")
   local end_line = vim.fn.line("'>")
   local lines = vim.fn.getline(start_line, end_line)
@@ -37,7 +37,7 @@ function ToggleNumberVisualSelection()
 end
 
 -- Toggle Line Numbers for Current Line (Normal Mode)
-function ToggleNumberCurrentLine()
+local function ToggleNumberCurrentLine()
   local line_num = vim.fn.line(".")
   local line = vim.fn.getline(line_num)
 
@@ -55,7 +55,7 @@ function ToggleNumberCurrentLine()
 end
 
 -- Toggle Bullet Points for (Visual Selection)
-function ToggleBulletVisualSelection()
+local function ToggleBulletVisualSelection()
   local start_line = vim.fn.line("'<")
   local end_line = vim.fn.line("'>")
   local lines = vim.fn.getline(start_line, end_line)
@@ -90,7 +90,7 @@ function ToggleBulletVisualSelection()
 end
 
 -- Toggle Bullet Points for Current Line (Normal Mode)
-function ToggleBulletCurrentLine()
+local function ToggleBulletCurrentLine()
   local line_num = vim.fn.line(".")
   local line = vim.fn.getline(line_num)
 
@@ -110,7 +110,7 @@ function ToggleBulletCurrentLine()
 end
 
 -- Toggle Checkboxes for (Visual Selection)
-function ToggleCheckboxVisualSelection()
+local function ToggleCheckboxVisualSelection()
   local start_line = vim.fn.line("'<")
   local end_line = vim.fn.line("'>")
   local lines = vim.fn.getline(start_line, end_line)
@@ -148,7 +148,7 @@ function ToggleCheckboxVisualSelection()
 end
 
 -- Toggle Checkboxes for Current Line (Normal Mode)
-function ToggleCheckboxCurrentLine()
+local function ToggleCheckboxCurrentLine()
   local line_num = vim.fn.line(".")
   local line = vim.fn.getline(line_num)
 
@@ -172,7 +172,7 @@ function ToggleCheckboxCurrentLine()
 end
 
 -- Toggle Task State for (Visual Selection)
-function ToggleTaskStateVisualSelection()
+local function ToggleTaskStateVisualSelection()
   local start_line = vim.fn.line("'<")
   local end_line = vim.fn.line("'>")
   local lines = vim.fn.getline(start_line, end_line)
@@ -199,7 +199,7 @@ function ToggleTaskStateVisualSelection()
 end
 
 -- Toggle Task State for Current Line (Normal Mode)
-function ToggleTaskStateCurrentLine()
+local function ToggleTaskStateCurrentLine()
   local line_num = vim.fn.line(".")
   local line = vim.fn.getline(line_num)
 
@@ -219,7 +219,7 @@ function ToggleTaskStateCurrentLine()
 end
 
 -- Smart List Toggle for (Visual Selection)
-function SmartListToggleVisualSelection()
+local function SmartListToggleVisualSelection()
   local start_line = vim.fn.line("'<")
   local end_line = vim.fn.line("'>")
   local lines = vim.fn.getline(start_line, end_line)
@@ -274,7 +274,7 @@ function SmartListToggleVisualSelection()
 end
 
 -- Smart List Toggle for Current Line (Normal Mode)
-function SmartListToggleCurrentLine()
+local function SmartListToggleCurrentLine()
   local line_num = vim.fn.line(".")
   local line = vim.fn.getline(line_num)
 
@@ -305,11 +305,11 @@ function SmartListToggleCurrentLine()
 end
 
 -- Setting commands
-vim.api.nvim_create_user_command("ToggleNumberVisual", ToggleNumberVisualSelection, {})
-vim.api.nvim_create_user_command("ToggleBulletVisual", ToggleBulletVisualSelection, {})
-vim.api.nvim_create_user_command("ToggleCheckboxVisual", ToggleCheckboxVisualSelection, {})
-vim.api.nvim_create_user_command("ToggleTaskStateVisual", ToggleTaskStateVisualSelection, {})
-vim.api.nvim_create_user_command("SmartListToggleVisual", SmartListToggleVisualSelection, {})
+vim.api.nvim_buf_create_user_command(0, "ToggleNumberVisual", ToggleNumberVisualSelection, {})
+vim.api.nvim_buf_create_user_command(0, "ToggleBulletVisual", ToggleBulletVisualSelection, {})
+vim.api.nvim_buf_create_user_command(0, "ToggleCheckboxVisual", ToggleCheckboxVisualSelection, {})
+vim.api.nvim_buf_create_user_command(0, "ToggleTaskStateVisual", ToggleTaskStateVisualSelection, {})
+vim.api.nvim_buf_create_user_command(0, "SmartListToggleVisual", SmartListToggleVisualSelection, {})
 
 -- Keymaps for Bullet, Checkbox, Number list
 -- visual mode keymaps (use commands to preserve selection)
