@@ -48,7 +48,8 @@ local function show_in_win(win, t)
     local cwd = (profile.cwd and profile.cwd ~= "") and vim.fn.expand(profile.cwd) or vim.fn.getcwd()
 
     vim.api.nvim_win_call(win, function()
-      vim.fn.termopen(cmd, {
+      vim.fn.jobstart(cmd, {
+        term = true,
         env = env,
         cwd = cwd,
         on_exit = function()

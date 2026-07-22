@@ -54,140 +54,41 @@ local DEFAULTS = {
 }
 
 local function validate_opts(opts)
-  -- FIX: use modern vim.validate(name, val, type, optional) signature
   vim.validate("opts", opts, "table", true)
-
   if not opts then
     return
   end
 
-  if opts.ui then
-    vim.validate(
-      "ui",
-      opts.ui,
-      "table",
-      "width_ratio",
-      opts.ui.width_ratio,
-      "number",
-      true,
-      "max_width",
-      opts.ui.max_width,
-      "number",
-      true,
-      "min_width",
-      opts.ui.min_width,
-      "number",
-      true,
-      "border_cmd",
-      opts.ui.border_cmd,
-      { "string", "table" },
-      true,
-      "border_search",
-      opts.ui.border_search,
-      { "string", "table" },
-      true,
-      "show_hint",
-      opts.ui.show_hint,
-      "boolean",
-      true
-    )
+  local function section(name, value, fields)
+    vim.validate("opts." .. name, value, "table", true)
+    if not value then
+      return
+    end
+    for key, validator in pairs(fields) do
+      vim.validate(("opts.%s.%s"):format(name, key), value[key], validator, true)
+    end
   end
 
-  if opts.animation then
-    vim.validate(
-      "animation",
-      opts.animation,
-      "table",
-      "enabled",
-      opts.animation.enabled,
-      "boolean",
-      true,
-      "steps",
-      opts.animation.steps,
-      "number",
-      true,
-      "duration_ms",
-      opts.animation.duration_ms,
-      "number",
-      true
-    )
-  end
-
-  if opts.completion then
-    vim.validate(
-      "completion",
-      opts.completion,
-      "table",
-      "debounce_ms",
-      opts.completion.debounce_ms,
-      "number",
-      true,
-      "auto_open",
-      opts.completion.auto_open,
-      "boolean",
-      true,
-      "min_length",
-      opts.completion.min_length,
-      "number",
-      true
-    )
-  end
-
-  if opts.syntax then
-    vim.validate("syntax", opts.syntax, "table", "enable", opts.syntax.enable, "boolean", true)
-  end
-
-  if opts.output then
-    vim.validate(
-      "output",
-      opts.output,
-      "table",
-      "min_width",
-      opts.output.min_width,
-      "number",
-      true,
-      "max_height_ratio",
-      opts.output.max_height_ratio,
-      "number",
-      true,
-      "default_wrap",
-      opts.output.default_wrap,
-      "boolean",
-      true,
-      "enable_syntax",
-      opts.output.enable_syntax,
-      "boolean",
-      true
-    )
-  end
-
-  if opts.range_preview then
-    vim.validate(
-      "range_preview",
-      opts.range_preview,
-      "table",
-      "enable",
-      opts.range_preview.enable,
-      "boolean",
-      true,
-      "context",
-      opts.range_preview.context,
-      "number",
-      true,
-      "max_lines",
-      opts.range_preview.max_lines,
-      "number",
-      true
-    )
-  end
-
-  if opts.live_preview then
-    vim.validate("live_preview", opts.live_preview, "table", "enable", opts.live_preview.enable, "boolean", true)
-  end
-
-  if opts.keymaps then
-    vim.validate("keymaps", opts.keymaps, "table")
-  end
+  section("ui", opts.ui, {
+    width_ratio = "number",
+    max_width = "number",
+    min_width = "number",
+    border_cmd = { "string", "table" },
+    border_search = { "string", "table" },
+    show_hint = "boolean",
+  })
+  section("animation", opts.animation, { enabled = "boolean", steps = "number", duration_ms = "number" })
+  section("completion", opts.completion, { debounce_ms = "number", auto_open = "boolean", min_length = "number" })
+  section("syntax", opts.syntax, { enable = "boolean" })
+  section("output", opts.output, {
+    min_width = "number",
+    max_height_ratio = "number",
+    default_wrap = "boolean",
+    enable_syntax = "boolean",
+  })
+  section("range_preview", opts.range_preview, { enable = "boolean", context = "number", max_lines = "number" })
+  section("live_preview", opts.live_preview, { enable = "boolean" })
+  vim.validate("opts.keymaps", opts.keymaps, "table", true)
 end
 
 -- ---------------------------------------------------------------------------

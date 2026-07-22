@@ -9,7 +9,7 @@ local M = {}
 
 local ns = vim.api.nvim_create_namespace("custom_lightbulb")
 local state = {
-  last_line = -1, -- Used to prevent redundant requests on the same line
+  last_line = {}, -- bufnr -> line; prevents redundant requests per buffer
 }
 
 -- ── Configuration ────────────────────────────────────────────────────────────
@@ -101,10 +101,10 @@ function M.refresh()
   local line = cursor[1] - 1 -- convert to 0-indexed
 
   -- Performance optimization: Only check if we moved to a new line
-  if line == state.last_line then
+  if line == state.last_line[bufnr] then
     return
   end
-  state.last_line = line
+  state.last_line[bufnr] = line
 
   -- Check if any client supports code actions
   local clients = vim.lsp.get_clients({ bufnr = bufnr })
@@ -139,7 +139,8 @@ function M.refresh()
     end
 
     -- If the user moved lines while the async request was in flight, discard result
-    if not vim.api.nvim_win_is_valid(0) then
+    local current_win = vim.api.nvim_get_current_win()
+    if not vim.api.nvim_win_is_valid(current_win) or vim.api.nvim_get_current_buf() ~= bufnr then
       return
     end
     local current_cursor = vim.api.nvim_win_get_cursor(0)
@@ -179,8 +180,8 @@ function M.setup(opts)
         return
       end
       local line = vim.api.nvim_win_get_cursor(0)[1] - 1
-      if line ~= state.last_line then
-        state.last_line = -1
+      if line ~= state.last_line[bufnr] then
+        state.last_line[bufnr] = nil
         M.clear()
       end
     end,

@@ -40,7 +40,8 @@ local function spawn_in_win(t, win)
   end
 
   vim.api.nvim_win_call(win, function()
-    vim.fn.termopen(cmd, {
+    vim.fn.jobstart(cmd, {
+      term = true,
       env = env,
       cwd = cwd,
       on_exit = function()

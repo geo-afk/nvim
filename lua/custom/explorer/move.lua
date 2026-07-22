@@ -120,6 +120,8 @@ local function close(skip_restore)
   end
 end
 
+M.close = close
+
 -- ── Rendering ─────────────────────────────────────────────────────────────
 
 local function paint_header()

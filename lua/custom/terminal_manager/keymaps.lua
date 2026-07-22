@@ -106,7 +106,11 @@ function M.setup()
     local t = require("custom.terminal_manager.utils").find_term(st.active_id)
     if t and t.buf then
       local win = st.display_mode == "float" and st.ui.float_win or st.ui.term_win
-      require("custom.terminal_manager.search").open(t.buf, win)
+      if win and vim.api.nvim_win_is_valid(win) then
+        require("custom.terminal_manager.search").open(t.buf, win)
+      else
+        vim.notify("TermManager: terminal window is not open", vim.log.levels.WARN)
+      end
     else
       vim.notify("TermManager: no active terminal", vim.log.levels.WARN)
     end

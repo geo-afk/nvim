@@ -69,7 +69,7 @@ print("Running lightbulb tests...")
 -- Test 1: No actions found
 reset()
 mock_cursor = { 1, 0 }
-mock_clients = { { id = 1, offset_encoding = "utf-16", supports_method = function(m) return m == "textDocument/codeAction" end } }
+mock_clients = { { id = 1, offset_encoding = "utf-16", supports_method = function(_, m) return m == "textDocument/codeAction" end } }
 mock_actions = {}
 lightbulb.refresh()
 assert_eq(#extmark_calls, 0, "Should not show lightbulb when no actions found")
@@ -77,7 +77,7 @@ assert_eq(#extmark_calls, 0, "Should not show lightbulb when no actions found")
 -- Test 2: Actions found
 reset()
 mock_cursor = { 2, 0 } -- change line
-mock_clients = { { id = 1, offset_encoding = "utf-16", supports_method = function(m) return m == "textDocument/codeAction" end } }
+mock_clients = { { id = 1, offset_encoding = "utf-16", supports_method = function(_, m) return m == "textDocument/codeAction" end } }
 mock_actions = { { title = "Fix it" } }
 lightbulb.refresh()
 assert_eq(#extmark_calls, 1, "Should show lightbulb when actions found")
@@ -95,7 +95,7 @@ assert_eq(#extmark_calls, 0, "Should not show lightbulb when LSP doesn't support
 -- Test 4: Throttling (same line)
 reset()
 mock_cursor = { 4, 0 }
-mock_clients = { { id = 1, offset_encoding = "utf-16", supports_method = function(m) return m == "textDocument/codeAction" end } }
+mock_clients = { { id = 1, offset_encoding = "utf-16", supports_method = function(_, m) return m == "textDocument/codeAction" end } }
 mock_actions = { { title = "Fix it" } }
 lightbulb.refresh() -- first call
 assert_eq(#extmark_calls, 1, "Should show lightbulb on first call")

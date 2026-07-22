@@ -63,7 +63,10 @@ function M.open(t)
   utils.reset_float_handles()
 
   local cfg = require("custom.terminal_manager").config.float or {}
-  local float_id, _, win = floating.open({
+  -- Declare before constructing callbacks so on_close captures this local,
+  -- not an unresolved global from the initializer's scope.
+  local float_id, win
+  float_id, _, win = floating.open({
     buf = t.buf,
     enter = true,
     focusable = true,

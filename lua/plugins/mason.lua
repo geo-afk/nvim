@@ -27,6 +27,7 @@ local lsp_to_mason = {
   marksman = "marksman",
   jsonls = "json-lsp",
   just_lsp = "just-lsp",
+  typos_lsp = "typos-lsp",
 }
 
 local mason_tools = {
