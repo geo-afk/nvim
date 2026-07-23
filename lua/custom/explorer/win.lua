@@ -10,11 +10,53 @@ local api = vim.api
 
 local M = {}
 
+local function width_limits()
+  local c = cfg.get()
+  local min_width = math.max(1, tonumber(c.min_width) or tonumber(c.width) or 1)
+  local configured_max = tonumber(c.max_width) or tonumber(c.expanded_width) or min_width
+  local screen_max = math.max(1, vim.o.columns - 20)
+  return math.min(min_width, screen_max), math.max(min_width, math.min(configured_max, screen_max))
+end
+
 local function target_width(expanded)
   local c = cfg.get()
-  local width = expanded and (c.expanded_width or c.width) or c.width
-  local max_width = math.max(c.width, vim.o.columns - 20)
-  return math.max(1, math.min(width, max_width))
+  local min_width, max_width = width_limits()
+  local width = expanded and (c.expanded_width or c.width) or (S.fitted_width or c.width)
+  return math.max(min_width, math.min(width, max_width))
+end
+
+function M.measure_lines(lines)
+  local wanted = 0
+  for _, line in ipairs(lines or {}) do
+    wanted = math.max(wanted, vim.fn.strdisplaywidth(line))
+  end
+  local min_width, max_width = width_limits()
+  return math.max(min_width, math.min(wanted + 1, max_width))
+end
+
+function M.fit_to_content(lines, opts)
+  opts = opts or {}
+  if not (S.win and api.nvim_win_is_valid(S.win)) then
+    return
+  end
+  local measured = M.measure_lines(lines)
+  S.last_measured_width = measured
+  local current = api.nvim_win_get_width(S.win)
+  local wanted = opts.shrink and measured or math.max(current, measured)
+  if wanted == current then
+    S.fitted_width = current
+    return
+  end
+  S.fitted_width = wanted
+  api.nvim_win_set_width(S.win, wanted)
+  M.apply_window_options(S.win)
+  require("custom.explorer.search_ui").paint()
+end
+
+function M.update_auto_width(lines)
+  if cfg.get().width_mode == "fit" then
+    M.fit_to_content(lines, { shrink = false })
+  end
 end
 
 -- ── Colour helpers ────────────────────────────────────────────────────────
@@ -141,7 +183,8 @@ function M.ensure_hl()
   def("ExplorerSearchBorderFilter", { fg = blend(accent, dim_fg, 0.55) })
   def("ExplorerSearchBorderActive", { fg = accent })
   def("ExplorerSearchTitle", { fg = blend(accent, normal_fg, 0.85), bold = true })
-  def("ExplorerSearchPlaceholder", { fg = blend(dim_fg, sidebar_bg, 0.45), italic = true, bg = search_bg })
+  def("ExplorerSearchHint", { fg = blend(dim_fg, sidebar_bg, 0.55), italic = true })
+  def("ExplorerSearchPlaceholder", { fg = blend(dim_fg, sidebar_bg, 0.45), italic = true })
   def("ExplorerSearchActiveText", { fg = str_fg, bold = true })
   def("ExplorerSearchCount", { fg = blend(accent, dim_fg, 0.6), italic = true })
   def("ExplorerSearchCountActive", { fg = accent, bold = true, bg = search_active_bg })
@@ -193,6 +236,7 @@ function M.ensure_hl()
   -- ── Active file indicator ─────────────────────────────────────────────
   -- File row whose path matches the currently open buffer.
   def("ExplorerActiveFile", { fg = accent, bold = true })
+  def("ExplorerActiveLine", { bg = blend(accent, sidebar_bg, 0.08) })
   -- Right-side glyph for the active row (subtler than the name itself).
   def("ExplorerActiveMark", { fg = blend(accent, sidebar_bg, 0.55), bold = true })
 
@@ -200,6 +244,7 @@ function M.ensure_hl()
   -- Use Comment fg directly — it is already the theme's "muted but readable"
   -- colour; no further blending so it is always visible.
   def("ExplorerHiddenCount", { fg = dim_fg, italic = true })
+  def("ExplorerEmpty", { fg = blend(dim_fg, sidebar_bg, 0.62), italic = true })
 
   -- ── Popup / floating window groups ───────────────────────────────────
   -- These were previously in ui.ensure_hl() with a separate guard.
@@ -241,6 +286,7 @@ function M.reset_hl()
     "ExplorerSearchBorderFilter",
     "ExplorerSearchBorderActive",
     "ExplorerSearchTitle",
+    "ExplorerSearchHint",
     "ExplorerSearchIcon",
     "ExplorerSearchIconActive",
     "ExplorerSearchPlaceholder",
@@ -268,8 +314,10 @@ function M.reset_hl()
     "ExplorerGitIgnored",
     "ExplorerMark",
     "ExplorerActiveFile",
+    "ExplorerActiveLine",
     "ExplorerActiveMark",
     "ExplorerHiddenCount",
+    "ExplorerEmpty",
     "ExplorerGitStatAdd",
     "ExplorerGitStatDel",
   }
@@ -318,11 +366,14 @@ local function git_branch_async(root, callback)
 end
 
 local function winbar_string(root_name, branch)
-  local bar = "%#ExplorerWinbar# 󰉋 " .. root_name
-  if branch then
-    bar = bar .. " %#ExplorerWinbarBranch#   " .. branch
+  local function escape_statusline(text)
+    return tostring(text or ""):gsub("%%", "%%%%")
   end
-  return bar .. "%#ExplorerWinbar# "
+  local bar = "%#ExplorerWinbar#  󰉋  " .. escape_statusline(root_name)
+  if branch then
+    bar = bar .. " %#ExplorerWinbarBranch#   " .. escape_statusline(branch)
+  end
+  return bar .. "%#ExplorerWinbar#  "
 end
 
 local function refresh_winbar_async()
@@ -356,6 +407,9 @@ function M.apply_window_options(win)
   wo.spell = false
   wo.list = false
   wo.cursorline = true
+  -- Reserve the overlay's visual height around the cursor while the tree
+  -- scrolls, preventing selected rows from disappearing underneath it.
+  wo.scrolloff = require("custom.explorer.search_ui").HEADER_LINES
   wo.fillchars = "eob: "
   pcall(function()
     wo.statuscolumn = ""
@@ -365,6 +419,8 @@ function M.apply_window_options(win)
   end)
   wo.winhl = table.concat({
     "Normal:ExplorerNormal",
+    "NormalNC:ExplorerNormal",
+    "EndOfBuffer:ExplorerNormal",
     "CursorLine:ExplorerCursorLine",
     "WinBar:ExplorerWinbar",
     "WinBarNC:ExplorerWinbar",
@@ -375,7 +431,7 @@ function M.make_win(buf)
   M.ensure_hl()
   local c = cfg.get()
   local side = c.side == "right" and "botright" or "topleft"
-  vim.cmd(side .. " " .. c.width .. "vsplit")
+  vim.cmd(side .. " " .. target_width(false) .. "vsplit")
   local win = api.nvim_get_current_win()
   api.nvim_win_set_buf(win, buf)
   M.apply_window_options(win)
@@ -405,7 +461,7 @@ function M.toggle_width()
 end
 
 function M.reset_width()
-  if S.width_expanded then
+  if S.width_expanded and cfg.get().width_mode ~= "fit" then
     M.set_expanded(false)
   end
 end
@@ -441,6 +497,9 @@ function M.setup_keymaps(buf)
   map(km.move, A.move)
   map(km.toggle_hidden, A.toggle_hidden)
   map(km.toggle_width, A.toggle_width)
+  map(km.fit_width, function()
+    require("custom.explorer.render").fit_width(true)
+  end)
   map(km.refresh, A.refresh)
   map(km.add_project, A.add_project)
   map(km.copy_path, A.copy_path)

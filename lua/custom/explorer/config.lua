@@ -19,6 +19,10 @@ M.TREE_STYLES = {
 M.defaults = {
   width = 36,
   expanded_width = 72,
+  -- "fixed" keeps `width`; "fit" grows to visible rows and keeps that width.
+  width_mode = "fixed",
+  min_width = 24,
+  max_width = 72,
   side = "left",
   show_hidden = false,
   show_git = true,
@@ -74,6 +78,10 @@ M.defaults = {
 
   -- Show a match-count badge in the search bar when a filter is active
   search_count = true,
+  search_placeholder = "Filter files",
+  search_hint = true,
+  empty_folder_label = "Empty folder",
+  empty_search_label = "No matching files",
 
   -- ── Project switcher ──────────────────────────────────────────────────
   projects = {
@@ -99,6 +107,7 @@ M.defaults = {
     move = "m",
     toggle_hidden = ".",
     toggle_width = "zw",
+    fit_width = "<leader>ef",
     refresh = "R",
     add_project = "P",
     copy_path = "y",

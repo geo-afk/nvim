@@ -19,6 +19,12 @@ local fn = vim.fn
 local M = {}
 local did_setup = false
 
+local function path_is_within(path, root)
+  return type(path) == "string"
+    and type(root) == "string"
+    and (path == root or vim.startswith(path, root .. "/"))
+end
+
 local ROOT_MARKERS = {
   ".git",
   ".hg",
@@ -88,6 +94,20 @@ local function is_regular_edit_window(winid)
     return false
   end
   return true
+end
+
+M.is_regular_edit_window = is_regular_edit_window
+
+function M.get_edit_win()
+  if is_regular_edit_window(S.prev_win) then
+    return S.prev_win
+  end
+  for _, winid in ipairs(api.nvim_tabpage_list_wins(0)) do
+    if is_regular_edit_window(winid) then
+      return winid
+    end
+  end
+  return nil
 end
 
 -- ── File watcher ──────────────────────────────────────────────────────────
@@ -217,7 +237,7 @@ function M.reveal(path)
     return
   end
   path = tree.norm(fn.fnamemodify(path, ":p"))
-  if not vim.startswith(path, S.root) then
+  if not path_is_within(path, S.root) then
     return
   end
   if S.search_active then
@@ -304,7 +324,7 @@ function M.open(opts)
     local p = api.nvim_buf_get_name(0)
     if p and p ~= "" and not p:match("^explorer://") then
       local np = tree.norm(fn.fnamemodify(p, ":p"))
-      if vim.startswith(np, new_root) then
+      if path_is_within(np, new_root) then
         S.active_buf_path = np
       end
     end
@@ -373,6 +393,29 @@ end
 
 function M.close(opts)
   opts = opts or {}
+  if S.closing then
+    return
+  end
+  S.closing = true
+
+  -- A current floating window may not be closable if removing the sidebar
+  -- would leave it as Neovim's last window. Move focus to a real edit window
+  -- first; layout synchronization is suppressed by S.closing during this hop.
+  if S.search_win and api.nvim_win_is_valid(S.search_win) and api.nvim_get_current_win() == S.search_win then
+    local target = is_regular_edit_window(S.prev_win) and S.prev_win or nil
+    if not target then
+      for _, winid in ipairs(api.nvim_list_wins()) do
+        if is_regular_edit_window(winid) then
+          target = winid
+          break
+        end
+      end
+    end
+    if target then
+      pcall(api.nvim_set_current_win, target)
+    end
+  end
+
   search.close()
   watch_stop()
   if S.win and api.nvim_win_is_valid(S.win) then
@@ -387,6 +430,15 @@ function M.close(opts)
     S.buf = nil
     pcall(api.nvim_buf_delete, buf, { force = true })
   end
+  if opts.wipe then
+    require("custom.explorer.layout").close({ wipe = true })
+  end
+  S.closing = false
+  -- Floats are composited above split windows. Force a flush after both
+  -- regions are gone so the old header cells cannot remain as a ghost frame.
+  vim.schedule(function()
+    pcall(vim.cmd, "redraw!")
+  end)
 end
 
 -- ── toggle ───────────────────────────────────────────────────────────────
@@ -494,6 +546,10 @@ function M.setup(opts)
     M.reveal(api.nvim_buf_get_name(0))
   end, { desc = "Reveal current file in explorer" })
 
+  nvim_utils.command("ExplorerFitWidth", function()
+    render.fit_width(true)
+  end, { desc = "Fit explorer width to currently rendered rows" })
+
   nvim_utils.command("ExplorerProjects", function()
     require("custom.explorer.projects").open()
   end, { desc = "Open project switcher" })
@@ -566,14 +622,14 @@ function M.setup(opts)
 
   if c.follow_file then
     local _follow_timer = nil
-    nvim_utils.autocmd("BufEnter", {
+    nvim_utils.autocmd({ "BufEnter", "WinEnter", "TabEnter" }, {
       desc = "explorer: follow active buffer",
-      callback = function(ev)
+      callback = function()
         if not (S.win and api.nvim_win_is_valid(S.win)) then
           return
         end
 
-        local buf = ev.buf
+        local buf = api.nvim_get_current_buf()
         if not (buf and api.nvim_buf_is_valid(buf)) then
           return
         end
@@ -624,6 +680,9 @@ function M.setup(opts)
   nvim_utils.autocmd({ "WinEnter", "BufWinEnter" }, {
     desc = "explorer: track previous edit window",
     callback = function()
+      if S.win and api.nvim_win_is_valid(S.win) then
+        require("custom.explorer.layout").sync()
+      end
       local winid = api.nvim_get_current_win()
       if is_regular_edit_window(winid) then
         S.prev_win = winid
@@ -632,13 +691,18 @@ function M.setup(opts)
         local p = api.nvim_buf_get_name(api.nvim_win_get_buf(winid))
         if p and p ~= "" and S.root then
           local np = tree.norm(fn.fnamemodify(p, ":p"))
-          if vim.startswith(np, S.root) then
+          if path_is_within(np, S.root) then
             if S.active_buf_path ~= np then
               S.active_buf_path = np
               -- Repaint the active layer without a full rebuild
               if S.buf and api.nvim_buf_is_valid(S.buf) then
                 require("custom.explorer.render").apply_active_indicator()
               end
+            end
+          else
+            S.active_buf_path = nil
+            if S.buf and api.nvim_buf_is_valid(S.buf) then
+              require("custom.explorer.render").apply_active_indicator()
             end
           end
         end
@@ -654,6 +718,12 @@ function M.setup(opts)
         S.win = nil
         watch_stop()
         search.close()
+        search_ui.close()
+      elseif closed == S.search_win then
+        S.search_win = nil
+        if not S.closing and S.win and api.nvim_win_is_valid(S.win) then
+          vim.schedule(M.close)
+        end
       end
       vim.schedule(function()
         local wins = vim.tbl_filter(function(w)

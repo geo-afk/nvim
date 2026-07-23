@@ -234,7 +234,25 @@ Features:
 
 ### `custom.explorer`
 A custom file explorer with Git status, project pinning, and filesystem watching.
-- `:Explorer`, `:ExplorerReveal`, `:ExplorerProjects`
+- `:Explorer`, `:ExplorerReveal`, `:ExplorerProjects`, `:ExplorerFitWidth`
+- The search prompt is a fixed, borderless header region managed by the explorer
+  layout. It shares the sidebar background and width, uses a quiet spacing row,
+  and never moves when tree or filtered-result rows scroll. The compact
+  header includes a real input placeholder, an idle `/ filter` hint, and
+  match-count feedback without changing the explorer width.
+- Active files use a subtle persistent row surface plus an accented filename;
+  cursor focus remains a separate state. Empty folders and empty searches render
+  explicit non-selectable messages instead of a blank panel.
+- Width defaults to the fixed `width`. Set `width_mode = "fit"` to grow to the
+  widest currently rendered row (including connectors, icons, and signs), bounded
+  by `min_width` and `max_width`. Automatic fit only grows, so refreshes and
+  filtering do not cause jitter. `:ExplorerFitWidth` or the explorer-local
+  `<leader>ef` mapping performs an explicit fit and may shrink. The fitted width
+  persists until explicitly changed or Neovim exits. Native `z=` spelling
+  suggestions remain available.
+- Active-file state follows regular file buffers on buffer, window, and tabpage
+  transitions. Files outside the explorer root clear the active marker without
+  changing the root or opening the explorer.
 
 ### `custom.cmdline`
 Floating command line and search UI with live preview and animated transitions.

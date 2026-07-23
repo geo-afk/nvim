@@ -1,12 +1,12 @@
 -- custom/explorer/search.lua
 --
--- Inline search bar embedded as lines 1-3 of S.buf, always visible.
--- Everything runs inside S.win — no second window or buffer is created.
+-- Search input lives in the fixed overlay managed by search_ui. Results remain
+-- in S.win, so moving through them scrolls only the tree.
 --
 -- Buffer lines:
---   1  ╭──── Filter Files ────╮
---   2  │ 󰍉  <query>       n/m │   ← cursor here when active (insert mode)
---   3  ╰──────────────────────╯
+--   1    FILTER
+--   2    󰍉  <query>       n/m     ← cursor here when active (insert mode)
+--   3                               ← quiet spacing before the tree
 --   4+ S.items[1], S.items[2], …
 --
 -- Insert-mode keymaps (search active only):
@@ -29,6 +29,14 @@ local api = vim.api
 local ICON_PREFIX = render.ICON_PREFIX
 
 local M = {}
+
+local function input_buf()
+  return S.search_buf
+end
+
+local function input_win()
+  return S.search_win
+end
 
 -- ── Result cursor helpers ─────────────────────────────────────────────────
 
@@ -239,34 +247,32 @@ end
 -- ── activate ──────────────────────────────────────────────────────────────
 
 function M.activate()
-  if not (S.buf and api.nvim_buf_is_valid(S.buf)) then
+  if not (S.win and api.nvim_win_is_valid(S.win)) then
     return
   end
-  if not (S.win and api.nvim_win_is_valid(S.win)) then
+  S.search_active = true
+  search_ui.ensure_window()
+  if not (input_buf() and api.nvim_buf_is_valid(input_buf())) then
     return
   end
 
   -- If already active just reposition cursor
-  if S.search_active then
+  if api.nvim_get_current_win() == input_win() then
     local col = #ICON_PREFIX + #(S.filter or "")
-    pcall(api.nvim_win_set_cursor, S.win, { search_ui.INPUT_LNUM, col })
-    if api.nvim_get_current_win() ~= S.win then
-      pcall(api.nvim_set_current_win, S.win)
-    end
+    pcall(api.nvim_win_set_cursor, input_win(), { search_ui.INPUT_LNUM, col })
     vim.cmd("startinsert!")
     return
   end
 
-  S.search_active = true
   S._search_cursor = #S.items > 0 and 1 or 0
 
-  kill_completion(S.buf)
+  kill_completion(input_buf())
 
   -- Make the buffer writable and write the current header state
-  set_buf_modifiable(S.buf, true)
+  set_buf_modifiable(input_buf(), true)
   local filter_text = S.filter or ""
   local header = search_ui.header_lines(filter_text)
-  api.nvim_buf_set_lines(S.buf, 0, search_ui.HEADER_LINES, false, header)
+  api.nvim_buf_set_lines(input_buf(), 0, search_ui.HEADER_LINES, false, header)
 
   -- Paint immediately so the active state shows before the user types
   render.paint_header()
@@ -280,8 +286,9 @@ function M.activate()
 
   -- Move cursor to input row, column at end of filter text, enter insert
   local col = #ICON_PREFIX + #filter_text
-  pcall(api.nvim_set_current_win, S.win)
-  pcall(api.nvim_win_set_cursor, S.win, { search_ui.INPUT_LNUM, col })
+  search_ui.ensure_window()
+  pcall(api.nvim_set_current_win, input_win())
+  pcall(api.nvim_win_set_cursor, input_win(), { search_ui.INPUT_LNUM, col })
   vim.cmd("startinsert!")
 end
 
@@ -294,13 +301,13 @@ local function deactivate(clear_filter, target_row)
   S.search_active = false
   S._search_cursor = nil
 
-  if S.buf and api.nvim_buf_is_valid(S.buf) then
-    api.nvim_buf_clear_namespace(S.buf, S.match_ns, 0, -1)
+  if input_buf() and api.nvim_buf_is_valid(input_buf()) then
+    api.nvim_buf_clear_namespace(input_buf(), S.match_ns, 0, -1)
   end
 
-  -- Read the query text the user typed from line 2 of S.buf
-  local raw = (S.buf and api.nvim_buf_is_valid(S.buf))
-      and (api.nvim_buf_get_lines(S.buf, search_ui.INPUT_ROW, search_ui.INPUT_ROW + 1, false)[1] or "")
+  -- Read the query text the user typed from the overlay input row.
+  local raw = (input_buf() and api.nvim_buf_is_valid(input_buf()))
+      and (api.nvim_buf_get_lines(input_buf(), search_ui.INPUT_ROW, search_ui.INPUT_ROW + 1, false)[1] or "")
     or ""
   local text = strip_prefix(raw)
 
@@ -313,8 +320,8 @@ local function deactivate(clear_filter, target_row)
     end
   end
 
-  restore_completion(S.buf)
-  set_buf_modifiable(S.buf, false)
+  restore_completion(input_buf())
+  set_buf_modifiable(input_buf(), false)
 
   require("custom.explorer.win").apply_window_options(S.win)
 
@@ -324,6 +331,7 @@ local function deactivate(clear_filter, target_row)
     if not (S.win and api.nvim_win_is_valid(S.win)) then
       return
     end
+    pcall(api.nvim_set_current_win, S.win)
     if #S.items == 0 then
       return
     end
@@ -351,8 +359,8 @@ function M.on_items_updated()
 
   -- Restore cursor to input row
   local col = #ICON_PREFIX + #(S.filter or "")
-  if api.nvim_get_current_win() == S.win then
-    pcall(api.nvim_win_set_cursor, S.win, { search_ui.INPUT_LNUM, col })
+  if api.nvim_get_current_win() == input_win() then
+    pcall(api.nvim_win_set_cursor, input_win(), { search_ui.INPUT_LNUM, col })
     vim.cmd("startinsert!")
   end
 end
@@ -360,8 +368,18 @@ end
 -- ── setup: attach autocmds and keymaps to S.buf ───────────────────────────
 
 function M.setup(buf)
+  search_ui.ensure_window()
+  buf = input_buf()
   local bopts = { buffer = buf, silent = true, noremap = true }
   local group = api.nvim_create_augroup("ExplorerSearch_" .. buf, { clear = true })
+  local quit = require("custom.explorer.config").get().keymaps.quit
+  if quit and quit ~= "" then
+    vim.keymap.set("n", quit, function()
+      if S.close_fn then
+        S.close_fn()
+      end
+    end, { buffer = buf, silent = true, noremap = true, desc = "close explorer" })
+  end
 
   -- Live filter: TextChangedI fires while user types in insert mode on line 2
   api.nvim_create_autocmd("TextChangedI", {
@@ -372,13 +390,13 @@ function M.setup(buf)
         return
       end
       -- Only process input on the input row
-      if not (S.win and api.nvim_win_is_valid(S.win)) then
+      if not (input_win() and api.nvim_win_is_valid(input_win())) then
         return
       end
-      if api.nvim_get_current_win() ~= S.win then
+      if api.nvim_get_current_win() ~= input_win() then
         return
       end
-      if api.nvim_win_get_cursor(S.win)[1] ~= search_ui.INPUT_LNUM then
+      if api.nvim_win_get_cursor(input_win())[1] ~= search_ui.INPUT_LNUM then
         return
       end
 
@@ -398,7 +416,9 @@ function M.setup(buf)
         return
       end
       -- Only deactivate if the cursor was on the input row when insert ended
-      local row = (S.win and api.nvim_win_is_valid(S.win)) and api.nvim_win_get_cursor(S.win)[1] or 0
+      local row = (input_win() and api.nvim_win_is_valid(input_win()))
+          and api.nvim_win_get_cursor(input_win())[1]
+        or 0
       if row ~= search_ui.INPUT_LNUM then
         return
       end
@@ -456,7 +476,7 @@ function M.setup(buf)
     api.nvim_buf_set_lines(buf, search_ui.INPUT_ROW, search_ui.INPUT_ROW + 1, false, { search_ui.line_text("") })
     S.filter = nil
     S._search_cursor = 0
-    pcall(api.nvim_win_set_cursor, S.win, { search_ui.INPUT_LNUM, #ICON_PREFIX })
+    pcall(api.nvim_win_set_cursor, input_win(), { search_ui.INPUT_LNUM, #ICON_PREFIX })
     render.paint_header()
     rebuild_items()
   end
@@ -468,10 +488,10 @@ function M.setup(buf)
     if not S.search_active then
       return "<BS>"
     end
-    if not (S.win and api.nvim_win_is_valid(S.win)) then
+    if not (input_win() and api.nvim_win_is_valid(input_win())) then
       return "<BS>"
     end
-    local col = api.nvim_win_get_cursor(S.win)[2]
+    local col = api.nvim_win_get_cursor(input_win())[2]
     return col <= #ICON_PREFIX and "" or "<BS>"
   end, { buffer = buf, silent = true, noremap = true, expr = true })
 
@@ -480,7 +500,7 @@ function M.setup(buf)
     if not S.search_active then
       return
     end
-    pcall(api.nvim_win_set_cursor, S.win, { search_ui.INPUT_LNUM, #ICON_PREFIX })
+    pcall(api.nvim_win_set_cursor, input_win(), { search_ui.INPUT_LNUM, #ICON_PREFIX })
   end
   vim.keymap.set("i", "<Home>", to_filter_start, bopts)
   vim.keymap.set("i", "<C-a>", to_filter_start, bopts)
@@ -526,20 +546,21 @@ function M.close()
   if S.search_active then
     S.search_active = false
     S._search_cursor = nil
-    if S.buf and api.nvim_buf_is_valid(S.buf) then
-      pcall(api.nvim_set_option_value, "modifiable", false, { buf = S.buf })
-      api.nvim_buf_clear_namespace(S.buf, S.match_ns, 0, -1)
+    if input_buf() and api.nvim_buf_is_valid(input_buf()) then
+      pcall(api.nvim_set_option_value, "modifiable", false, { buf = input_buf() })
+      api.nvim_buf_clear_namespace(input_buf(), S.match_ns, 0, -1)
     end
   end
+  search_ui.close()
 end
 
 function M.clear()
   S.filter = nil
   S.search_active = false
   S._search_cursor = nil
-  if S.buf and api.nvim_buf_is_valid(S.buf) then
-    pcall(api.nvim_set_option_value, "modifiable", false, { buf = S.buf })
-    api.nvim_buf_clear_namespace(S.buf, S.match_ns, 0, -1)
+  if input_buf() and api.nvim_buf_is_valid(input_buf()) then
+    pcall(api.nvim_set_option_value, "modifiable", false, { buf = input_buf() })
+    api.nvim_buf_clear_namespace(input_buf(), S.match_ns, 0, -1)
   end
   render.render()
 end

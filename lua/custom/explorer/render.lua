@@ -2,9 +2,9 @@
 --
 -- Buffer layout (1-based lines / 0-based rows):
 --
---   Line 1  row 0  ╭──── SEARCH ────╮     ← search bar top border
---   Line 2  row 1  │  󰍉  filter…    │     ← search bar input row
---   Line 3  row 2  ╰────────────────╯     ← search bar bottom border
+--   Line 1  row 0  (reserved for fixed FILTER header overlay)
+--   Line 2  row 1  (reserved for fixed search input overlay)
+--   Line 3  row 2  (reserved for quiet spacing before the tree)
 --   Line 4  row 3  │  ╰─ 󰢱 init.lua       ← S.items[1]
 --   Line 5  row 4  │  ├─ 󰢱 foo.lua        ← S.items[2]
 --   …
@@ -45,6 +45,7 @@ local M = {}
 -- Separate from S.ns so they can be cleared independently.
 local ACTIVE_NS = api.nvim_create_namespace("explorer_active")
 local HIDDEN_NS = api.nvim_create_namespace("explorer_hidden")
+local EMPTY_NS = api.nvim_create_namespace("explorer_empty")
 
 local function set_buf_modifiable(buf, value)
   api.nvim_set_option_value("modifiable", value, { buf = buf })
@@ -209,13 +210,30 @@ local function build_item_lines()
   return lines, hls
 end
 
+local function empty_state_line()
+  local c = cfg.get()
+  if S.filter and S.filter ~= "" then
+    return "  󰱼  " .. (c.empty_search_label or "No matching files")
+  end
+  return "  󰉖  " .. (c.empty_folder_label or "Empty folder")
+end
+
+local function add_empty_state(lines)
+  if #S.items == 0 then
+    lines[#lines + 1] = empty_state_line()
+  end
+end
+
+function M.fit_width(shrink)
+  local lines = build_item_lines()
+  require("custom.explorer.win").fit_to_content(lines, { shrink = shrink == true })
+end
+
 -- ── apply_active_indicator ────────────────────────────────────────────────
 --
 -- Highlights the row whose path matches S.active_buf_path with
 -- ExplorerActiveFile on the name column and a right-aligned glyph.
 -- Called from _paint() and _paint_items_only() after item lines are written.
-
-local ACTIVE_GLYPH = " " -- nf-fa-circle / nf-cod-circle-filled
 
 apply_active_indicator = function()
   local buf = S.buf
@@ -238,11 +256,11 @@ apply_active_indicator = function()
         hl_group = "ExplorerActiveFile",
         priority = 12, -- above base (10), below git (20) / marks (30)
       })
-      -- Right-aligned dot marker
+      -- A low-contrast row surface keeps the active file visible even when
+      -- focus is in the search field or another editor window.
       pcall(require("custom.ui.render").set_extmark, buf, ACTIVE_NS, row, 0, {
-        virt_text = { { ACTIVE_GLYPH, "ExplorerActiveMark" } },
-        virt_text_pos = "right_align",
-        priority = 12,
+        line_hl_group = "ExplorerActiveLine",
+        priority = 6,
       })
       break
     end
@@ -318,6 +336,8 @@ function M._paint()
   end
 
   local item_lines, hls = build_item_lines()
+  add_empty_state(item_lines)
+  require("custom.explorer.win").update_auto_width(item_lines)
   local all_lines = search_ui.spacer_lines()
   vim.list_extend(all_lines, item_lines)
 
@@ -332,6 +352,17 @@ function M._paint()
     })
   end
   set_buf_modifiable(buf, false)
+  if S.win and api.nvim_win_is_valid(S.win) then
+    vim.wo[S.win].cursorline = #S.items > 0
+  end
+  api.nvim_buf_clear_namespace(buf, EMPTY_NS, 0, -1)
+  if #S.items == 0 then
+    api.nvim_buf_set_extmark(buf, EMPTY_NS, search_ui.ITEM_ROW_OFFSET, 0, {
+      end_col = #item_lines[1],
+      hl_group = "ExplorerEmpty",
+      priority = 10,
+    })
+  end
 
   M.paint_header()
   search_ui.lock_tree_view()
@@ -372,6 +403,8 @@ function M._paint_items_only()
   end
 
   local item_lines, hls = build_item_lines()
+  add_empty_state(item_lines)
+  require("custom.explorer.win").update_auto_width(item_lines)
 
   set_buf_modifiable(buf, true)
   if api.nvim_buf_line_count(buf) < search_ui.HEADER_LINES then
@@ -390,6 +423,17 @@ function M._paint_items_only()
   -- Only re-lock if the user is no longer typing.
   if not S.search_active then
     set_buf_modifiable(buf, false)
+  end
+  if S.win and api.nvim_win_is_valid(S.win) then
+    vim.wo[S.win].cursorline = #S.items > 0
+  end
+  api.nvim_buf_clear_namespace(buf, EMPTY_NS, 0, -1)
+  if #S.items == 0 then
+    api.nvim_buf_set_extmark(buf, EMPTY_NS, search_ui.ITEM_ROW_OFFSET, 0, {
+      end_col = #item_lines[1],
+      hl_group = "ExplorerEmpty",
+      priority = 10,
+    })
   end
 
   git.apply()

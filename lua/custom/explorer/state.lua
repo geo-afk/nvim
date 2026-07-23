@@ -5,6 +5,9 @@ local api = vim.api
 local S = {
   buf = nil,
   win = nil,
+  search_buf = nil,
+  search_win = nil,
+  closing = false,
   root = nil,
   prev_win = nil,
 
@@ -46,6 +49,8 @@ local S = {
   build_tok = 0,
   close_fn = nil,
   width_expanded = false,
+  fitted_width = nil,
+  last_measured_width = nil,
 
   -- Path to move the cursor to after the next build completes.
   -- Set by M.reveal(); consumed and cleared by render._reveal_cursor().
