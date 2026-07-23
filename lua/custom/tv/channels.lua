@@ -87,7 +87,7 @@ local M = {
     icon = "󰊢",
     desc = "Checkout a git branch",
     action = a.git_checkout,
-    keybinding = "<leader>tb",
+    keybinding = "<leader>gtb",
   },
   {
     name = "git-diff",
@@ -95,7 +95,7 @@ local M = {
     icon = "󰨝",
     desc = "Browse unstaged git changes",
     action = a.open_at_line,
-    keybinding = "<leader>tgd",
+    keybinding = "<leader>gtd",
   },
   {
     name = "git-log",
@@ -103,7 +103,7 @@ local M = {
     icon = "󰜊",
     desc = "Browse commit history",
     action = a.git_show_commit,
-    keybinding = "<leader>tgl",
+    keybinding = "<leader>gtl",
   },
   {
     name = "git-reflog",
@@ -111,7 +111,7 @@ local M = {
     icon = "󰔜",
     desc = "Browse git reflog",
     action = a.git_copy_hash,
-    keybinding = "<leader>tgr",
+    keybinding = "<leader>gtr",
   },
   {
     name = "git-repos",
@@ -119,7 +119,7 @@ local M = {
     icon = "󰳐",
     desc = "Open a git repository",
     action = a.open_git_repo,
-    keybinding = "<leader>tR",
+    keybinding = "<leader>gtR",
   },
   {
     name = "nu-history",
