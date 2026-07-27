@@ -122,13 +122,11 @@ local function run()
   )
   assert_eq(header_config.height, search_ui.HEADER_LINES, "header geometry should use the reserved tree rows")
   local header_lines = search_ui.header_lines("query")
-  assert_ok(header_lines[1]:find("Files", 1, true), "modern header should retain a compact content label")
-  for _, edge in ipairs({ "╭", "╮", "╰", "╯", "│" }) do
-    assert_ok(
-      not header_lines[1]:find(edge, 1, true) and not header_lines[2]:find(edge, 1, true),
-      "integrated header must not render its own outer box"
-    )
-  end
+  assert_ok(
+    header_lines[1]:match("^╭.*╮$") and header_lines[3]:match("^╰.*╯$"),
+    "VS Code-style search field should have rounded top and bottom borders"
+  )
+  assert_ok(header_lines[2]:find("│    query", 1, true), "search input should use a bordered icon-led prompt")
   assert_ok(
     vim.wo[S.win].winhighlight:find("Normal:ExplorerNormal", 1, true)
       and vim.wo[S.search_win].winhighlight:find("Normal:ExplorerNormal", 1, true),
@@ -138,15 +136,42 @@ local function run()
   assert_eq(vim.wo[S.search_win].signcolumn, "no", "fixed header should not expose a sign column")
   local header_marks = vim.api.nvim_buf_get_extmarks(S.search_buf, S.hdr_ns, 0, -1, { details = true })
   local has_placeholder = false
-  local has_filter_hint = false
+  local has_shortcut_hint = false
+  local has_idle_count = false
   for _, mark in ipairs(header_marks) do
     for _, chunk in ipairs(mark[4].virt_text or {}) do
       has_placeholder = has_placeholder or chunk[1] == search_ui.placeholder_text()
-      has_filter_hint = has_filter_hint or chunk[1]:find("/ filter", 1, true) ~= nil
+      has_shortcut_hint = has_shortcut_hint or chunk[1]:find("/", 1, true) ~= nil
+      has_idle_count = has_idle_count or chunk[1]:find("%d+/%d+") ~= nil
     end
   end
   assert_ok(has_placeholder, "empty search input should render a real placeholder")
-  assert_ok(has_filter_hint, "idle header should advertise the existing search action")
+  assert_eq(search_ui.placeholder_text(), "Search files", "search field should use the selected placeholder")
+  assert_eq(has_shortcut_hint, false, "search icon should be the only idle shortcut hint")
+  assert_eq(has_idle_count, false, "result count should stay hidden until filtering")
+
+  -- Reproduce an explorer action prompt closing after Insert mode. The global
+  -- InsertLeave handler must not apply editor line-number settings to the
+  -- explorer window that becomes current when the prompt disappears.
+  require("config.autocmds")
+  vim.api.nvim_set_current_win(S.win)
+  local prompt_buf = vim.api.nvim_create_buf(false, true)
+  vim.bo[prompt_buf].buftype = "prompt"
+  local prompt_win = vim.api.nvim_open_win(prompt_buf, true, {
+    relative = "editor",
+    row = 1,
+    col = 1,
+    width = 20,
+    height = 1,
+    style = "minimal",
+  })
+  vim.api.nvim_exec_autocmds("InsertEnter", { buffer = prompt_buf })
+  vim.api.nvim_win_close(prompt_win, true)
+  vim.api.nvim_set_current_win(S.win)
+  vim.api.nvim_exec_autocmds("InsertLeave", { buffer = prompt_buf })
+  assert_eq(vim.wo[S.win].number, false, "action prompt close must not enable absolute explorer numbers")
+  assert_eq(vim.wo[S.win].relativenumber, false, "action prompt close must not enable relative explorer numbers")
+  assert_eq(vim.wo[S.win].statuscolumn, "", "action prompt close must keep the explorer gutter empty")
 
   local overlay_pos = vim.api.nvim_win_get_position(S.search_win)
   vim.api.nvim_win_call(S.win, function()

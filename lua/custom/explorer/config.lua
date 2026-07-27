@@ -78,7 +78,7 @@ M.defaults = {
 
   -- Show a match-count badge in the search bar when a filter is active
   search_count = true,
-  search_placeholder = "Filter files",
+  search_placeholder = "Search files",
   search_hint = true,
   empty_folder_label = "Empty folder",
   empty_search_label = "No matching files",

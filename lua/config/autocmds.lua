@@ -33,8 +33,49 @@ autocmd("FileType", {
 })
 
 -- ── Relative numbers toggle in insert mode ────────────────────────────────────
-autocmd("InsertEnter", { group = G, command = "setlocal norelativenumber" })
-autocmd("InsertLeave", { group = G, command = "setlocal relativenumber" })
+--
+-- InsertLeave may run after a prompt float has closed and focus has already
+-- returned to another window. Never use an implicit `setlocal` here: number
+-- options are window-local, so that would mutate whichever window is current
+-- at callback time (including the explorer). Record and restore the exact
+-- regular edit window that entered Insert mode instead.
+local insert_number_state = {}
+
+autocmd("InsertEnter", {
+  group = G,
+  callback = function(ev)
+    local win = vim.api.nvim_get_current_win()
+    if not (win and vim.api.nvim_win_is_valid(win)) then
+      return
+    end
+    if vim.api.nvim_win_get_buf(win) ~= ev.buf or vim.bo[ev.buf].buftype ~= "" then
+      return
+    end
+    if not vim.wo[win].number then
+      return
+    end
+    insert_number_state[ev.buf] = {
+      win = win,
+      relativenumber = vim.wo[win].relativenumber,
+    }
+    vim.api.nvim_set_option_value("relativenumber", false, { win = win })
+  end,
+})
+
+autocmd("InsertLeave", {
+  group = G,
+  callback = function(ev)
+    local state = insert_number_state[ev.buf]
+    insert_number_state[ev.buf] = nil
+    if not state or not vim.api.nvim_win_is_valid(state.win) then
+      return
+    end
+    if vim.api.nvim_win_get_buf(state.win) ~= ev.buf then
+      return
+    end
+    vim.api.nvim_set_option_value("relativenumber", state.relativenumber, { win = state.win })
+  end,
+})
 
 -- ── Spell for prose files ─────────────────────────────────────────────────────
 autocmd({ "BufRead", "BufNewFile" }, {

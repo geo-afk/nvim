@@ -684,6 +684,12 @@ function M.setup(opts)
         require("custom.explorer.layout").sync()
       end
       local winid = api.nvim_get_current_win()
+      if winid == S.win then
+        -- Explorer presentation is a window invariant. Reassert it whenever
+        -- focus returns from an action popup so unrelated global autocmds or
+        -- plugins cannot leak number/status columns into the sidebar.
+        win.apply_window_options(winid)
+      end
       if is_regular_edit_window(winid) then
         S.prev_win = winid
         -- Keep active_buf_path in sync even when follow_file is off.

@@ -3,10 +3,10 @@
 -- The tree keeps three spacer rows for stable item coordinates. A floating
 -- overlay displays those rows so the search bar does not scroll with the tree.
 --
--- Unified sidebar layout:
---   row 0    FILTER
---   row 1      <query> n/m
---   row 2                        (quiet spacing before the tree)
+-- VS Code-style search field:
+--   row 0    ╭──────────────────────────╮
+--   row 1    │    <query>        n/m  │
+--   row 2    ╰──────────────────────────╯
 
 local S = require("custom.explorer.state")
 local cfg = require("custom.explorer.config")
@@ -24,14 +24,12 @@ local SEARCH_ICON_BYTES = #SEARCH_ICON
 
 local PROMPT_GAP = "  " -- Two spaces after icon
 
--- The header has no side border: it is an internal band of the sidebar, not a
--- separate box. Padding is counted once here for input and caret placement.
-local INPUT_PREFIX = "  " .. SEARCH_ICON .. PROMPT_GAP
+-- The left border is real buffer text so the caret boundary remains stable.
+-- The right border is virtual text, keeping it out of the editable query.
+local INPUT_PREFIX = "│  " .. SEARCH_ICON .. PROMPT_GAP
 local INPUT_PREFIX_BYTES = #INPUT_PREFIX
 
-local ICON_BYTE_OFFSET = 2
-
-local TITLE = "  Files"
+local ICON_BYTE_OFFSET = #"│  "
 
 -- ── Public constants ──────────────────────────────────────────────────────
 
@@ -99,15 +97,11 @@ end
 
 -- ── Header builders ───────────────────────────────────────────────────────
 
-local function build_title(width)
-  if width <= 0 then
-    return ""
+local function build_border(width, left, right)
+  if width <= 1 then
+    return fn.strcharpart(left .. right, 0, width)
   end
-  return fn.strcharpart(TITLE, 0, width)
-end
-
-local function build_divider(_)
-  return ""
+  return left .. ("─"):rep(width - 2) .. right
 end
 
 -- ── Text helpers ──────────────────────────────────────────────────────────
@@ -123,9 +117,9 @@ end
 function M.header_lines(filter)
   local w = win_width()
   return {
-    build_title(w),
+    build_border(w, "╭", "╮"),
     M.line_text(filter),
-    build_divider(w),
+    build_border(w, "╰", "╯"),
   }
 end
 
@@ -165,7 +159,9 @@ local function right_chunks(is_active, has_filter, total, cursor)
   local border_hl = resolve_border_hl(is_active, has_filter)
 
   if not show_count then
-    return {}
+    return {
+      { "│", border_hl },
+    }
   end
 
   local label, count_hl
@@ -184,34 +180,18 @@ local function right_chunks(is_active, has_filter, total, cursor)
 
   return {
     { label, count_hl },
+    { "│", border_hl },
   }
 end
 
 -- ── Paint helpers ─────────────────────────────────────────────────────────
 
-local function paint_title(buf, lines, border_hl)
+local function paint_top_border(buf, border_hl)
   pcall(require("custom.ui.render").set_extmark, buf, S.hdr_ns, 0, 0, {
     end_col = -1,
     hl_group = border_hl,
-    hl_eol = true,
-    priority = 5,
+    priority = 20,
   })
-  local top_line = lines[1] or ""
-  local title_pos = top_line:find(TITLE, 1, true)
-  if title_pos then
-    pcall(require("custom.ui.render").set_extmark, buf, S.hdr_ns, 0, title_pos - 1, {
-      end_col = title_pos - 1 + #TITLE,
-      hl_group = "ExplorerSearchTitle",
-      priority = 20,
-    })
-  end
-  if cfg.get().search_hint ~= false and not S.search_active and not (S.filter and S.filter ~= "") then
-    pcall(require("custom.ui.render").set_extmark, buf, S.hdr_ns, 0, 0, {
-      virt_text = { { "/ filter ", "ExplorerSearchHint" } },
-      virt_text_pos = "right_align",
-      priority = 30,
-    })
-  end
 end
 
 local function paint_input_row(buf, lines, is_active, has_filter, chunks)
@@ -222,12 +202,17 @@ local function paint_input_row(buf, lines, is_active, has_filter, chunks)
   local input_line = lines[M.INPUT_LNUM] or ""
   local input_line_bytes = #input_line
 
-  -- 1. Full-row background
-  pcall(require("custom.ui.render").set_extmark, buf, S.hdr_ns, M.INPUT_ROW, 0, {
+  -- 1. Filled interior, leaving the border glyph under border highlighting.
+  pcall(require("custom.ui.render").set_extmark, buf, S.hdr_ns, M.INPUT_ROW, #"│", {
     end_col = -1,
     hl_group = bg_hl,
     hl_eol = true,
     priority = 5,
+  })
+  pcall(require("custom.ui.render").set_extmark, buf, S.hdr_ns, M.INPUT_ROW, 0, {
+    end_col = #"│",
+    hl_group = border_hl,
+    priority = 20,
   })
   -- 2. Search icon
   pcall(require("custom.ui.render").set_extmark, buf, S.hdr_ns, M.INPUT_ROW, ICON_BYTE_OFFSET, {
@@ -266,12 +251,11 @@ local function paint_input_row(buf, lines, is_active, has_filter, chunks)
   end
 end
 
-local function paint_divider(buf)
+local function paint_bottom_border(buf, border_hl)
   pcall(require("custom.ui.render").set_extmark, buf, S.hdr_ns, BOTTOM_ROW, 0, {
     end_col = -1,
-    hl_group = "ExplorerNormal",
-    hl_eol = true,
-    priority = 5,
+    hl_group = border_hl,
+    priority = 20,
   })
 end
 
@@ -302,9 +286,9 @@ function M.paint()
   local border_hl = resolve_border_hl(is_active, has_filter)
   local chunks = right_chunks(is_active, has_filter, #S.items, S._search_cursor)
 
-  paint_title(buf, lines, border_hl)
+  paint_top_border(buf, border_hl)
   paint_input_row(buf, lines, is_active, has_filter, chunks)
-  paint_divider(buf)
+  paint_bottom_border(buf, border_hl)
 
   if not is_active then
     M.lock_tree_view()
