@@ -10,14 +10,17 @@ return {
       gofumpt = true,
       symbolStyle = "Dynamic",
       buildFlags = {},
-      diagnosticsDelay = "750ms",
+      diagnosticsDelay = "1s",
       directoryFilters = {
-        "-.git",
-        "-node_modules",
-        "-vendor",
-        "-tmp",
-        "-dist",
+        "-**/.git",
+        "-**/node_modules",
+        "-**/vendor",
+        "-**/tmp",
+        "-**/dist",
       },
+      -- Keep Treesitter as the sole Go highlighter. As of gopls 0.22, false
+      -- also prevents the server from advertising semantic-token support.
+      semanticTokens = false,
       vulncheck = "Off",
       standaloneTags = { "ignore", "mage" },
       usePlaceholders = true,

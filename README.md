@@ -57,8 +57,6 @@ modules** that replace or extend the stock editor experience.
 
 - `ng`
   - used by the Angular dev server preset (`ng serve`)
-- `scooter`
-  - used by ToggleTerm integrations for project search
 - `sleek`
   - SQL formatter used by Conform
 - `sqruff`
@@ -80,14 +78,14 @@ Linux / macOS:
 
 ```bash
 mv ~/.config/nvim ~/.config/nvim.bak
-git clone https://github.com/geo-afk/nvijm ~/.config/nvim
+git clone https://github.com/geo-afk/nvim ~/.config/nvim
 ```
 
 Windows:
 
 ```powershell
 Rename-Item $env:LOCALAPPDATA\nvim $env:LOCALAPPDATA\nvim.bak
-git clone https://github.com/geo-afk/nvijkim $env:LOCALAPPDATA\nvim
+git clone https://github.com/geo-afk/nvim $env:LOCALAPPDATA\nvim
 ```
 
 ### 2. Start Neovim
@@ -116,27 +114,23 @@ Inside Neovim:
 ├── nvim-pack-lock.json
 ├── after/
 │   ├── ftplugin/
+│   │   ├── just.lua
 │   │   └── markdown.lua
-│   ├── queries/
-│   │   └── go/
-│   └── syntax/
-│       ├── go.vim
-│       └── qf.nvim
+│   └── queries/go/
 ├── ftplugin/
-│   ├── go.lua
 │   └── help.lua
+├── tests/
 └── lua/
     ├── config/
     │   ├── autocmds.lua
     │   ├── keymaps.lua
     │   ├── lsp.lua
-    │   ├── neovide.lua
     │   ├── options.lua
+    │   ├── ui_showcase.lua
     │   └── ui.lua
     ├── custom/
-    │   ├── autoclose.lua
+    │   ├── autoclose/
     │   ├── glow.lua
-    │   ├── image_view.lua
     │   ├── lazygit.lua
     │   ├── codelens.lua
     │   ├── cmdline/
@@ -144,8 +138,9 @@ Inside Neovim:
     │   ├── explorer/
     │   ├── float_term/
     │   ├── lsp_keymapper/
+    │   ├── loader/
     │   ├── pack_manager/
-    │   ├── session/
+    │   ├── right_menu/
     │   ├── statusline/
     │   ├── tabline/
     │   └── terminal_manager/

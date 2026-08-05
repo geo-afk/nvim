@@ -15,7 +15,6 @@ lazydev.setup({
     { path = "mason.nvim", mods = { "mason", "mason-core", "mason-registry", "mason-vendor" } },
     { path = "lazydev.nvim", mods = { "" } },
     { path = "LuaSnip", mods = { "luasnip" } },
-    { path = "nvim-lspconfig", mods = { "lspconfig" } },
     { path = "friendly-snippets", mods = { "snippets" } },
     vim.fn.stdpath("data") .. "/site/pack/core/opt/blink.cmp/lua/",
   },
