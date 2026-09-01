@@ -218,6 +218,37 @@ loader.register({
       golang.setup()
     end,
   },
+
+  {
+    mod = "custom.workspace_manager",
+    cmd = {
+      "WorkspaceStash",
+      "WorkspaceRestore",
+      "WorkspaceToggle",
+      "WorkspaceList",
+      "WorkspaceRename",
+      "WorkspaceTerminate",
+      "WorkspaceRemove",
+      "WorkspaceClear",
+    },
+    -- keys = {
+    --   "<leader>vs",
+    --   "<leader>vr",
+    --   "<leader>vt",
+    --   "<leader>vp",
+    -- },
+
+    keys = {
+      { "<leader>v", group = "Workspace Manager", icon = { icon = "󰸍 ", hl = "MiniIconsBlue" } },
+      { "<leader>vs", desc = "Stached Workspaces" },
+      { "<leader>vr", desc = "Restore Workspace" },
+      { "<leader>vt", desc = "Stach Workspace" },
+      { "<leader>vp", desc = "Restore" },
+    },
+    config = function(workspace_manager)
+      workspace_manager.setup()
+    end,
+  },
 })
 
 -- Load the plugin registry before bootstrap so plugin-level event/cmd/key specs

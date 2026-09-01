@@ -230,6 +230,39 @@ function M.get(id)
   return floats[id]
 end
 
+function M.find_by_win(win)
+  for id, f in pairs(floats) do
+    if f.win == win then
+      return id
+    end
+  end
+  return nil
+end
+
+function M.hide(id)
+  local f = floats[id]
+  if not f then
+    return false
+  end
+  if vim.api.nvim_win_is_valid(f.win) then
+    vim.api.nvim_win_close(f.win, true)
+  end
+  return true
+end
+
+function M.restore(id)
+  local f = floats[id]
+  if not f then
+    return false
+  end
+  if not vim.api.nvim_buf_is_valid(f.buf) then
+    return false
+  end
+  local wc = build_win_config(f.opts, clamp(resolve_size(f.opts.width, editor_size()), 10, editor_size() - 4), clamp(resolve_size(f.opts.height, select(2, editor_size())), 3, select(2, editor_size()) - 4))
+  f.win = require("custom.ui.window").open_raw(f.buf, f.opts.enter ~= false, wc)
+  return f.win
+end
+
 -- ─── Named Presets ───────────────────────────────────────────────────────────
 
 function M.dialog(title, lines, opts)

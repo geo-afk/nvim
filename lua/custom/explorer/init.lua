@@ -237,11 +237,18 @@ function M.reveal(path)
     return
   end
   path = tree.norm(fn.fnamemodify(path, ":p"))
-  if not path_is_within(path, S.root) then
-    return
-  end
+
   if S.search_active then
     return
+  end
+
+  -- If path is outside current root, update project root automatically so reveal works
+  if not S.root or not path_is_within(path, S.root) then
+    local new_root = find_project_root(path)
+    if new_root then
+      M.open({ root = new_root })
+      return
+    end
   end
 
   -- ── Fast path: file is already in the rendered tree ───────────────────
@@ -374,14 +381,10 @@ function M.open(opts)
   git.fetch()
   watch_start()
 
-  -- Identify the file from the previously focused window and reveal it.
-  -- M.reveal() will either:
-  --   a) Position the cursor immediately if the file is already in S.items, or
-  --   b) Register S._reveal_target and call render.render() (which is
-  --      debounced — the already-pending build above will pick up the target,
-  --      so no second build is started).
-  local src = (cw == S.win) and 0 or api.nvim_win_get_buf(cw)
-  local path = fn.fnamemodify(api.nvim_buf_get_name(src), ":p")
+  -- Identify the file from the active edit window and reveal it.
+  local target_win = is_regular_edit_window(cw) and cw or M.get_edit_win()
+  local src_buf = target_win and api.nvim_win_get_buf(target_win) or 0
+  local path = fn.fnamemodify(api.nvim_buf_get_name(src_buf), ":p")
   if path and path ~= "" and path ~= "/" then
     M.reveal(path)
   end
