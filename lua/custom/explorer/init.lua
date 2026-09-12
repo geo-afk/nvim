@@ -31,6 +31,7 @@ local ROOT_MARKERS = {
   ".svn",
   "package.json",
   "go.mod",
+  "go.work",
   "Cargo.toml",
   "pyproject.toml",
   "requirements.txt",
@@ -40,6 +41,7 @@ local ROOT_MARKERS = {
   "jsconfig.json",
   "Gemfile",
   "rebar.config",
+  ".sln",
 }
 
 local function find_project_root(path)
@@ -56,6 +58,7 @@ local function find_project_root(path)
 
   local root = vim.fs.root(path, ROOT_MARKERS)
   if root then
+    root = tree.norm(root)
     -- Safety check: don't default to the home directory if it happens to have a marker
     local home = tree.norm(fn.expand("~"))
     if root == home and path ~= home then
@@ -299,13 +302,20 @@ function M.open(opts)
   -- Determine if we should force a root re-detection.
   -- We re-detect if:
   -- 1. No root is currently set.
-  -- 2. The explorer is currently closed (toggled on).
-  -- 3. The current buffer is outside the existing root.
+  -- 2. The current root directory no longer exists on disk.
+  -- 3. The current buffer is outside the existing root (and is a real file).
+  --
+  -- We intentionally do NOT re-detect just because the explorer window was
+  -- closed (toggled off) — the root should be sticky across toggle cycles.
+  -- If the user was working in a Go project and closes/reopens the explorer,
+  -- we should stay at the project root, not fall back to the current file's
+  -- directory.
   local current_buf_path = tree.norm(fn.fnamemodify(api.nvim_buf_get_name(0), ":p"))
   local in_root = S.root and (current_buf_path == S.root or vim.startswith(current_buf_path, S.root .. "/"))
+  local root_exists = S.root and fn.isdirectory(S.root) == 1
   local needs_redetect = not S.root
-    or not (S.win and api.nvim_win_is_valid(S.win))
-    or (current_buf_path ~= "" and not in_root)
+    or not root_exists
+    or (current_buf_path ~= "" and not current_buf_path:match("^explorer://") and not in_root)
 
   local requested_root = opts.root or (not needs_redetect and S.root) or find_project_root()
   local new_root = tree.norm(fn.fnamemodify(requested_root, ":p"))
@@ -661,6 +671,12 @@ function M.setup(opts)
           return
         end
 
+        local norm_path = tree.norm(fn.fnamemodify(path, ":p"))
+        -- Skip if active_buf_path is unchanged and cursor is already in place
+        if S.active_buf_path == norm_path then
+          return
+        end
+
         -- Cancel any pending follow for a previous buffer
         if _follow_timer then
           _follow_timer:stop()
@@ -671,10 +687,16 @@ function M.setup(opts)
         -- don't each trigger a separate tree scan/rebuild.
         _follow_timer = vim.defer_fn(function()
           _follow_timer = nil
-          -- Track the active buffer path so render.lua can highlight it.
-          local norm_path = tree.norm(fn.fnamemodify(path, ":p"))
           S.active_buf_path = norm_path
-          M.reveal(norm_path)
+          -- Only reveal if within current root during background follow_file
+          -- (explicit user calls to M.reveal can still change root if requested)
+          if S.root and path_is_within(norm_path, S.root) then
+            M.reveal(norm_path)
+          else
+            if S.buf and api.nvim_buf_is_valid(S.buf) then
+              require("custom.explorer.render").apply_active_indicator()
+            end
+          end
         end, 150)
       end,
     })
@@ -700,16 +722,9 @@ function M.setup(opts)
         local p = api.nvim_buf_get_name(api.nvim_win_get_buf(winid))
         if p and p ~= "" and S.root then
           local np = tree.norm(fn.fnamemodify(p, ":p"))
-          if path_is_within(np, S.root) then
-            if S.active_buf_path ~= np then
-              S.active_buf_path = np
-              -- Repaint the active layer without a full rebuild
-              if S.buf and api.nvim_buf_is_valid(S.buf) then
-                require("custom.explorer.render").apply_active_indicator()
-              end
-            end
-          else
-            S.active_buf_path = nil
+          local target_path = path_is_within(np, S.root) and np or nil
+          if S.active_buf_path ~= target_path then
+            S.active_buf_path = target_path
             if S.buf and api.nvim_buf_is_valid(S.buf) then
               require("custom.explorer.render").apply_active_indicator()
             end
