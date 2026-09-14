@@ -19,6 +19,7 @@ $suites = @(
   "tests/explorer_ui_spec.lua"
   "tests/folding_spec.lua"
   "tests/angular_lsp_spec.lua"
+  "tests/sqls_spec.lua"
   "tests/lightbulb_spec.lua"
   "tests/autoclose_quote_check.lua"
   "tests/pack_lock_spec.lua"

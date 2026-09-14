@@ -78,6 +78,10 @@ loader.register({
       "vim",
     },
   },
+  { mod = "plugins.ts-error", ft = {
+    "typescript",
+    "javascript",
+  } },
   { mod = "plugins.rainbow", defer = true, deps = { "plugins.treesitter" } },
   { mod = "plugins.ts-autotag", ft = { "html", "javascriptreact", "typescriptreact", "vue", "svelte" } },
   { mod = "plugins.lazydev", ft = "lua" },
@@ -110,6 +114,8 @@ loader.register({
   {
     mod = "plugins.completion",
     event = "InsertEnter",
+    cmd = { "BlinkRestart", "BlinkReload" },
+    keys = { { "<leader>cb", desc = "Restart Blink.cmp" } },
     deps = { "plugins.snippets", "plugins.lazydev" },
   },
 
@@ -153,21 +159,18 @@ loader.register({
   {
     mod = "plugins.overseer",
     cond = function()
-      return vim.fs.root(
-        0,
-        {
-          "go.mod",
-          "package.json",
-          "angular.json",
-          ".git",
-          "Makefile",
-          "justfile",
-          "Justfile",
-          ".justfile",
-          "Taskfile.yml",
-          "Taskfile.yaml",
-        }
-      ) ~= nil
+      return vim.fs.root(0, {
+        "go.mod",
+        "package.json",
+        "angular.json",
+        ".git",
+        "Makefile",
+        "justfile",
+        "Justfile",
+        ".justfile",
+        "Taskfile.yml",
+        "Taskfile.yaml",
+      }) ~= nil
     end,
     cmd = { "OverseerRun", "OverseerToggle", "OverseerBuild" },
     keys = {

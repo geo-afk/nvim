@@ -3,7 +3,7 @@
 return {
   cmd = { "gopls" },
   filetypes = { "go", "gomod", "gowork", "gotmpl" },
-  root_markers = { "go.work", "go.mod" },
+  root_markers = { "go.work", "go.mod", ".git" },
   single_file_support = true,
   settings = {
     gopls = {
@@ -17,6 +17,7 @@ return {
         "-**/vendor",
         "-**/tmp",
         "-**/dist",
+        "-**/examples",
       },
       -- Keep Treesitter as the sole Go highlighter. As of gopls 0.22, false
       -- also prevents the server from advertising semantic-token support.

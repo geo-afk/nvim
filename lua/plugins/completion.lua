@@ -276,16 +276,14 @@ blink.setup({
       if ok2 and node and vim.tbl_contains({ "comment", "line_comment", "block_comment" }, node:type()) then
         return { "buffer" }
       end
-      return { "lsp", "path", "buffer", "snippets" }
+      return { "lsp", "path", "snippets", "buffer" }
     end,
-    -- go/gomod/gowork/gotmpl entries reorder providers vs. the default() function output;
-    -- they don't add providers beyond what default() already returns for these filetypes.
+    -- gomod/gowork omit snippets; lua inherits default providers and adds lazydev.
+    -- go and gotmpl naturally inherit default() with full treesitter comment gating.
     per_filetype = {
       lua = { inherit_defaults = true, "lazydev" },
-      go = { inherit_defaults = true, "lsp", "path", "snippets", "buffer" },
-      gomod = { inherit_defaults = true, "lsp", "path", "buffer" },
-      gowork = { inherit_defaults = true, "lsp", "path", "buffer" },
-      gotmpl = { inherit_defaults = true, "lsp", "path", "snippets", "buffer" },
+      gomod = { "lsp", "path", "buffer" },
+      gowork = { "lsp", "path", "buffer" },
     },
     providers = {
       buffer = { name = "buffer", max_items = 4, score_offset = -2 },
@@ -318,3 +316,61 @@ blink.setup({
     },
   },
 })
+
+-- ── Restart / Reconnect Helper ────────────────────────────────────────────────
+local function restart_blink()
+  local ok_b, b = pcall(require, "blink.cmp")
+  if not ok_b then
+    vim.notify("blink.cmp is not loaded yet", vim.log.levels.WARN, { title = "Blink.cmp" })
+    return
+  end
+
+  -- 1. Invalidate cached LSP completion responses
+  pcall(function()
+    local cache = require("blink.cmp.sources.lsp.cache")
+    cache.entries = {}
+  end)
+
+  -- 2. Force all source providers to reload
+  pcall(function()
+    b.reload()
+  end)
+
+  -- 3. Reset trigger state and hide any active menu
+  pcall(function()
+    local trigger = require("blink.cmp.completion.trigger")
+    trigger.context = nil
+    trigger.hide()
+  end)
+
+  -- 4. Re-subscribe TextChangedI autocmd so blink listener is guaranteed to run last
+  pcall(function()
+    b.resubscribe()
+  end)
+
+  -- 5. Re-check connected LSP clients
+  local clients = vim.lsp.get_clients({ bufnr = 0 })
+  local active_lsps = {}
+  for _, client in ipairs(clients) do
+    if client.server_capabilities and client.server_capabilities.completionProvider then
+      table.insert(active_lsps, client.name)
+    end
+  end
+
+  local msg = "Blink.cmp reconnected & restarted."
+  if #active_lsps > 0 then
+    msg = msg .. "\nActive LSP completions: " .. table.concat(active_lsps, ", ")
+  else
+    msg = msg .. "\nNote: No LSP completion providers currently attached to buffer " .. vim.api.nvim_get_current_buf()
+  end
+
+  vim.notify(msg, vim.log.levels.INFO, { title = "Blink.cmp" })
+end
+
+vim.api.nvim_create_user_command("BlinkRestart", restart_blink, { desc = "Restart Blink.cmp completion & reconnect LSPs" })
+vim.api.nvim_create_user_command("BlinkReload", restart_blink, { desc = "Reload Blink.cmp completion providers" })
+vim.keymap.set("n", "<leader>cb", restart_blink, { desc = "Restart Blink.cmp", silent = true })
+
+return {
+  restart = restart_blink,
+}

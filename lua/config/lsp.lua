@@ -219,11 +219,8 @@ M.servers = {
 }
 
 local function get_capabilities()
-  local caps = vim.lsp.protocol.make_client_capabilities()
   local ok, blink = pcall(require, "blink.cmp")
-  if ok then
-    caps = vim.tbl_deep_extend("force", caps, blink.get_lsp_capabilities(caps))
-  end
+  local caps = ok and blink.get_lsp_capabilities(nil, true) or vim.lsp.protocol.make_client_capabilities()
   -- Add universally useful extensions (Fix #14)
   caps.textDocument.foldingRange = { dynamicRegistration = false, lineFoldingOnly = true }
   caps.textDocument.colorProvider = { dynamicRegistration = false }
