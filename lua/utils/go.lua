@@ -105,7 +105,7 @@ local function highlight_format_verbs(bufnr, node)
       if format_end then
         local from_row, from_col = offset_to_position(text, start_row, start_col, i - 1)
         local to_row, to_col = offset_to_position(text, start_row, start_col, format_end)
-        vim.api.nvim_buf_set_extmark(bufnr, ns, from_row, from_col, {
+        pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, from_row, from_col, {
           end_row = to_row,
           end_col = to_col,
           hl_group = "Special",
@@ -121,19 +121,33 @@ end
 
 function M.highlight_go(bufnr)
   bufnr = bufnr or vim.api.nvim_get_current_buf()
+  if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) or not vim.api.nvim_buf_is_loaded(bufnr) then
+    return
+  end
+
   if vim.bo[bufnr].filetype ~= "go" then
     return
   end
 
-  vim.api.nvim_buf_clear_namespace(bufnr, ns, 0, -1)
+  pcall(vim.api.nvim_buf_clear_namespace, bufnr, ns, 0, -1)
 
   local ok, parser = pcall(vim.treesitter.get_parser, bufnr, "go")
   if not ok or not parser then
     return
   end
 
-  local tree = parser:parse()[1]
+  local parse_ok, tree = pcall(function()
+    local trees = parser:parse()
+    return trees and trees[1]
+  end)
+  if not parse_ok or not tree then
+    return
+  end
+
   local root = tree:root()
+  if not root then
+    return
+  end
 
   for id, node in query:iter_captures(root, bufnr, 0, -1) do
     local capture = query.captures[id]
@@ -146,13 +160,13 @@ function M.highlight_go(bufnr)
       local offset = last_slash or 0
 
       -- Highlight from the slash (or start) to the end of the string
-      vim.api.nvim_buf_set_extmark(bufnr, ns, start_row, start_col + offset, {
+      pcall(vim.api.nvim_buf_set_extmark, bufnr, ns, start_row, start_col + offset, {
         end_col = end_col,
         hl_group = "Type", -- You can change this to any group like @module or Keyword
         priority = 200, -- High priority to win over standard string colors
       })
     elseif capture == "format_string" then
-      highlight_format_verbs(bufnr, node)
+      pcall(highlight_format_verbs, bufnr, node)
     end
   end
 end
@@ -162,14 +176,17 @@ M.highlight_imports = M.highlight_go
 local function cleanup_timer(bufnr)
   local timer = timers[bufnr]
   if timer then
-    timer:stop()
-    timer:close()
+    if not timer:is_closing() then
+      timer:stop()
+      timer:close()
+    end
     timers[bufnr] = nil
   end
 end
 
 local function debounce_highlight(bufnr)
-  if not vim.api.nvim_buf_is_valid(bufnr) then
+  if not bufnr or not vim.api.nvim_buf_is_valid(bufnr) then
+    cleanup_timer(bufnr)
     return
   end
 
@@ -184,6 +201,10 @@ local function debounce_highlight(bufnr)
     120,
     0,
     vim.schedule_wrap(function()
+      if not vim.api.nvim_buf_is_valid(bufnr) or not vim.api.nvim_buf_is_loaded(bufnr) then
+        cleanup_timer(bufnr)
+        return
+      end
       M.highlight_go(bufnr)
     end)
   )
