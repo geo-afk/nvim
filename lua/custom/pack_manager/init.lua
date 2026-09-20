@@ -980,7 +980,8 @@ function M.open()
     border = "rounded",
     title = TITLE,
     title_pos = "center",
-    statusline = " %-12{v:lua.require('custom.pack_manager').get_statusline()} ",
+    footer = " 1 details  2 update  3 check  p toggle-close  u update  U all  O offline  L lockfile  e config  o repo  / filter  q close ",
+    footer_pos = "center",
   })
   local list_win = require("custom.ui.window").open_raw(list_buf, true, {
     relative = "win",
@@ -1014,6 +1015,9 @@ function M.open()
   vim.wo[detail_win].winhl = "Normal:PackManagerNormal"
 
   set_win_opt(frame_win, "winblend", 0)
+  set_win_opt(frame_win, "statusline", " %-12{v:lua.require('custom.pack_manager').get_statusline()} ")
+  set_win_opt(list_win, "statusline", " %-12{v:lua.require('custom.pack_manager').get_statusline()} ")
+  set_win_opt(detail_win, "statusline", " %-12{v:lua.require('custom.pack_manager').get_statusline()} ")
   set_win_opt(list_win, "cursorline", true)
   set_win_opt(list_win, "number", false)
   set_win_opt(list_win, "relativenumber", false)

@@ -32,9 +32,10 @@ local function open_info_float()
     border = "rounded",
     title = " Nvim 0.12 Status ",
     title_pos = "center",
-    statusline = " %-10{v:lua.vim.diagnostic.status()} %=%{strftime('%H:%M')} ",
     style = "minimal",
   })
+
+  vim.wo[win].statusline = " %-10{v:lua.vim.diagnostic.status()} %=%{strftime('%H:%M')} "
 
   vim.api.nvim_set_option_value("winhighlight", "Normal:CustomNotifyFloat,FloatBorder:CustomNotifyInfoBorder", { scope = "local", win = win })
   vim.api.nvim_set_option_value("winblend", 0, { scope = "local", win = win })
