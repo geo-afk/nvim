@@ -231,6 +231,9 @@ blink.setup({
   },
 
   completion = {
+    ghost_text = {
+      enabled = true,
+    },
     trigger = {
       show_on_backspace_after_accept = true,
       show_on_insert = true,
@@ -284,11 +287,27 @@ blink.setup({
       lua = { inherit_defaults = true, "lazydev" },
       gomod = { "lsp", "path", "buffer" },
       gowork = { "lsp", "path", "buffer" },
+      -- HTML template completions for JS/TS string-component files.
+      javascript = { inherit_defaults = true, "html_template" },
+      javascriptreact = { inherit_defaults = true, "html_template" },
+      typescript = { inherit_defaults = true, "html_template" },
+      typescriptreact = { inherit_defaults = true, "html_template" },
     },
     providers = {
       buffer = { name = "buffer", max_items = 4, score_offset = -2 },
       lazydev = { name = "LazyDev", module = "lazydev.integrations.blink", score_offset = 100 },
       snippets = { name = "snippets", score_offset = -5 },
+      -- Injected HTML template completions (populated by custom.template.completion).
+      html_template = {
+        name = "html_template",
+        module = "custom.template.completion",
+        score_offset = 10,
+        -- Only fires when cursor is inside an HTML template string.
+        enabled = function()
+          local ok, tmpl = pcall(require, "custom.template")
+          return ok and tmpl.get_html_buf() ~= nil
+        end,
+      },
     },
   },
 
@@ -367,7 +386,11 @@ local function restart_blink()
   vim.notify(msg, vim.log.levels.INFO, { title = "Blink.cmp" })
 end
 
-vim.api.nvim_create_user_command("BlinkRestart", restart_blink, { desc = "Restart Blink.cmp completion & reconnect LSPs" })
+vim.api.nvim_create_user_command(
+  "BlinkRestart",
+  restart_blink,
+  { desc = "Restart Blink.cmp completion & reconnect LSPs" }
+)
 vim.api.nvim_create_user_command("BlinkReload", restart_blink, { desc = "Reload Blink.cmp completion providers" })
 vim.keymap.set("n", "<leader>cb", restart_blink, { desc = "Restart Blink.cmp", silent = true })
 

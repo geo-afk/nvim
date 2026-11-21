@@ -19,6 +19,8 @@ function M.setup()
     ["pwa-chrome"] = { "html", "javascript", "javascriptreact", "typescript", "typescriptreact" },
     ["msedge"] = { "html", "javascript", "javascriptreact", "typescript", "typescriptreact" },
     ["pwa-msedge"] = { "html", "javascript", "javascriptreact", "typescript", "typescriptreact" },
+    ["cppdbg"] = { "c", "cpp" },
+    ["cppvsdbg"] = { "c", "cpp" },
   })
 end
 

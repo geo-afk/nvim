@@ -28,6 +28,8 @@ local lsp_to_mason = {
   jsonls = "json-lsp",
   just_lsp = "just-lsp",
   typos_lsp = "typos-lsp",
+  clangd = "clangd",
+  pyright = "pyright",
 }
 
 local mason_tools = {
@@ -40,6 +42,7 @@ local mason_tools = {
   "prettierd",
   "stylua",
   "ruff",
+  "cpptools",
 }
 
 local ensure_installed = {}

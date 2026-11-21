@@ -28,6 +28,7 @@ local parsers = {
   "bash",
   "dotenv",
   "angular",
+  "python",
 }
 
 local ft_to_lang = {
@@ -38,6 +39,7 @@ local ft_to_lang = {
 
 local handled_filetypes = {
   angular = true,
+  python = true,
   yaml = true,
   bash = true,
   css = true,
@@ -151,6 +153,7 @@ vim.api.nvim_create_autocmd("FileType", {
   group = group,
   pattern = {
     "angular",
+    "python",
     "bash",
     "css",
     "dotenv",

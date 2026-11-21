@@ -1,7 +1,7 @@
 -- =============================================================================
 -- lua/plugins/overseer.lua
 -- Production-grade overseer.nvim configuration using vim.pack (Neovim 0.12+)
--- Target stack: Go · JavaScript · TypeScript · Angular · Node.js · pnpm/npm
+-- Target stack: Python · Go · JavaScript · TypeScript · Angular · Node.js · C/C++
 -- OS: Windows
 -- =============================================================================
 
@@ -10,9 +10,6 @@
 -- ---------------------------------------------------------------------------
 vim.pack.add({
   { src = "https://github.com/stevearc/overseer.nvim" },
-  -- Optional but recommended integrations (comment out if not needed)
-  -- { src = "https://github.com/rcarriga/nvim-notify" }, -- rich notifications
-  -- { src = "https://github.com/mfussenegger/nvim-dap" },         -- DAP integration
 })
 
 -- ---------------------------------------------------------------------------
@@ -25,7 +22,7 @@ if not ok then
 end
 
 -- ---------------------------------------------------------------------------
--- 4. Core overseer.setup()
+-- 3. Core overseer.setup()
 -- ---------------------------------------------------------------------------
 overseer.setup({
   -- ── Strategy ─────────────────────────────────────────────────────────────
@@ -34,14 +31,6 @@ overseer.setup({
     direction = "float",
     auto_scroll = true,
     quit_on_exit = "never",
-  },
-
-  -- ── Templates ─────────────────────────────────────────────────────────────
-  templates = {
-    "builtin",
-    "user.go",
-    "user.node",
-    "user.angular",
   },
 
   auto_detect_success_color = true,
@@ -76,13 +65,12 @@ overseer.setup({
       ["}"] = "NextTask",
       ["<C-k>"] = "ScrollOutputUp",
       ["<C-j>"] = "ScrollOutputDown",
-      ["q"] = "Close", -- already present, unchanged
+      ["q"] = "Close",
     },
   },
 
   -- ── Floating task output window ───────────────────────────────────────────
   task_win = {
-    -- ~50% width, ~60% height (fractions clamp to screen %)
     max_width = 0.5,
     min_width = { 40, 0.3 },
     max_height = 0.6,
@@ -143,7 +131,7 @@ overseer.setup({
   },
 })
 
--- q or <Esc> to close the task_win float (task_win has no bindings config; do it via autocmd)
+-- q or <Esc> to close the task_win float
 vim.api.nvim_create_autocmd("FileType", {
   group = vim.api.nvim_create_augroup("OverseerFloatKeymaps", { clear = true }),
   pattern = "OverseerFloat",
@@ -152,33 +140,10 @@ vim.api.nvim_create_autocmd("FileType", {
     vim.keymap.set("n", "<Esc>", "<C-w>c", { buffer = ev.buf, silent = true })
   end,
 })
--- ---------------------------------------------------------------------------
--- 5. Telescope integration (graceful – works when telescope is absent)
--- ---------------------------------------------------------------------------
-local has_telescope, telescope = pcall(require, "telescope")
-if has_telescope then
-  telescope.load_extension("overseer")
-end
--- ---------------------------------------------------------------------------
--- 6. Persistent task list  (save/restore across sessions)
--- ---------------------------------------------------------------------------
-vim.api.nvim_create_autocmd("VimLeavePre", {
-  group = vim.api.nvim_create_augroup("OverseerSession", { clear = true }),
-  callback = function()
-    overseer.save_task_bundle("session", nil, { on_conflict = "replace" })
-  end,
-  desc = "Persist overseer task list on exit",
-})
-
--- ── Reload on startup (manual – call :OverseerLoadBundle session) ──────────
--- Auto-load is intentionally omitted to avoid stale tasks from previous dirs.
 
 -- ---------------------------------------------------------------------------
--- 7. Restart-on-save support
+-- 4. Restart-on-save support
 -- ---------------------------------------------------------------------------
--- Any template that sets  metadata.restart_on_save = true  will be restarted
--- when the relevant filetype is written.
-
 local restart_augroup = vim.api.nvim_create_augroup("OverseerRestartOnSave", { clear = true })
 
 vim.api.nvim_create_autocmd("BufWritePost", {
@@ -194,30 +159,48 @@ vim.api.nvim_create_autocmd("BufWritePost", {
 })
 
 -- ---------------------------------------------------------------------------
--- 8. Task notifications via vim.notify (works with nvim-notify if installed)
+-- 5. Task notifications via vim.notify
 -- ---------------------------------------------------------------------------
--- Already handled by the `on_complete_notify` component alias above.
--- Optionally upgrade all notifications to nvim-notify:
 local has_notify, nvim_notify = pcall(require, "notify")
 if has_notify then
   vim.notify = nvim_notify
 end
 
 -- ---------------------------------------------------------------------------
--- 9. Keymaps
+-- 6. Keymaps
 -- ---------------------------------------------------------------------------
 local map = function(lhs, rhs, desc)
   vim.keymap.set("n", lhs, rhs, { noremap = true, silent = true, desc = desc })
 end
 
+-- Helper to calculate project search parameters for Overseer template discovery
+local function get_current_search_params()
+  local dir = vim.fn.getcwd()
+  local filetype = vim.bo.filetype
+  local bufname = vim.api.nvim_buf_get_name(0)
+  if vim.bo.buftype == "" and bufname ~= "" then
+    dir = vim.fn.fnamemodify(bufname, ":p:h")
+  end
+  return {
+    dir = dir,
+    filetype = filetype,
+  }
+end
+
 -- ── Primary workflow ──────────────────────────────────────────────────────
 map("<leader>or", function()
-  if has_telescope then
-    vim.cmd("Telescope overseer")
-  else
-    overseer.run_task({})
-  end
-end, "Overseer: Run task")
+  local search_params = get_current_search_params()
+  require("overseer.template").list(search_params, function(templates)
+    templates = vim.tbl_filter(function(t)
+      return not t.hide
+    end, templates)
+    if #templates == 0 then
+      vim.notify("No runner options found for current project / filetype", vim.log.levels.INFO, { title = "Overseer" })
+      return
+    end
+    overseer.run_task({ search_params = search_params })
+  end)
+end, "Overseer: Run task (project-filtered)")
 
 map("<leader>ot", "<cmd>OverseerToggle<CR>", "Overseer: Toggle panel")
 map("<leader>oo", function()
@@ -242,9 +225,6 @@ map("<leader>ob", "<cmd>OverseerBuild<CR>", "Overseer: Task builder")
 
 -- ── Task management ───────────────────────────────────────────────────────
 map("<leader>oc", "<cmd>OverseerClose<CR>", "Overseer: Close panel")
-map("<leader>od", "<cmd>OverseerDeleteBundle<CR>", "Overseer: Delete bundle")
-map("<leader>os", "<cmd>OverseerSaveBundle<CR>", "Overseer: Save bundle")
-map("<leader>oL", "<cmd>OverseerLoadBundle<CR>", "Overseer: Load bundle")
 map("<leader>oq", "<cmd>OverseerTaskAction<CR>", "Overseer: Task action")
 map("<leader>oI", "<cmd>OverseerInfo<CR>", "Overseer: Info / debug")
 
@@ -257,11 +237,11 @@ map("<leader>oQ", function()
 end, "Overseer: Open quickfix for last task")
 
 -- ---------------------------------------------------------------------------
--- 10. User commands  (extend the built-in :Overseer* commands)
+-- 7. User commands (extend the built-in :Overseer* commands)
 -- ---------------------------------------------------------------------------
 local cmd = vim.api.nvim_create_user_command
 
---- :OverseerRerunLast  – restart the most-recent task without a picker
+--- :OverseerRerunLast – restart the most-recent task without a picker
 cmd("OverseerRerunLast", function()
   local tasks = overseer.list_tasks({ recent_first = true })
   if vim.tbl_isempty(tasks) then
@@ -271,7 +251,7 @@ cmd("OverseerRerunLast", function()
   overseer.run_action(tasks[1], "restart")
 end, { desc = "Restart the most recent overseer task" })
 
---- :OverseerKillAll  – stop every running task
+--- :OverseerKillAll – stop every running task
 cmd("OverseerKillAll", function()
   for _, task in ipairs(overseer.list_tasks()) do
     if task.status == "RUNNING" then
@@ -281,44 +261,39 @@ cmd("OverseerKillAll", function()
   vim.notify("All running tasks stopped.", vim.log.levels.INFO)
 end, { desc = "Stop all running overseer tasks" })
 
---- :OverseerRunGo  – quick shortcut for Go template picker
+--- Language-specific template runners
 cmd("OverseerRunGo", function()
   overseer.run_task({
     tags = { "go" },
   })
-end, {
-  desc = "Run an overseer Go task",
-})
+end, { desc = "Run an overseer Go task" })
+
+cmd("OverseerRunPython", function()
+  overseer.run_task({
+    tags = { "python" },
+  })
+end, { desc = "Run an overseer Python task" })
 
 cmd("OverseerRunNode", function()
   overseer.run_task({
     tags = { "node" },
   })
-end, {
-  desc = "Run an overseer Node/TS task",
-})
+end, { desc = "Run an overseer Node/TS task" })
 
 cmd("OverseerRunAngular", function()
   overseer.run_task({
     tags = { "angular" },
   })
-end, {
-  desc = "Run an overseer Angular task",
-})
+end, { desc = "Run an overseer Angular task" })
 
---- :OverseerSaveSession  – manually save bundle as "session"
-cmd("OverseerSaveSession", function()
-  overseer.save_task_bundle("session", nil, { on_conflict = "replace" })
-  vim.notify("Overseer session saved.", vim.log.levels.INFO)
-end, { desc = "Save all overseer tasks as 'session' bundle" })
-
---- :OverseerLoadSession  – manually restore "session" bundle
-cmd("OverseerLoadSession", function()
-  overseer.load_task_bundle("session")
-end, { desc = "Load the 'session' overseer bundle" })
+cmd("OverseerRunCpp", function()
+  overseer.run_task({
+    tags = { "cpp", "c", "mingw" },
+  })
+end, { desc = "Run an overseer C/C++ (MinGW) task" })
 
 -- ---------------------------------------------------------------------------
--- 11. Which-key documentation
+-- 8. Which-key documentation
 -- ---------------------------------------------------------------------------
 local wk_ok, wk = pcall(require, "which-key")
 if wk_ok then
@@ -326,5 +301,3 @@ if wk_ok then
     { "<leader>o", group = "Tasks (Overseer)" },
   })
 end
-
---   { require("overseer").task_list.status_str, ... }

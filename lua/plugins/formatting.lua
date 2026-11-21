@@ -36,10 +36,12 @@ conform.setup({
     jsonc = { "prettierd" },
     yaml = { "prettierd" },
     markdown = { "prettierd" },
-    python = { "ruff_format" },
+    python = { "ruff_organize_imports", "ruff_format" },
     sh = { "shfmt" },
     bash = { "shfmt" },
     just = { "just" },
+    c = { "clang-format" },
+    cpp = { "clang-format" },
   },
 
   formatters = {

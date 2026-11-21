@@ -202,6 +202,21 @@ loader.register({
     },
   },
 
+  -- HTML template literal LSP (JS/TS string-component projects).
+  {
+    mod = "custom.template",
+    ft = { "javascript", "javascriptreact", "typescript", "typescriptreact" },
+    deps = { "config.lsp", "plugins.completion" },
+    config = function(template)
+      template.setup()
+      -- Register the blink.cmp source for HTML completions inside templates.
+      local ok, compl = pcall(require, "custom.template.completion")
+      if ok then
+        compl.register()
+      end
+    end,
+  },
+
   -- Language-specific helpers.
   {
     mod = "utils.go",

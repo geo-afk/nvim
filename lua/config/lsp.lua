@@ -58,6 +58,7 @@ local function setup_attach()
       require("config.lsp.setup.go").goSemanticToken(client)
       require("config.lsp.setup.ts").ts_setup(client)
       require("config.lsp.setup.angular").setup(client)
+      require("config.lsp.setup.clangd").setup(buf, client)
 
       -- Navigation (grn/gra/grr/gri/K are Neovim defaults; extras below)
       if client:supports_method("textDocument/definition") then
@@ -216,6 +217,8 @@ M.servers = {
 
   -- Add these two:
   docker_language_server = "docker-language-server", -- Mason name
+  clangd = "clangd",
+  pyright = "pyright",
 }
 
 local function get_capabilities()

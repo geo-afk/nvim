@@ -68,6 +68,7 @@ loader.register({
       "jsonc",
       "lua",
       "markdown",
+      "python",
       "query",
       "regex",
       "scss",
@@ -161,16 +162,29 @@ loader.register({
     cond = function()
       return vim.fs.root(0, {
         "go.mod",
+        "go.work",
         "package.json",
         "angular.json",
+        "pyproject.toml",
+        "setup.py",
+        "setup.cfg",
+        "requirements.txt",
+        "Pipfile",
+        "poetry.lock",
+        "manage.py",
+        ".python-version",
         ".git",
         "Makefile",
+        "makefile",
+        "GNUmakefile",
+        "CMakeLists.txt",
+        "compile_commands.json",
         "justfile",
         "Justfile",
         ".justfile",
         "Taskfile.yml",
         "Taskfile.yaml",
-      }) ~= nil
+      }) ~= nil or vim.tbl_contains({ "go", "python", "javascript", "typescript", "c", "cpp" }, vim.bo.filetype)
     end,
     cmd = { "OverseerRun", "OverseerToggle", "OverseerBuild" },
     keys = {

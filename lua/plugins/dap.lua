@@ -31,6 +31,7 @@ require("dap.signs").setup()
 require("dap.go")
 require("dap.node")
 require("dap.angular")
+require("dap.cpp")
 
 -- ---------------------------------------------------------------------------
 -- 4. .vscode/launch.json auto-loader
