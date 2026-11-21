@@ -73,9 +73,11 @@ local function setup_attach()
       end
 
       if client:supports_method("textDocument/hover") then
-        vim.keymap.set("n", "<C-k>", function()
+        local function hover()
           vim.lsp.buf.hover({ border = "rounded", focusable = true })
-        end, opts("LSP: Hover documentation"))
+        end
+        vim.keymap.set("n", "<C-k>", hover, opts("LSP: Hover documentation"))
+        vim.keymap.set("n", "K", hover, opts("LSP: Hover documentation"))
       end
 
       if client:supports_method("textDocument/signatureHelp") then

@@ -171,14 +171,24 @@ vim.g.loaded_netrwPlugin = 1
 -- Default comment string (Lua style)
 vim.bo.commentstring = "-- %s"
 
--- ── Shell configuration (preserved from old config) ───────────────────────────
--- Uses NuShell if available, falls back to PowerShell 7+
+-- ── Shell configuration ───────────────────────────────────────────────────────
+-- Prefers PowerShell (pwsh / powershell) for Neovim's internal commands, external tools,
+-- and :terminal to ensure proper escaping and compatibility with Windows paths.
 opt.shelltemp = false
 opt.shellquote = ""
 opt.shellxquote = ""
 opt.shellxescape = ""
 
-if fn.executable("nu") == 1 then
+local powershell = fn.executable("pwsh") == 1 and "pwsh"
+  or (fn.executable("powershell") == 1 and "powershell" or nil)
+
+if powershell then
+  opt.shell = powershell
+  opt.shellcmdflag =
+    "-NoLogo -NoProfile -ExecutionPolicy RemoteSigned -Command [Console]::InputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new();$PSDefaultParameterValues['Out-File:Encoding']='utf8';$PSStyle.OutputRendering='plaintext';Remove-Alias -Force -ErrorAction SilentlyContinue tee;"
+  opt.shellredir = '2>&1 | %%{ "$_" } | Out-File %s; exit $LastExitCode'
+  opt.shellpipe = '2>&1 | %%{ "$_" } | tee %s; exit $LastExitCode'
+elseif fn.executable("nu") == 1 then
   opt.shell = "nu"
   opt.shellcmdflag = "--stdin --no-newline -c"
   opt.shellredir = "out+err> %s"
@@ -186,13 +196,6 @@ if fn.executable("nu") == 1 then
     .. " | update stderr { ansi strip }"
     .. " | tee { get stderr | save --force --raw %s }"
     .. " | into record"
-elseif fn.executable("pwsh") == 1 then
-  opt.shellcmdflag =
-    "-NoProfile -NoLogo -NonInteractive -ExecutionPolicy RemoteSigned -Command [Console]::InputEncoding=[Console]::OutputEncoding=[System.Text.UTF8Encoding]::new();$PSDefaultParameterValues['Out-File:Encoding']='utf8';$PSStyle.OutputRendering='plaintext';Remove-Alias -Force -ErrorAction SilentlyContinue tee;"
-  opt.shellredir = '2>&1 | %%{ "$_" } | Out-File %s; exit $LastExitCode'
-  opt.shellpipe = '2>&1 | %%{ "$_" } | tee %s; exit $LastExitCode'
-  opt.shellquote = ""
-  opt.shellxquote = ""
 end
 
 vim.filetype.add({
