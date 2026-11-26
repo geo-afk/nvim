@@ -89,9 +89,10 @@ loader.register({
   {
     mod = "plugins.gotools",
     ft = { "go", "gomod", "gowork", "gotmpl" },
-    keys = "<leader>i",
+    keys = { "<leader>i", desc = "" },
     deps = { "plugins.which-key" },
   },
+
   {
     mod = "plugins.markdown",
     ft = { "markdown", "html", "yaml", "latex", "typst" },

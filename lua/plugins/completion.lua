@@ -281,10 +281,16 @@ blink.setup({
       end
       return { "lsp", "path", "snippets", "buffer" }
     end,
-    -- gomod/gowork omit snippets; lua inherits default providers and adds lazydev.
+    -- gomod/gowork omit snippets; lua uses lazydev + lsp with full treesitter comment gating.
     -- go and gotmpl naturally inherit default() with full treesitter comment gating.
     per_filetype = {
-      lua = { inherit_defaults = true, "lazydev" },
+      lua = function()
+        local ok2, node = pcall(vim.treesitter.get_node)
+        if ok2 and node and vim.tbl_contains({ "comment", "line_comment", "block_comment" }, node:type()) then
+          return { "buffer" }
+        end
+        return { "lazydev", "lsp", "path", "snippets", "buffer" }
+      end,
       gomod = { "lsp", "path", "buffer" },
       gowork = { "lsp", "path", "buffer" },
       -- HTML template completions for JS/TS string-component files.

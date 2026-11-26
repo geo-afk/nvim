@@ -27,21 +27,7 @@ M.S = {
 -- ── Registration ──────────────────────────────────────────────────────────────
 
 --- Register a module spec.
----
---- Required fields:
----   mod (string)  fully-qualified Lua module name
----
---- Optional fields:
----   priority  "critical"|"high"|"normal"|"low"   default "normal"
----   defer     bool    load after VimEnter
----   idle      bool    load during CursorHold idle time
----   event     string|string[]  autocmd events
----   ft        string|string[]  filetypes
----   cmd       string|string[]  user-command stubs
----   keys      string|{string, rhs?, mode?, desc?, icon?}[]  keymap stubs
----   deps      string|string[]  module names that must load first
----   cond      bool|function    false → skip entirely
----   config    function(module) called after successful load
+---@param spec LoaderSpec
 function M.register(spec)
   assert(type(spec) == "table", "spec must be a table")
   assert(type(spec.mod) == "string", "spec.mod must be a string")
@@ -76,14 +62,20 @@ end
 
 -- ── State accessors ───────────────────────────────────────────────────────────
 
+---@param mod string
+---@return LoaderSpec|nil
 function M.get(mod)
   return state.registry[mod]
 end
 
+---@param mod string
+---@return string
 function M.get_state(mod)
   return state.load_state[mod] or "unregistered"
 end
 
+---@param mod string
+---@param s string
 function M.set_state(mod, s)
   state.load_state[mod] = s
   if s == M.S.LOADED then
@@ -93,18 +85,25 @@ function M.set_state(mod, s)
   end
 end
 
+---@param mod string
+---@return boolean
 function M.is_loaded(mod)
   return state.load_state[mod] == M.S.LOADED
 end
 
+---@param mod string
+---@return boolean
 function M.is_loading(mod)
   return state.load_state[mod] == M.S.LOADING
 end
 
+---@param mod string
+---@return boolean
 function M.is_failed(mod)
   return state.load_state[mod] == M.S.FAILED
 end
 
+---@return table<string, LoaderSpec>
 function M.get_all()
   return state.registry
 end

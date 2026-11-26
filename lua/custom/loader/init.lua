@@ -29,6 +29,41 @@
 --   loader.load("custom.lsp")             → bool (on-demand)
 --   loader.reload("custom.lsp")           → bool (force-reload)
 
+---@alias LoaderPriority "critical" | "high" | "normal" | "low"
+
+---@class LoaderKeySpecTable
+---@field [1] string Key sequence (lhs), e.g. "<leader>e"
+---@field [2]? string|fun() Command string or Lua callback (rhs)
+---@field desc? string Human-readable description for which-key / pickers
+---@field mode? string|string[] Vim mode(s), defaults to "n"
+---@field group? string Group name for which-key menu
+---@field icon? string|{ icon?: string, hl?: string } Icon for which-key
+---@field buffer? number|boolean Buffer-local keymap
+---@field nowait? boolean Override nowait (default true)
+---@field remap? boolean Allow remapping
+---@field silent? boolean Silent execution
+
+---@alias LoaderKeySpec string | LoaderKeySpecTable
+
+---@class LoaderSpec
+---@field mod string Fully-qualified Lua module name (e.g. "config.options", "plugins.telescope")
+---@field priority? LoaderPriority Load priority: "critical" loads synchronously during bootstrap, "high"|"normal"|"low" defer (default "normal")
+---@field defer? boolean Load asynchronously after VimEnter
+---@field idle? boolean Load during CursorHold idle time
+---@field event? string|string[] Autocmd event or list of events (e.g. "LspAttach", "BufReadPost", "InsertEnter")
+---@field ft? string|string[] Filetype or list of filetypes that trigger module load (e.g. "lua", "go")
+---@field cmd? string|string[] User command name(s) that stub and trigger module load
+---@field keys? LoaderKeySpec|LoaderKeySpec[] Keymap stub(s) that trigger module load
+---@field deps? string|string[] Module name(s) that must be loaded prior to this module
+---@field cond? boolean|(fun(): boolean) Condition gate; module is skipped if false
+---@field config? fun(module: any) Callback executed with the required module upon successful load
+
+---@class LoaderSetupOpts
+---@field debug? boolean Enable verbose debug logging
+---@field profile? boolean Record module load durations for inspection via :LoaderProfile
+---@field defer_timeout? number Defer throttle timeout in milliseconds (default 100)
+---@field idle_batch? number Number of idle modules loaded per idle tick (default 3)
+
 local M = {}
 
 -- Opts applied to the loader's own STUB keymap. Deliberately excludes
@@ -51,7 +86,8 @@ local KEYMAP_SPEC_KEYS = {
 
 -- ── setup ─────────────────────────────────────────────────────────────────────
 
----@param opts? { debug?: boolean, profile?: boolean, defer_timeout?: number, idle_batch?: number }
+--- Configure the custom module loader.
+---@param opts? LoaderSetupOpts
 function M.setup(opts)
   local state = require("custom.loader.state")
   if state.initialized then
@@ -87,6 +123,7 @@ end
 
 --- Register one or a list of module specs.
 --- Accepts: a single spec table  OR  a list of spec tables.
+---@param specs LoaderSpec | LoaderSpec[]
 function M.register(specs)
   if not require("custom.loader.state").initialized then
     M.setup()
@@ -397,33 +434,36 @@ end
 -- ── Public helpers ────────────────────────────────────────────────────────────
 
 --- Directly load a module on demand (bypass triggers).
----@param mod   string
----@param opts? { force?: boolean }
----@return boolean ok
+---@param mod   string Fully-qualified Lua module name
+---@param opts? { force?: boolean, trigger?: string }
+---@return boolean ok True if module loaded successfully
 function M.load(mod, opts)
   return require("custom.loader.core").load(mod, opts)
 end
 
 --- Force-reload a module (invalidates Lua cache, re-requires).
----@param mod string
----@return boolean ok
+---@param mod string Fully-qualified Lua module name
+---@return boolean ok True if module reloaded successfully
 function M.reload(mod)
   return require("custom.loader.core").reload(mod)
 end
 
 --- Current state of a module.
----@param mod string
----@return string  "loaded"|"registered"|"failed"|"skipped"|"unregistered"|…
+---@param mod string Fully-qualified Lua module name
+---@return "registered"|"pending"|"loading"|"loaded"|"failed"|"skipped"|"unregistered"
 function M.state(mod)
   return require("custom.loader.modules").get_state(mod)
 end
 
----@param mod string
+--- Check if a module is currently loaded.
+---@param mod string Fully-qualified Lua module name
 ---@return boolean
 function M.is_loaded(mod)
   return require("custom.loader.modules").is_loaded(mod)
 end
 
+--- Retrieve registered which-key keymap specs.
+---@return table[]
 function M.which_key_specs()
   return require("custom.loader.modules").get_which_key_specs()
 end

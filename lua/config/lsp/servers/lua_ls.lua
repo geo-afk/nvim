@@ -20,7 +20,7 @@ return {
         showWord = "Enable",
       },
       workspace = {
-
+        checkThirdParty = false,
         library = {
           vim.fn.expand("$VIMRUNTIME/lua"),
           vim.fn.stdpath("config") .. "/lua",
@@ -37,11 +37,15 @@ return {
       },
       type = {
         weakNilCheck = true,
+        castArgs = true,
       },
       telemetry = {
         enable = false,
       },
-      diagnostics = { disable = { "missing-fields" }, globals = { "vim", "scroll" } },
+      diagnostics = {
+        globals = { "vim", "scroll" },
+        unusedLocalExclude = { "_*" },
+      },
       doc = {
         privateName = { "^_" },
       },

@@ -348,20 +348,29 @@ local function mouse_lens_line(bufnr, pos)
   if not pos or pos.winid == 0 or not state.cache[bufnr] then
     return nil
   end
+  if not vim.api.nvim_win_is_valid(pos.winid) then
+    return nil
+  end
+  if vim.api.nvim_win_get_buf(pos.winid) ~= bufnr then
+    return nil
+  end
+  local line_count = vim.api.nvim_buf_line_count(bufnr)
 
   for _, item in ipairs(state.cache[bufnr].lenses or {}) do
     local line = item.lens.range.start.line
-    local screen = vim.fn.screenpos(pos.winid, line + 1, 1)
-    if screen and screen.row and screen.row > 0 then
-      if state.config.mode == "virt_lines" then
-        local lens_row = screen.row + (state.config.virt_lines_above and -1 or 1)
-        if pos.screenrow == lens_row then
-          return line
-        end
-      elseif pos.line == line + 1 then
-        local text = vim.api.nvim_buf_get_lines(bufnr, line, line + 1, false)[1] or ""
-        if pos.screencol > screen.col + vim.fn.strdisplaywidth(text) then
-          return line
+    if line >= 0 and line < line_count then
+      local ok, screen = pcall(vim.fn.screenpos, pos.winid, line + 1, 1)
+      if ok and screen and screen.row and screen.row > 0 then
+        if state.config.mode == "virt_lines" then
+          local lens_row = screen.row + (state.config.virt_lines_above and -1 or 1)
+          if pos.screenrow == lens_row then
+            return line
+          end
+        elseif pos.line == line + 1 then
+          local text = vim.api.nvim_buf_get_lines(bufnr, line, line + 1, false)[1] or ""
+          if pos.screencol > screen.col + vim.fn.strdisplaywidth(text) then
+            return line
+          end
         end
       end
     end

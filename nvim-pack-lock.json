@@ -5,7 +5,7 @@
       "src": "https://github.com/L3MON4D3/LuaSnip"
     },
     "astrotheme": {
-      "rev": "83c077c29195882f9583b45ea41154b2fb8935fb",
+      "rev": "f57fdd3eaeaac5572e60325f2b78ee75676a11fd",
       "src": "https://github.com/AstroNvim/astrotheme"
     },
     "auto-session": {
@@ -34,11 +34,11 @@
       "src": "https://github.com/rafamadriz/friendly-snippets"
     },
     "gitsigns.nvim": {
-      "rev": "c0862d382a35b7b45757d8d151a6a634c09bf3ce",
+      "rev": "166c03131e6a3528f692dd89f37668d991f17baa",
       "src": "https://github.com/lewis6991/gitsigns.nvim"
     },
     "gotools": {
-      "rev": "1958e823308a01abdc11163b57b8ec987e4695eb",
+      "rev": "194d91d912b0dba1d16634be337195d5a22ba406",
       "src": "https://github.com/geo-afk/gotools"
     },
     "lazydev.nvim": {
@@ -98,7 +98,7 @@
       "src": "https://github.com/nvim-neotest/nvim-nio"
     },
     "nvim-treesitter": {
-      "rev": "37e52c733ada9d8d544d53a763140ef1ba404353",
+      "rev": "52773f0d13a0c11d0c3ef33c14ab6ecc1c17148b",
       "src": "https://github.com/nvim-treesitter/nvim-treesitter",
       "version": "'main'"
     },
@@ -143,7 +143,7 @@
       "src": "https://github.com/geo-afk/theme.nvim"
     },
     "tiny-inline-diagnostic.nvim": {
-      "rev": "46ae9b3c8f3039e96ff4497d190ad0aee091f30d",
+      "rev": "43ff39303869f3aa0fcdeb625872ba89eab68e69",
       "src": "https://github.com/rachartier/tiny-inline-diagnostic.nvim"
     },
     "tokyonight.nvim": {
